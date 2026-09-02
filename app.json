@@ -6,9 +6,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "splash": {
-      "backgroundColor": "#0f1024"
+      "backgroundColor": "#0f1024",
+      "image": "./assets/icon.png"
     },
     "ios": {
       "supportsTablet": true,
@@ -16,18 +21,21 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Timeline uses the camera so you can take photos for your profile and events.",
         "NSPhotoLibraryUsageDescription": "Timeline uses your photos for your profile picture and pictures on events."
-      }
+      },
+      "icon": "./assets/icon.png"
     },
     "android": {
       "package": "com.sarahphillips.timelineapp",
       "adaptiveIcon": {
-        "backgroundColor": "#0f1024"
+        "backgroundColor": "#0f1024",
+        "foregroundImage": "./assets/icon.png"
       },
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
+      "versionCode": 1
     },
     "plugins": [
       [
@@ -59,6 +67,13 @@
           "microphonePermission": false
         }
       ]
-    ]
+    ],
+    "icon": "./assets/icon.png",
+    "owner": "sarahpoet6014",
+    "extra": {
+      "eas": {
+        "projectId": "0f4f935b-9897-4ac5-b760-39d00794adfc"
+      }
+    }
   }
 }
