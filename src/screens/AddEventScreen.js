@@ -17,6 +17,7 @@ import {
   HOBBY_TYPES,
   buildGrokReplyPrompt,
 } from '../services/eventService';
+import ImageAttachField from '../components/ImageAttachField';
 
 export default function AddEventScreen({ navigation, route }) {
   const existing = route.params?.event || null;
@@ -50,19 +51,23 @@ export default function AddEventScreen({ navigation, route }) {
   const [readingProgress, setReadingProgress] = useState(existing?.readingProgress || '');
   const [collectionName, setCollectionName] = useState(existing?.collectionName || '');
   const [coverPhotoNote, setCoverPhotoNote] = useState(existing?.coverPhotoNote || '');
-  const [photoNote, setPhotoNote] = useState(existing?.photoNote || '');
+  const [photoNote, setPhotoNote] = useState(existing?.photoNote || route.params?.photoNote || '');
+  const [imageUri, setImageUri] = useState(existing?.imageUri || route.params?.imageUri || '');
+  const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (route.params?.event) return;
     const p = route.params || {};
-    if (!p.fromEmail && p.source !== 'email' && !p.shareKey) return;
+    if (!p.fromEmail && p.source !== 'email' && p.source !== 'share' && p.source !== 'image' && !p.shareKey) return;
     if (typeof p.title === 'string') setTitle(p.title);
     if (typeof p.description === 'string') setDescription(p.description);
     if (typeof p.emailFrom === 'string') setEmailFrom(p.emailFrom);
     if (p.date) setDate(String(p.date).slice(0, 10));
     if (p.source) setSource(p.source);
-  }, [route.params?.shareKey, route.params?.title, route.params?.description, route.params?.emailFrom, route.params?.date]);
+    if (typeof p.imageUri === 'string' && p.imageUri) setImageUri(p.imageUri);
+    if (typeof p.photoNote === 'string') setPhotoNote(p.photoNote);
+  }, [route.params?.shareKey, route.params?.title, route.params?.description, route.params?.emailFrom, route.params?.date, route.params?.imageUri]);
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -105,14 +110,16 @@ export default function AddEventScreen({ navigation, route }) {
           source === 'hobby' && hobbyType === 'poetry'
             ? collectionName.trim() || undefined
             : undefined,
+        coverImageUri:
+          source === 'hobby' && hobbyType === 'poetry'
+            ? coverImageUri || undefined
+            : undefined,
         coverPhotoNote:
           source === 'hobby' && hobbyType === 'poetry'
             ? coverPhotoNote.trim() || undefined
             : undefined,
-        photoNote:
-          source === 'hobby'
-            ? photoNote.trim() || undefined
-            : undefined,
+        imageUri: imageUri || undefined,
+        photoNote: photoNote.trim() || undefined,
       };
       await saveEvent(saved);
 
@@ -140,16 +147,27 @@ export default function AddEventScreen({ navigation, route }) {
   };
 
   const descriptionPlaceholder = () => {
-    if (source === 'email') return 'Paste a short part of the email or your notes…';
+    if (source === 'email') return 'Paste a short part of the email or your notes?';
     if (source === 'hobby') {
-      if (hobbyType === 'poetry') return 'Write or paste your poem here…';
-      if (hobbyType === 'singing') return 'Description of the recording, lyrics notes, mood…';
-      if (hobbyType === 'music') return 'Piece name, instrument notes, practice notes…';
-      if (hobbyType === 'reading') return 'Thoughts on the book, favourite lines…';
-      return 'Notes about this hobby…';
+      if (hobbyType === 'poetry') return 'Write or paste your poem here?';
+      if (hobbyType === 'singing') return 'Description of the recording, lyrics notes, mood?';
+      if (hobbyType === 'music') return 'Piece name, instrument notes, practice notes?';
+      if (hobbyType === 'reading') return 'Thoughts on the book, favourite lines?';
+      return 'Notes about this hobby?';
     }
-    return 'Optional details…';
+    return 'Optional details?';
   };
+
+  const sourceChips = [
+    { id: 'manual', label: 'Manual' },
+    { id: 'email', label: 'From email' },
+    { id: 'hobby', label: 'Hobby' },
+  ];
+  if (source === 'share' || source === 'image') {
+    sourceChips.push({ id: source, label: 'Shared photo' });
+  }
+
+  const isPoetry = source === 'hobby' && hobbyType === 'poetry';
 
   return (
     <KeyboardAvoidingView
@@ -174,11 +192,7 @@ export default function AddEventScreen({ navigation, route }) {
 
         <Text style={styles.label}>Source</Text>
         <View style={styles.row}>
-          {[
-            { id: 'manual', label: 'Manual' },
-            { id: 'email', label: 'From email' },
-            { id: 'hobby', label: 'Hobby' },
-          ].map((s) => (
+          {sourceChips.map((s) => (
             <TouchableOpacity
               key={s.id}
               style={[styles.sourceChip, source === s.id && styles.sourceSelected]}
@@ -235,7 +249,7 @@ export default function AddEventScreen({ navigation, route }) {
             source === 'hobby' && hobbyType === 'poetry'
               ? 'e.g. Rain over Rainham'
               : source === 'hobby' && hobbyType === 'singing'
-                ? 'e.g. Practice – soft ballad'
+                ? 'e.g. Practice ? soft ballad'
                 : 'What happened?'
           }
           placeholderTextColor="#64748b"
@@ -295,7 +309,7 @@ export default function AddEventScreen({ navigation, route }) {
           })}
         </View>
 
-        {source === 'hobby' && hobbyType === 'poetry' && (
+        {isPoetry && (
           <>
             <Text style={styles.label}>Album / book name</Text>
             <TextInput
@@ -306,43 +320,37 @@ export default function AddEventScreen({ navigation, route }) {
               onChangeText={setCollectionName}
             />
 
-            <Text style={styles.label}>Cover photo</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. cover_rainham_nights.jpg  or  path to cover image"
-              placeholderTextColor="#64748b"
-              value={coverPhotoNote}
-              onChangeText={setCoverPhotoNote}
+            <ImageAttachField
+              label="Cover photo"
+              uri={coverImageUri}
+              onChange={(picked) => setCoverImageUri(picked && picked.uri ? picked.uri : '')}
+              caption={coverPhotoNote}
+              onCaptionChange={setCoverPhotoNote}
+              captionPlaceholder="Optional cover caption"
+              hint="Camera, gallery (Google Photos on Android), or a file."
             />
-            <Text style={styles.fieldHint}>
-              Filename or path for the book/album cover. Image picker can be added next.
-            </Text>
 
-            <Text style={styles.label}>Photo for this poem</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. poem_photo_01.jpg  or  gallery path"
-              placeholderTextColor="#64748b"
-              value={photoNote}
-              onChangeText={setPhotoNote}
+            <ImageAttachField
+              label="Photo for this poem"
+              uri={imageUri}
+              onChange={(picked) => setImageUri(picked && picked.uri ? picked.uri : '')}
+              caption={photoNote}
+              onCaptionChange={setPhotoNote}
+              captionPlaceholder="Optional caption"
             />
-            <Text style={styles.fieldHint}>
-              Optional photo linked to this poem (illustration, moment, etc.).
-            </Text>
           </>
         )}
 
-        {source === 'hobby' && hobbyType !== 'poetry' && (
-          <>
-            <Text style={styles.label}>Photo (optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. practice_photo.jpg  or  path to image"
-              placeholderTextColor="#64748b"
-              value={photoNote}
-              onChangeText={setPhotoNote}
-            />
-          </>
+        {!isPoetry && (
+          <ImageAttachField
+            label="Photo"
+            uri={imageUri}
+            onChange={(picked) => setImageUri(picked && picked.uri ? picked.uri : '')}
+            caption={photoNote}
+            onCaptionChange={setPhotoNote}
+            captionPlaceholder="Optional caption"
+            hint="Camera, gallery (Google Photos on Android), or a file."
+          />
         )}
 
         {source === 'hobby' && (hobbyType === 'singing' || hobbyType === 'music') && (
@@ -423,7 +431,7 @@ export default function AddEventScreen({ navigation, route }) {
         >
           <Text style={styles.saveText}>
             {saving
-              ? 'Saving…'
+              ? 'Saving?'
               : isEditing
                 ? 'Update'
                 : source === 'hobby'

@@ -1,13 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { parseSharedEmail, isShareIntentAvailable } from '../services/shareIntent';
+import { parseSharedContent, isShareIntentAvailable } from '../services/shareIntent';
 
 function navigateToAddEvent(navigationRef, parsed) {
   const params = {
     ...parsed,
-    fromEmail: true,
-    source: 'email',
     shareKey: Date.now(),
   };
+  if (params.fromEmail == null && params.source === 'email') {
+    params.fromEmail = true;
+  }
   const go = () => {
     try {
       if (navigationRef?.isReady?.()) {
@@ -32,15 +33,29 @@ function ShareIntentListener({ navigationRef, user }) {
 
   useEffect(() => {
     if (!hasShareIntent) return;
-    const parsed = parseSharedEmail(shareIntent);
-    try {
-      resetShareIntent();
-    } catch (_) {}
-    if (!user) {
-      pendingRef.current = parsed;
-      return;
-    }
-    navigateToAddEvent(navigationRef, parsed);
+    let cancelled = false;
+    (async () => {
+      let parsed;
+      try {
+        parsed = await parseSharedContent(shareIntent);
+      } catch (e) {
+        console.warn('Share parse failed', e);
+        parsed = null;
+      }
+      if (cancelled) return;
+      try {
+        resetShareIntent();
+      } catch (_) {}
+      if (!parsed) return;
+      if (!user) {
+        pendingRef.current = parsed;
+        return;
+      }
+      navigateToAddEvent(navigationRef, parsed);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [hasShareIntent, shareIntent, user, navigationRef, resetShareIntent]);
 
   useEffect(() => {

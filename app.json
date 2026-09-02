@@ -12,24 +12,51 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sarahphillips.timelineapp"
+      "bundleIdentifier": "com.sarahphillips.timelineapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Timeline uses the camera so you can take photos for your profile and events.",
+        "NSPhotoLibraryUsageDescription": "Timeline uses your photos for your profile picture and pictures on events."
+      }
     },
     "android": {
       "package": "com.sarahphillips.timelineapp",
       "adaptiveIcon": {
         "backgroundColor": "#0f1024"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "plugins": [
       [
         "expo-share-intent",
         {
-          "androidIntentFilters": ["text/*", "text/plain", "message/rfc822"],
+          "androidIntentFilters": [
+            "text/*",
+            "text/plain",
+            "message/rfc822",
+            "image/*",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif"
+          ],
           "iosActivationRules": {
             "NSExtensionActivationSupportsText": true,
             "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
-            "NSExtensionActivationSupportsWebPageWithMaxCount": 1
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsImageWithMaxCount": 1
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Timeline uses your photos for your profile picture and pictures on events.",
+          "cameraPermission": "Timeline uses the camera so you can take photos for your profile and events.",
+          "microphonePermission": false
         }
       ]
     ]

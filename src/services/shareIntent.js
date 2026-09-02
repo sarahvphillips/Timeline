@@ -208,3 +208,52 @@ export function buildShareLinking() {
     return undefined;
   }
 }
+
+function isImageShareFile(file) {
+  if (!file) return false;
+  const mime = String(file.mimeType || '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  const name = String(file.fileName || file.path || '');
+  return /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(name);
+}
+
+function stripExtension(name) {
+  return String(name || '').replace(/\.[a-zA-Z0-9]+$/, '').trim();
+}
+
+/**
+ * Parse a share-sheet payload: images (Camera / Gallery / Google Photos / Files)
+ * become an Add Event with imageUri; text/email stays on the existing path.
+ */
+export async function parseSharedContent(shareIntent) {
+  const files = Array.isArray(shareIntent && shareIntent.files) ? shareIntent.files : [];
+  const imageFile =
+    files.find(isImageShareFile) ||
+    ((shareIntent && shareIntent.type === 'media') ? files[0] : null) ||
+    null;
+
+  if (imageFile && imageFile.path) {
+    const { persistPickedImage } = require('./imagePicker');
+    let persisted = null;
+    try {
+      persisted = await persistPickedImage(imageFile.path, imageFile.fileName);
+    } catch (e) {
+      console.warn('Could not persist shared image', e);
+    }
+    const filename = (persisted && persisted.filename) || imageFile.fileName || 'photo';
+    const titleFromMeta = shareIntent && shareIntent.meta && shareIntent.meta.title;
+    const title = String(titleFromMeta || stripExtension(filename) || 'Shared photo').slice(0, 200);
+    const extraText = String((shareIntent && (shareIntent.text || shareIntent.webUrl)) || '').trim();
+    return {
+      title,
+      description: extraText,
+      date: todayISO(),
+      source: 'share',
+      fromEmail: false,
+      imageUri: (persisted && persisted.uri) || imageFile.path,
+      photoNote: extraText ? undefined : filename,
+    };
+  }
+
+  return parseSharedEmail(shareIntent);
+}

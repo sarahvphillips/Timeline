@@ -17,8 +17,10 @@ const STORAGE_KEY = '@timeline_events';
  *   audioNote?: string,   // filename or note for singing/music files
  *   readingProgress?: string, // e.g. "Chapter 3, page 42"
  *   collectionName?: string,  // album or poetry book name
- *   coverPhotoNote?: string,  // cover image filename/path
- *   photoNote?: string,       // photo for this item (poem, etc.)
+ *   coverPhotoNote?: string,  // optional caption for cover image
+ *   photoNote?: string,       // optional caption for the event/poem photo
+ *   imageUri?: string,        // persisted local file URI for the event photo
+ *   coverImageUri?: string,   // persisted local file URI for a poem/album cover
  *   createdAt: string (ISO),
  *   updatedAt: string (ISO)
  * }

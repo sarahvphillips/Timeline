@@ -184,11 +184,17 @@ export default function TimelineScreen({ navigation, route }) {
             {item.emailFrom ? (
               <Text style={styles.meta}>From: {item.emailFrom}</Text>
             ) : null}
-            {item.photoNote ? (
-              <Text style={styles.meta}>Photo: {item.photoNote}</Text>
+            {item.coverImageUri ? (
+              <Image source={{ uri: item.coverImageUri }} style={styles.eventImage} resizeMode="cover" />
             ) : null}
             {item.coverPhotoNote ? (
               <Text style={styles.meta}>Cover: {item.coverPhotoNote}</Text>
+            ) : null}
+            {item.imageUri ? (
+              <Image source={{ uri: item.imageUri }} style={styles.eventImage} resizeMode="cover" />
+            ) : null}
+            {item.photoNote ? (
+              <Text style={styles.meta}>{item.imageUri ? item.photoNote : 'Photo: ' + item.photoNote}</Text>
             ) : null}
             {item.qrLink ? (
               <View style={styles.qrBlock}>
@@ -404,6 +410,7 @@ const styles = StyleSheet.create({
   grokButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
   qrBlock: { alignItems: 'flex-start', marginBottom: 8 },
   qrImage: { width: 140, height: 140, maxWidth: '100%', backgroundColor: '#fff', borderRadius: 8, marginBottom: 6 },
+  eventImage: { width: '100%', height: 180, maxWidth: '100%', backgroundColor: '#0f1024', borderRadius: 10, marginBottom: 8 },
   editLink: { color: '#60a5fa', marginTop: 8, fontSize: 13 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyTitle: { color: '#f8fafc', fontSize: 20, fontWeight: '600', marginBottom: 8 },

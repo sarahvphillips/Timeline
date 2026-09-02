@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { saveEvent, CATEGORIES } from '../services/eventService';
+import ImageAttachField from '../components/ImageAttachField';
 
 const DEFAULT_LABELS = [
   'Nature', 'Love', 'Family', 'Work', 'Norse', 'Greek',
@@ -28,6 +29,8 @@ export default function AddPoemScreen({ navigation, route }) {
   const [collectionName, setCollectionName] = useState(existing?.collectionName || '');
   const [coverPhotoNote, setCoverPhotoNote] = useState(existing?.coverPhotoNote || '');
   const [photoNote, setPhotoNote] = useState(existing?.photoNote || '');
+  const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
+  const [imageUri, setImageUri] = useState(existing?.imageUri || '');
   const [labels, setLabels] = useState(existing?.labels || []);
   const [saving, setSaving] = useState(false);
 
@@ -58,7 +61,9 @@ export default function AddPoemScreen({ navigation, route }) {
         source: 'hobby',
         hobbyType: 'poetry',
         collectionName: collectionName.trim() || undefined,
+        coverImageUri: coverImageUri || undefined,
         coverPhotoNote: coverPhotoNote.trim() || undefined,
+        imageUri: imageUri || undefined,
         photoNote: photoNote.trim() || undefined,
         labels,
         nextAction: 'none',
@@ -121,22 +126,23 @@ export default function AddPoemScreen({ navigation, route }) {
           onChangeText={setCollectionName}
         />
 
-        <Text style={styles.label}>Cover photo</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="filename or path"
-          placeholderTextColor="#64748b"
-          value={coverPhotoNote}
-          onChangeText={setCoverPhotoNote}
+        <ImageAttachField
+          label="Cover photo"
+          uri={coverImageUri}
+          onChange={(picked) => setCoverImageUri(picked && picked.uri ? picked.uri : '')}
+          caption={coverPhotoNote}
+          onCaptionChange={setCoverPhotoNote}
+          captionPlaceholder="Optional cover caption"
+          hint="Camera, gallery (Google Photos on Android), or a file."
         />
 
-        <Text style={styles.label}>Photo for this poem</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="filename or path"
-          placeholderTextColor="#64748b"
-          value={photoNote}
-          onChangeText={setPhotoNote}
+        <ImageAttachField
+          label="Photo for this poem"
+          uri={imageUri}
+          onChange={(picked) => setImageUri(picked && picked.uri ? picked.uri : '')}
+          caption={photoNote}
+          onCaptionChange={setPhotoNote}
+          captionPlaceholder="Optional caption"
         />
 
         <Text style={styles.label}>Labels</Text>
@@ -158,7 +164,7 @@ export default function AddPoemScreen({ navigation, route }) {
         <Text style={styles.label}>Poem text</Text>
         <TextInput
           style={[styles.input, styles.poem]}
-          placeholder="Write or paste your poem here…"
+          placeholder="Write or paste your poem here?"
           placeholderTextColor="#64748b"
           value={description}
           onChangeText={setDescription}
@@ -167,7 +173,7 @@ export default function AddPoemScreen({ navigation, route }) {
         />
 
         <TouchableOpacity style={styles.save} onPress={handleSave} disabled={saving}>
-          <Text style={styles.saveText}>{saving ? 'Saving…' : existing ? 'Update poem' : 'Add poem'}</Text>
+          <Text style={styles.saveText}>{saving ? 'Saving?' : existing ? 'Update poem' : 'Add poem'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

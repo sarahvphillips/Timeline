@@ -1,7 +1,7 @@
 # Timeline App – Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 2 Sep 2026 (Word-to-Int hashCode + Days-between saved spans / cross-links)
+**Last updated:** 2 Sep 2026 (in-app image picker + share-sheet images)
 
 ---
 
@@ -36,17 +36,18 @@
 - [x] Days between: saved span list (AsyncStorage)
 - [x] Days between: Add N days (sets To); matching Word-to-Int phrases
 - [x] Add QR link screen
+- [x] Profile photo - tap avatar to pick (camera / gallery / file); stored in AsyncStorage (`@profile_photo`); initials remain the fallback
 - [x] Share to Timeline (code)  
-  Android: `expo-share-intent` + intent filters (`text/*`, `text/plain`, `message/rfc822`), package `com.sarahphillips.timelineapp`.  
+  Android: `expo-share-intent` + intent filters (`text/*`, `text/plain`, `message/rfc822`, `image/*`, jpeg/png/webp/gif), package `com.sarahphillips.timelineapp`.  
+  iOS: text, URL, and image activation rules. Shared images are copied into the app documents folder, then Add Event opens with `imageUri` (held until login if needed).  
   Home: **Add from email** pre-fills Add Event (`fromEmail`).  
-  *Gmail → Share → Timeline only works in a real Android / EAS development build, not Expo Go.*
+  *Gmail / Camera / Gallery / Google Photos / Files -> Share -> Timeline only works in a real Android or iOS development build, not Expo Go. Web cannot receive share-sheet images; in-app picker still works.*
 
 ---
 
 ## Built as placeholders (rows exist, not connected yet)
 
 - [ ] Settings screen (Home row shows an alert only)
-- [ ] Profile photo – pick from gallery / Drive / files (avatar is initials only)
 - [ ] Share timeline with another Timeline user (alert only)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
@@ -54,7 +55,7 @@
 
 ## Priority – Email integration
 
-- [x] Share to Timeline (wired; needs Android dev build to test from Gmail)
+- [x] Share to Timeline (wired; needs Android/iOS dev build to test from Gmail or photo apps)
 - [x] Add from email in-app (Home → Add Event with From + body)
 - [ ] **In-app Pick from Gmail**  
   List recent emails via Gmail API; tap → Add Event pre-filled
@@ -75,7 +76,7 @@
 
 ### Media & content
 
-- [ ] User add image (pre-selected by type, or user photo)
+- [x] User add image (camera, gallery, or files; Google Photos appears via the Android system gallery - no separate OAuth)
 - [ ] Full audio file attach for singing/music
 - [ ] Labels shown on expanded timeline card
 - [ ] Customisable poem categories
@@ -125,9 +126,9 @@
 - [ ] Better date picker (calendar UI)
 - [ ] Filter timeline by category
 - [ ] Mark next-action as done from the list
-- [ ] Photos / attachments on events
+- [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
 - [ ] Custom Firebase password-reset email template (needs Blaze plan)
-- [ ] Android development / Play Store build (share sheet and widgets need this)
+- [ ] Android development / Play Store build (share sheet for text and images, and widgets, need this)
 
 ---
 
