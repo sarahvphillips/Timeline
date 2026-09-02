@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
 } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -25,6 +26,7 @@ const firebaseConfig = {
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app);
 
 let auth;
 if (globalThis._timelineAuth) {
@@ -45,6 +47,7 @@ if (globalThis._timelineAuth) {
 
 export {
   auth,
+  db,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithCredential,

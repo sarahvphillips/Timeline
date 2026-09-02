@@ -1,7 +1,7 @@
 # Timeline App – Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 2 Sep 2026 (in-app image picker + share-sheet images)
+**Last updated:** 2 Sep 2026 (Firestore event sync)
 
 ---
 
@@ -42,6 +42,7 @@
   iOS: text, URL, and image activation rules. Shared images are copied into the app documents folder, then Add Event opens with `imageUri` (held until login if needed).  
   Home: **Add from email** pre-fills Add Event (`fromEmail`).  
   *Gmail / Camera / Gallery / Google Photos / Files -> Share -> Timeline only works in a real Android or iOS development build, not Expo Go. Web cannot receive share-sheet images; in-app picker still works.*
+- [x] Persist events to Firestore for the signed-in user (`users/{uid}/events/{eventId}`). AsyncStorage `@timeline_events` remains the offline cache. Poems stored as hobby events (hobbyType poetry) sync with the rest. Local image URIs still sync as fields; Firebase Storage is not in this pass. Word-to-Int and date spans stay local.
 
 ---
 
@@ -122,13 +123,13 @@
 ## Next / Nice to have
 
 - [ ] Google Sign-In (re-enable fully if needed)
-- [ ] Persist events to Firebase (optional cloud sync)
 - [ ] Better date picker (calendar UI)
 - [ ] Filter timeline by category
 - [ ] Mark next-action as done from the list
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
 - [ ] Custom Firebase password-reset email template (needs Blaze plan)
 - [ ] Android development / Play Store build (share sheet for text and images, and widgets, need this)
+- [ ] Firebase Storage for event photos (imageUri/coverImageUri currently local-only paths)
 
 ---
 
@@ -141,8 +142,8 @@
 
 ## Notes
 
-- Current storage: local AsyncStorage only
-- Firebase project: `timelineapp-3bc05`
+- Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events` is the offline cache (and the only store when logged out)
+- Firebase project: `timelineapp-3bc05` — Firestore database and rules still need enabling in the console if not already on
 - Admin email: `sarah.v.phillips@googlemail.com`
 - Running via Expo in browser (`localhost:8081`) and Expo Go on phone
 - Android package / iOS bundle: `com.sarahphillips.timelineapp`

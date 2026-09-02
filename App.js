@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
+import { syncEventsFromCloud } from './src/services/eventService';
 import { buildShareLinking } from './src/services/shareIntent';
 import ShareToTimeline from './src/share/ShareToTimeline';
 import LoginScreen from './src/screens/LoginScreen';
@@ -34,6 +35,11 @@ export default function App() {
       unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
         setUser(firebaseUser);
         setInitializing(false);
+        if (firebaseUser) {
+          syncEventsFromCloud(firebaseUser.uid).catch((err) => {
+            console.warn('Event cloud sync failed', err);
+          });
+        }
       });
     } catch (e) {
       setError(e?.message || 'Auth failed to start');

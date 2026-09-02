@@ -1,4 +1,7 @@
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
+import { auth, db } from './firebase';
 
 const STORAGE_KEY = '@timeline_events';
 
@@ -26,29 +29,184 @@ const STORAGE_KEY = '@timeline_events';
  * }
  */
 
+let cloudWarningShown = false;
+
+function warnCloud(message, error) {
+  if (error !== undefined) {
+    console.warn(message, error);
+  } else {
+    console.warn(message);
+  }
+  if (cloudWarningShown) return;
+  cloudWarningShown = true;
+  try {
+    Alert.alert('Cloud sync', message);
+  } catch (_) {}
+}
+
+function getUid() {
+  return auth.currentUser?.uid || null;
+}
+
+function eventsCollection(uid) {
+  return collection(db, 'users', uid, 'events');
+}
+
+function eventDoc(uid, eventId) {
+  return doc(db, 'users', uid, 'events', eventId);
+}
+
+/** Strip undefined (Firestore rejects it) and convert Date to ISO strings. */
+function stripUndefined(value) {
+  if (value === undefined) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    return value
+      .map(stripUndefined)
+      .filter((item) => item !== undefined);
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    Object.keys(value).forEach((key) => {
+      const next = stripUndefined(value[key]);
+      if (next !== undefined) out[key] = next;
+    });
+    return out;
+  }
+  return value;
+}
+
+function toIso(value) {
+  if (!value) return value;
+  if (typeof value.toDate === 'function') {
+    try {
+      return value.toDate().toISOString();
+    } catch (_) {
+      return value;
+    }
+  }
+  if (value instanceof Date) return value.toISOString();
+  return value;
+}
+
+function normalizeEvent(data, fallbackId) {
+  const event = { ...data, id: data.id || fallbackId };
+  if (event.date) event.date = toIso(event.date);
+  if (event.createdAt) event.createdAt = toIso(event.createdAt);
+  if (event.updatedAt) event.updatedAt = toIso(event.updatedAt);
+  return event;
+}
+
+function sortEvents(events) {
+  return events.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+async function writeCache(events) {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+}
+
+async function pushEventToCloud(event) {
+  const uid = getUid();
+  if (!uid || !event?.id) return;
+  await setDoc(eventDoc(uid, event.id), stripUndefined(event));
+}
+
 export async function getEvents() {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const events = JSON.parse(raw);
-    return events.sort((a, b) => new Date(b.date) - new Date(a.date));
+    return sortEvents(events);
   } catch (e) {
     console.warn('Failed to load events', e);
     return [];
   }
 }
 
+/**
+ * Pull cloud events for the signed-in user into the local cache.
+ * Cloud wins on id conflict. If cloud is empty and local has events,
+ * upload local so existing laptop test events appear on other devices.
+ */
+export async function syncEventsFromCloud(uid) {
+  if (!uid) return getEvents();
+
+  const local = await getEvents();
+
+  try {
+    const snap = await getDocs(eventsCollection(uid));
+    const cloudEvents = [];
+    snap.forEach((d) => {
+      const data = d.data() || {};
+      cloudEvents.push(normalizeEvent(data, d.id));
+    });
+
+    if (cloudEvents.length === 0) {
+      if (local.length > 0) {
+        await Promise.all(
+          local.map(async (ev) => {
+            try {
+              await setDoc(eventDoc(uid, ev.id), stripUndefined(ev));
+            } catch (e) {
+              console.warn('Failed to upload local event to Firestore', e);
+            }
+          }),
+        );
+      }
+      return local;
+    }
+
+    const byId = {};
+    local.forEach((ev) => {
+      if (ev?.id) byId[ev.id] = ev;
+    });
+    const localOnly = [];
+    local.forEach((ev) => {
+      if (ev?.id && !cloudEvents.some((c) => c.id === ev.id)) {
+        localOnly.push(ev);
+      }
+    });
+    cloudEvents.forEach((ev) => {
+      if (ev?.id) byId[ev.id] = ev;
+    });
+
+    if (localOnly.length > 0) {
+      await Promise.all(
+        localOnly.map(async (ev) => {
+          try {
+            await setDoc(eventDoc(uid, ev.id), stripUndefined(ev));
+          } catch (e) {
+            console.warn('Failed to upload local-only event to Firestore', e);
+          }
+        }),
+      );
+    }
+
+    const merged = sortEvents(Object.values(byId));
+    await writeCache(merged);
+    return merged;
+  } catch (e) {
+    warnCloud(
+      'Could not load events from the cloud. Showing events saved on this device.',
+      e,
+    );
+    return local;
+  }
+}
+
 export async function saveEvent(event) {
   const events = await getEvents();
   const now = new Date().toISOString();
+  let saved = null;
 
   if (event.id) {
     const index = events.findIndex((e) => e.id === event.id);
     if (index !== -1) {
-      events[index] = { ...events[index], ...event, updatedAt: now };
+      saved = { ...events[index], ...event, updatedAt: now };
+      events[index] = saved;
     }
   } else {
-    const newEvent = {
+    saved = {
       ...event,
       id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
       source: event.source || 'manual',
@@ -56,17 +214,42 @@ export async function saveEvent(event) {
       createdAt: now,
       updatedAt: now,
     };
-    events.push(newEvent);
+    events.push(saved);
   }
 
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+  await writeCache(events);
+
+  if (saved && getUid()) {
+    try {
+      await pushEventToCloud(saved);
+    } catch (e) {
+      warnCloud(
+        'Could not sync this event to the cloud. It is saved on this device.',
+        e,
+      );
+    }
+  }
+
   return events;
 }
 
 export async function deleteEvent(id) {
   const events = await getEvents();
   const filtered = events.filter((e) => e.id !== id);
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  await writeCache(filtered);
+
+  const uid = getUid();
+  if (uid) {
+    try {
+      await deleteDoc(eventDoc(uid, id));
+    } catch (e) {
+      warnCloud(
+        'Could not delete this event from the cloud. It is removed on this device.',
+        e,
+      );
+    }
+  }
+
   return filtered;
 }
 
