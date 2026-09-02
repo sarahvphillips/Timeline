@@ -1,6 +1,84 @@
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
+import { auth, db } from './firebase';
 
 const STORAGE_KEY = '@word_to_int_list';
+
+let cloudWarningShown = false;
+
+function warnCloud(message, error) {
+  if (error !== undefined) {
+    console.warn(message, error);
+  } else {
+    console.warn(message);
+  }
+  if (cloudWarningShown) return;
+  cloudWarningShown = true;
+  try {
+    Alert.alert('Cloud sync', message);
+  } catch (_) {}
+}
+
+function getUid() {
+  return auth.currentUser?.uid || null;
+}
+
+function wordNumbersCollection(uid) {
+  return collection(db, 'users', uid, 'wordNumbers');
+}
+
+function wordNumberDoc(uid, entryId) {
+  return doc(db, 'users', uid, 'wordNumbers', entryId);
+}
+
+/** Strip undefined (Firestore rejects it) and convert Date to ISO strings. */
+function stripUndefined(value) {
+  if (value === undefined) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    return value
+      .map(stripUndefined)
+      .filter((item) => item !== undefined);
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    Object.keys(value).forEach((key) => {
+      const next = stripUndefined(value[key]);
+      if (next !== undefined) out[key] = next;
+    });
+    return out;
+  }
+  return value;
+}
+
+function toIso(value) {
+  if (!value) return value;
+  if (typeof value.toDate === 'function') {
+    try {
+      return value.toDate().toISOString();
+    } catch (_) {
+      return value;
+    }
+  }
+  if (value instanceof Date) return value.toISOString();
+  return value;
+}
+
+function normalizeWordNumber(data, fallbackId) {
+  const entry = { ...data, id: data.id || fallbackId };
+  if (entry.createdAt) entry.createdAt = toIso(entry.createdAt);
+  if (entry.updatedAt) entry.updatedAt = toIso(entry.updatedAt);
+  return entry;
+}
+
+function sortWordNumbers(list) {
+  return list.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+}
+
+async function writeCache(list) {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
 
 function lettersOnly(text) {
   return (text || '')
@@ -95,10 +173,81 @@ export async function getWordNumbers() {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const list = JSON.parse(raw);
-    return list.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+    return sortWordNumbers(list);
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
     return [];
+  }
+}
+
+/**
+ * Pull cloud word numbers for the signed-in user into the local cache.
+ * Cloud wins on id conflict. If cloud is empty and local has entries,
+ * upload local so existing numbers appear on other devices.
+ */
+export async function syncWordNumbersFromCloud(uid) {
+  if (!uid) return getWordNumbers();
+
+  const local = await getWordNumbers();
+
+  try {
+    const snap = await getDocs(wordNumbersCollection(uid));
+    const cloudEntries = [];
+    snap.forEach((d) => {
+      const data = d.data() || {};
+      cloudEntries.push(normalizeWordNumber(data, d.id));
+    });
+
+    if (cloudEntries.length === 0) {
+      if (local.length > 0) {
+        await Promise.all(
+          local.map(async (entry) => {
+            try {
+              await setDoc(wordNumberDoc(uid, entry.id), stripUndefined(entry));
+            } catch (e) {
+              console.warn('Failed to upload local word number to Firestore', e);
+            }
+          }),
+        );
+      }
+      return local;
+    }
+
+    const byId = {};
+    local.forEach((entry) => {
+      if (entry?.id) byId[entry.id] = entry;
+    });
+    const localOnly = [];
+    local.forEach((entry) => {
+      if (entry?.id && !cloudEntries.some((c) => c.id === entry.id)) {
+        localOnly.push(entry);
+      }
+    });
+    cloudEntries.forEach((entry) => {
+      if (entry?.id) byId[entry.id] = entry;
+    });
+
+    if (localOnly.length > 0) {
+      await Promise.all(
+        localOnly.map(async (entry) => {
+          try {
+            await setDoc(wordNumberDoc(uid, entry.id), stripUndefined(entry));
+          } catch (e) {
+            console.warn('Failed to upload local-only word number to Firestore', e);
+          }
+        }),
+      );
+    }
+
+    const merged = sortWordNumbers(Object.values(byId));
+    await writeCache(merged);
+    return merged;
+  } catch (e) {
+    warnCloud(
+      'Could not load numbers from the cloud. Showing numbers saved on this device.',
+      e,
+    );
+    return local;
   }
 }
 
@@ -126,18 +275,33 @@ export async function saveWordNumber(entry) {
       item.id === payload.id ||
       String(item.phrase || '').toLowerCase() === payload.phrase.toLowerCase()
   );
+  let saved;
   if (index !== -1) {
-    list[index] = {
+    saved = {
       ...list[index],
       ...payload,
       id: list[index].id,
       createdAt: list[index].createdAt || payload.createdAt,
     };
+    list[index] = saved;
   } else {
+    saved = payload;
     list.unshift(payload);
   }
 
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  await writeCache(list);
+
+  if (saved?.id && getUid()) {
+    try {
+      await setDoc(wordNumberDoc(getUid(), saved.id), stripUndefined(saved));
+    } catch (e) {
+      warnCloud(
+        'Could not sync this number to the cloud. It is saved on this device.',
+        e,
+      );
+    }
+  }
+
   return payload;
 }
 
@@ -154,7 +318,26 @@ export async function deleteWordNumber(id) {
     }
     return true;
   });
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const removed = list.filter((item) => !next.some((n) => String(n.id) === String(item.id)));
+  await writeCache(next);
+
+  const uid = getUid();
+  if (uid) {
+    await Promise.all(
+      removed.map(async (item) => {
+        if (!item?.id) return;
+        try {
+          await deleteDoc(wordNumberDoc(uid, item.id));
+        } catch (e) {
+          warnCloud(
+            'Could not delete this number from the cloud. It is removed on this device.',
+            e,
+          );
+        }
+      }),
+    );
+  }
+
   return next;
 }
 
