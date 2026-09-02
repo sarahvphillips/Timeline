@@ -7,6 +7,7 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
 import { syncEventsFromCloud } from './src/services/eventService';
 import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
+import { registerThisDevice } from './src/services/deviceSession';
 import { buildShareLinking } from './src/services/shareIntent';
 import ShareToTimeline from './src/share/ShareToTimeline';
 import LoginScreen from './src/screens/LoginScreen';
@@ -42,6 +43,9 @@ export default function App() {
           });
           syncWordNumbersFromCloud(firebaseUser.uid).catch((err) => {
             console.warn('Word-to-Int cloud sync failed', err);
+          });
+          registerThisDevice(firebaseUser.uid).catch((err) => {
+            console.warn('Device session register failed', err);
           });
         }
       });

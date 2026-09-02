@@ -1,7 +1,7 @@
 # Timeline App – Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 2 Sep 2026 (Firestore Word-to-Int sync)
+**Last updated:** 2 Sep 2026 (device/install sessions)
 
 ---
 
@@ -44,6 +44,7 @@
   *Gmail / Camera / Gallery / Google Photos / Files -> Share -> Timeline only works in a real Android or iOS development build, not Expo Go. Web cannot receive share-sheet images; in-app picker still works.*
 - [x] Persist events to Firestore for the signed-in user (`users/{uid}/events/{eventId}`). AsyncStorage `@timeline_events` remains the offline cache. Poems stored as hobby events (hobbyType poetry) sync with the rest. Local image URIs still sync as fields; Firebase Storage is not in this pass. Date spans stay local.
 - [x] Persist Word-to-Int numbers list to Firestore (`users/{uid}/wordNumbers/{entryId}`). AsyncStorage `@word_to_int_list` remains the offline cache. Logged-out use stays device-only.
+- [x] Record this install as a Firestore session (`users/{uid}/sessions/{deviceId}`). Home lists signed-in devices and notes other laptop/phone sessions; no single-device lockout.
 
 ---
 
@@ -144,6 +145,7 @@
 ## Notes
 
 - Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events` is the offline cache (and the only store when logged out)
+- Device sessions: Firestore `users/{uid}/sessions/{sessionId}` (install UUID in AsyncStorage `@timeline_device_id`). Rules need `match /users/{userId}/sessions/{sessionId} { allow read, write: if isOwner(userId) || isAdmin(); }`
 - Firebase project: `timelineapp-3bc05` — Firestore database and rules still need enabling in the console if not already on
 - Admin email: `sarah.v.phillips@googlemail.com`
 - Running via Expo in browser (`localhost:8081`) and Expo Go on phone
