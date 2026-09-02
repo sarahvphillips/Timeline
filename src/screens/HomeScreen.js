@@ -7,6 +7,7 @@ import {
   listSessions,
   otherRecentSessions,
 } from '../services/deviceSession';
+import { useTheme } from '../themeContext';
 
 const PROFILE_PHOTO_KEY = '@profile_photo';
 
@@ -27,6 +28,7 @@ function formatLastSeen(iso) {
 }
 
 export default function HomeScreen({ navigation, user, onLogout }) {
+  const { colors } = useTheme();
   const initial = (user?.email || 'S').charAt(0).toUpperCase();
   const [photoUri, setPhotoUri] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -105,10 +107,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   };
 
   const handleSettings = () => {
-    Alert.alert(
-      'Settings',
-      'Settings (theme, poem categories, labels) will live here. Not built in this test build yet.'
-    );
+    navigation.navigate('Settings');
   };
 
   const handleShare = () => {
@@ -131,39 +130,39 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     });
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={styles.profile}>
-        <TouchableOpacity style={styles.avatar} onPress={handlePhoto} activeOpacity={0.8}>
+        <TouchableOpacity style={[styles.avatar, { backgroundColor: colors.card, borderColor: colors.blue }]} onPress={handlePhoto} activeOpacity={0.8}>
           {photoUri ? (
             <Image source={{ uri: photoUri }} style={styles.avatarImage} />
           ) : (
-            <Text style={styles.avatarText}>{initial}</Text>
+            <Text style={[styles.avatarText, { color: colors.blueSoft }]}>{initial}</Text>
           )}
         </TouchableOpacity>
-        <Text style={styles.photoHint}>{photoUri ? 'Tap to change photo' : 'Tap to add a profile photo'}</Text>
-        <Text style={styles.title}>Timeline</Text>
-        <Text style={styles.email}>{user?.email || 'Signed in'}</Text>
+        <Text style={[styles.photoHint, { color: colors.muted }]}>{photoUri ? 'Tap to change photo' : 'Tap to add a profile photo'}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Timeline</Text>
+        <Text style={[styles.email, { color: colors.faint }]}>{user?.email || 'Signed in'}</Text>
       </View>
 
-      <View style={styles.devicesSection}>
-        <Text style={styles.devicesTitle}>Signed-in devices</Text>
+      <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+        <Text style={[styles.devicesTitle, { color: colors.muted }]}>Signed-in devices</Text>
         <View style={styles.deviceRow}>
-          <Text style={styles.deviceName}>
+          <Text style={[styles.deviceName, { color: colors.text }]}>
             {platformLabel(thisSession?.platform || Platform.OS)}
-            <Text style={styles.thisDevice}>  This device</Text>
+            <Text style={[styles.thisDevice, { color: colors.blueSoft }]}>  This device</Text>
           </Text>
-          <Text style={styles.deviceMeta}>
+          <Text style={[styles.deviceMeta, { color: colors.faint }]}>
             Last seen {formatLastSeen(thisSession?.lastSeen || new Date().toISOString())}
           </Text>
         </View>
         {otherSessions.map((s) => (
           <View key={s.id} style={styles.deviceRow}>
-            <Text style={styles.deviceName}>{platformLabel(s.platform)}</Text>
-            <Text style={styles.deviceMeta}>Last seen {formatLastSeen(s.lastSeen)}</Text>
+            <Text style={[styles.deviceName, { color: colors.text }]}>{platformLabel(s.platform)}</Text>
+            <Text style={[styles.deviceMeta, { color: colors.faint }]}>Last seen {formatLastSeen(s.lastSeen)}</Text>
           </View>
         ))}
         {otherCount > 0 ? (
-          <Text style={styles.devicesNote}>
+          <Text style={[styles.devicesNote, { color: colors.muted }]}>
             This account is also signed in on {otherCount} other device{otherCount === 1 ? '' : 's'}. Laptop and phone both count.
           </Text>
         ) : null}
@@ -172,43 +171,43 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         ) : null}
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('YearOverview')}>
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('YearOverview')}>
         <Text style={styles.buttonText}>Timeline</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, { backgroundColor: colors.blue }]}
         onPress={() => navigation.navigate('AddEvent', { fromEmail: true, source: 'email' })}
       >
         <Text style={styles.buttonText}>Add from email</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('StarlinkCheck')}>
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('StarlinkCheck')}>
         <Text style={styles.buttonText}>Starlink check</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('WordToInt')}>
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('WordToInt')}>
         <Text style={styles.buttonText}>Word to Int</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('DateSpan')}>
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('DateSpan')}>
         <Text style={styles.buttonText}>Days between dates</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, styles.ghost]} onPress={handleShare}>
-        <Text style={styles.ghostText}>Share with another user</Text>
+      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleShare}>
+        <Text style={[styles.ghostText, { color: colors.faint }]}>Share with another user</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, styles.ghost]} onPress={handleSettings}>
-        <Text style={styles.ghostText}>Settings</Text>
+      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
+        <Text style={[styles.ghostText, { color: colors.faint }]}>Settings</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, styles.ghost]} onPress={handleAddAccount}>
-        <Text style={styles.ghostText}>Add another account</Text>
+      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleAddAccount}>
+        <Text style={[styles.ghostText, { color: colors.faint }]}>Add another account</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, styles.ghost]} onPress={onLogout}>
-        <Text style={styles.ghostText}>Log out</Text>
+      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={onLogout}>
+        <Text style={[styles.ghostText, { color: colors.faint }]}>Log out</Text>
       </TouchableOpacity>
 
       {Platform.OS === 'web' ? (

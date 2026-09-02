@@ -1,7 +1,7 @@
 # Timeline App – Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 2 Sep 2026 (device/install sessions)
+**Last updated:** 2 Sep 2026 (Settings appearance)
 
 ---
 
@@ -50,7 +50,7 @@
 
 ## Built as placeholders (rows exist, not connected yet)
 
-- [ ] Settings screen (Home row shows an alert only)
+- [x] Settings screen (light/dark + colour palettes; Home navigates here)
 - [ ] Share timeline with another Timeline user (alert only)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
@@ -110,8 +110,8 @@
 ### Account & setup
 
 - [ ] User add their own categories
-- [ ] Light mode and dark mode (dark slate is current; light TBD)
-- [ ] User-chosen colour scheme (Slate/cyan, Teal, Purple, Rose, Amber, High-contrast)
+- [x] Light mode and dark mode (Settings: match device / light / dark). Home and headers follow the theme; other screens still have mixed hardcoded colours.
+- [x] User-chosen colour scheme in Settings (Slate/cyan, Teal, Purple, Rose, Amber, High-contrast)
 
 ---
 

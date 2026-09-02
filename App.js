@@ -23,12 +23,14 @@ import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
 import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import { ThemeProvider, useTheme } from './src/themeContext';
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
 const shareLinking = buildShareLinking() || undefined;
 
-export default function App() {
+function AppShell() {
   const [user, setUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState(null);
@@ -89,8 +91,8 @@ export default function App() {
   return (
     <ShareToTimeline navigationRef={navigationRef} user={user}>
       <NavigationContainer ref={navigationRef} linking={shareLinking}>
-        <StatusBar style="light" />
-        <Stack.Navigator screenOptions={{ headerShown: true }}>
+        <ThemedStatusBar />
+        <ThemedNavigator>
           {!user ? (
             <Stack.Screen
               name="Login"
@@ -180,9 +182,15 @@ export default function App() {
                 component={DateSpanScreen}
                 options={{ title: 'Days between dates' }}
               />
+
+              <Stack.Screen
+                name="Settings"
+                component={SettingsScreen}
+                options={{ title: 'Settings' }}
+              />
             </>
           )}
-        </Stack.Navigator>
+        </ThemedNavigator>
       </NavigationContainer>
     </ShareToTimeline>
   );
@@ -201,3 +209,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+function ThemedStatusBar() {
+  const { scheme } = useTheme();
+  return <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />;
+}
+
+function ThemedNavigator({ children }) {
+  const { colors, scheme } = useTheme();
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: true,
+        headerStyle: { backgroundColor: colors.headerBg },
+        headerTintColor: colors.headerText,
+        headerTitleStyle: { color: colors.headerText },
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    >
+      {children}
+    </Stack.Navigator>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
+  );
+}
