@@ -53,7 +53,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
                         <TouchableOpacity
                           style={[styles.bubble, styles.bubbleLeft]}
                           onPress={() =>
-                            navigation.navigate('Timeline', { year, month: m.month })
+                            navigation.navigate('WeekOverview', { year, month: m.month })
                           }
                         >
                           <Text style={styles.count}>{m.count}</Text>
@@ -68,7 +68,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
                     <TouchableOpacity
                       style={styles.monthCol}
                       onPress={() =>
-                        navigation.navigate('Timeline', { year, month: m.month })
+                        navigation.navigate('WeekOverview', { year, month: m.month })
                       }
                       accessibilityLabel={`Open ${m.name} ${year}`}
                     >
@@ -92,7 +92,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
                         <TouchableOpacity
                           style={[styles.bubble, styles.bubbleRight]}
                           onPress={() =>
-                            navigation.navigate('Timeline', { year, month: m.month })
+                            navigation.navigate('WeekOverview', { year, month: m.month })
                           }
                         >
                           <Text style={styles.count}>{m.count}</Text>

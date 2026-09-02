@@ -364,6 +364,99 @@ export function filterEventsByYearMonth(events, year, month) {
   });
 }
 
+
+const WEEKDAY_NAMES = [
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+];
+const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+export function getWeekdayName(indexFromMonday) {
+  return WEEKDAY_NAMES[indexFromMonday] || '';
+}
+
+export function getWeekdayShort(indexFromMonday) {
+  return WEEKDAY_SHORT[indexFromMonday] || '';
+}
+
+/** Monday 00:00 in local time for the week containing `date`. */
+export function getWeekStart(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const daysFromMonday = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - daysFromMonday);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function toLocalIsoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function startOfLocalDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Full Mon–Sun weeks that cover every day of `month` (0–11).
+ * Days outside the month are included and marked isInMonth: false.
+ */
+export function getWeeksInMonth(year, month) {
+  const firstOfMonth = new Date(year, month, 1);
+  const lastOfMonth = new Date(year, month + 1, 0);
+  const rangeStart = getWeekStart(firstOfMonth);
+  const lastWeekStart = getWeekStart(lastOfMonth);
+  const today = startOfLocalDay(new Date());
+
+  const weeks = [];
+  const cursor = new Date(rangeStart);
+  while (cursor.getTime() <= lastWeekStart.getTime()) {
+    const weekStart = startOfLocalDay(cursor);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const days = [];
+    for (let i = 0; i < 7; i += 1) {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + i);
+      date.setHours(0, 0, 0, 0);
+      const y = date.getFullYear();
+      const m = date.getMonth();
+      days.push({
+        date: new Date(date),
+        weekdayName: WEEKDAY_NAMES[i],
+        weekdayShort: WEEKDAY_SHORT[i],
+        dayOfMonth: date.getDate(),
+        monthName: MONTH_NAMES[m],
+        year: y,
+        isoDate: toLocalIsoDate(date),
+        isInMonth: y === year && m === month,
+        isToday: date.getTime() === today.getTime(),
+      });
+    }
+
+    weeks.push({ weekStart, weekEnd, days });
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return weeks;
+}
+
+export function filterEventsByDay(events, date) {
+  const target = startOfLocalDay(date);
+  const y = target.getFullYear();
+  const m = target.getMonth();
+  const day = target.getDate();
+  return events.filter((e) => {
+    const d = new Date(e.date);
+    return d.getFullYear() === y && d.getMonth() === m && d.getDate() === day;
+  });
+}
+
 /** Builds a prompt the user can copy/paste into Grok */
 export function buildGrokReplyPrompt(event) {
   const parts = [

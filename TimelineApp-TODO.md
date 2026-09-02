@@ -155,3 +155,5 @@
 - Trello user stories imported 23 Aug 2026
 - Code on laptop: `C:\Users\sarah\Desktop\TimelineApp`
 - Grok project: Timeline app for Sarah Victoria Pauline Phillips
+
+- [x] Week-by-week view with named dated days (Mon–Sun).

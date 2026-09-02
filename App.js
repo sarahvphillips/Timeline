@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
+import { getMonthName } from './src/services/eventService';
 import { syncEventsFromCloud } from './src/services/eventService';
 import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
 import { registerThisDevice } from './src/services/deviceSession';
@@ -18,6 +19,7 @@ import AddPoemScreen from './src/screens/AddPoemScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
 import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
+import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
 import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
@@ -114,6 +116,19 @@ export default function App() {
                 component={MonthOverviewScreen}
                 options={({ route }) => ({
                   title: String(route.params?.year || 'Months'),
+                  headerBackTitle: 'Back',
+                })}
+              />
+
+
+              <Stack.Screen
+                name="WeekOverview"
+                component={WeekOverviewScreen}
+                options={({ route }) => ({
+                  title:
+                    route.params?.month != null
+                      ? `${getMonthName(route.params.month)} ${route.params?.year || ''}`.trim()
+                      : 'Weeks',
                   headerBackTitle: 'Back',
                 })}
               />
