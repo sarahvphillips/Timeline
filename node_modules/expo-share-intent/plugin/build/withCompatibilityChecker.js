@@ -1,0 +1,41 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.withCompatibilityChecker = void 0;
+const config_plugins_1 = require("@expo/config-plugins");
+const constants_1 = require("./ios/constants");
+const package_json_1 = __importDefault(require("../../package.json"));
+let alreayCheck = false;
+const withCompatibilityChecker = (config, params) => {
+    if (alreayCheck)
+        return config;
+    alreayCheck = true;
+    // CROSS PLATFORM
+    if (!config.sdkVersion?.includes(package_json_1.default.peerDependencies.expo.replace("^", ""))) {
+        config_plugins_1.WarningAggregator.addWarningAndroid(package_json_1.default.name, `your Expo SDK version does not match requirements! v${package_json_1.default.version} needs ${package_json_1.default.peerDependencies.expo}, found ${config.sdkVersion}. Please refer to the compatibility table.`, `${package_json_1.default.homepage}#versioning`);
+    }
+    if (!params.disableIOS) {
+        // IOS
+        if (!config.scheme) {
+            throw new Error(`[${package_json_1.default.name}] Incompatibility found, you must configure a scheme into you app.json file ! (see https://docs.expo.dev/guides/linking/#linking-to-your-app)`);
+        }
+        const CFBundleURLSchemes = config.ios?.infoPlist?.CFBundleURLTypes?.find((type) => type.CFBundleURLSchemes)?.CFBundleURLSchemes;
+        if (CFBundleURLSchemes && !CFBundleURLSchemes.includes(config.scheme)) {
+            throw new Error(`[${package_json_1.default.name}] Incompatibility found, when you override CFBundleURLSchemes you have to manually add the application scheme ! (ios.infoPlist.CFBundleURLTypes.CFBundleURLSchemes: ${JSON.stringify([...CFBundleURLSchemes, config.scheme])})`);
+        }
+        const extraAppExtension = config.extra?.eas?.build?.experimental?.ios?.appExtensions?.filter((appExtension) => appExtension.targetName === (0, constants_1.getShareExtensionName)(params));
+        if (extraAppExtension && extraAppExtension.length > 1) {
+            throw new Error(`[${package_json_1.default.name}] Incompatibility found, you have more than one appExtensions for "${(0, constants_1.getShareExtensionName)(params)}" (${extraAppExtension.length}). Please remove all "eas.build.experimental.ios.appExtensions" with targetName "${(0, constants_1.getShareExtensionName)(params)}" in your app.json! (see https://github.com/achorein/expo-share-intent?tab=readme-ov-file#ios-extension-target)`);
+        }
+        if (params.iosAppGroupIdentifier?.includes(" ")) {
+            throw new Error(`[${package_json_1.default.name}] Incompatibility found, iosAppGroupIdentifier should not contains spaces or special characters"${(0, constants_1.getShareExtensionName)(params)}" in your app.json!`);
+        }
+    }
+    else {
+        console.warn(`[expo-share-intent] IOS module disabled`);
+    }
+    return config;
+};
+exports.withCompatibilityChecker = withCompatibilityChecker;

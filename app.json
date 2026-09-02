@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "TimelineApp",
+    "slug": "TimelineApp",
+    "scheme": "timelineapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android", "web"],
+    "splash": {
+      "backgroundColor": "#0f1024"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sarahphillips.timelineapp"
+    },
+    "android": {
+      "package": "com.sarahphillips.timelineapp",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f1024"
+      }
+    },
+    "plugins": [
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": ["text/*", "text/plain", "message/rfc822"],
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsText": true,
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1
+          }
+        }
+      ]
+    ]
+  }
+}

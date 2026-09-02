@@ -1,0 +1,152 @@
+# Timeline App – Todo List
+**Project:** Timeline App (KD #kern2622 / RN #kern2622)  
+**Owner:** Sarah Victoria Pauline Phillips  
+**Last updated:** 2 Sep 2026 (Word-to-Int hashCode + Days-between saved spans / cross-links)
+
+---
+
+## Done
+
+- [x] Login / Auth (Firebase email + password)
+- [x] Forgot password flow
+- [x] Starlink connection check
+- [x] Timeline list (local AsyncStorage)
+- [x] Add / Edit event
+- [x] Categories: Personal, Work, Family, Health, Travel, Hobby, Days Between, Other
+- [x] Email-as-event (manual): source type, category, next action, From field
+- [x] Next action: “Ask Grok to draft a reply”
+- [x] Ask Grok: copy prompt + on-screen toast + open Grok
+- [x] App running in browser on HP laptop
+- [x] User login with email and password
+- [x] User register as new account (basic)  
+  *(Welcome email with next steps still open)*
+- [x] User add things like hobbies (MVP)  
+  Poetry (title + poem text), Singing/Music (title + description + file note), Reading (progress). Full audio file attach still open.
+- [x] Add poem – own screen (`AddPoemScreen`)
+- [x] Home – simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
+- [x] Year overview timeline (centre line, count bubbles, tap year → months)
+- [x] Month view (centre spine, J–D, count bubbles, empty months as ticks, + menu)
+- [x] Month items – centre line (Option B): items alternate left/right, tap to expand
+- [x] Timeline cards – compact, expandable
+- [x] Add button – single + with menu (Event, Email, Hobby/Poetry, QR, …)
+- [x] Word to Int converter + saved number list
+- [x] Word to Int: Java hashCode method (full phrase, 32-bit signed)
+- [x] Word to Int: lookup matches saved date spans; Use as day count to Days between
+- [x] Days between dates (timeanddate-style breakdown)
+- [x] Days between: saved span list (AsyncStorage)
+- [x] Days between: Add N days (sets To); matching Word-to-Int phrases
+- [x] Add QR link screen
+- [x] Share to Timeline (code)  
+  Android: `expo-share-intent` + intent filters (`text/*`, `text/plain`, `message/rfc822`), package `com.sarahphillips.timelineapp`.  
+  Home: **Add from email** pre-fills Add Event (`fromEmail`).  
+  *Gmail → Share → Timeline only works in a real Android / EAS development build, not Expo Go.*
+
+---
+
+## Built as placeholders (rows exist, not connected yet)
+
+- [ ] Settings screen (Home row shows an alert only)
+- [ ] Profile photo – pick from gallery / Drive / files (avatar is initials only)
+- [ ] Share timeline with another Timeline user (alert only)
+- [ ] Add another account (alert: log out and sign in with a different email)
+
+---
+
+## Priority – Email integration
+
+- [x] Share to Timeline (wired; needs Android dev build to test from Gmail)
+- [x] Add from email in-app (Home → Add Event with From + body)
+- [ ] **In-app Pick from Gmail**  
+  List recent emails via Gmail API; tap → Add Event pre-filled
+- [ ] Welcome email on register
+
+---
+
+## Food tracking (scope TBD)
+
+- [ ] **Food tracking**  
+  1. Simple meal log on the Timeline  
+  2. Structured food entry (meal type, items, optional calories)  
+  3. Both (Timeline + Food section/filter)
+
+---
+
+## From Trello – still open
+
+### Media & content
+
+- [ ] User add image (pre-selected by type, or user photo)
+- [ ] Full audio file attach for singing/music
+- [ ] Labels shown on expanded timeline card
+- [ ] Customisable poem categories
+- [ ] Label / tag system (poems and events)
+- [ ] User add tv or films watched (description + score /10)
+- [ ] User add Spotify activity
+- [ ] User add friends photos from social media
+- [ ] User add social media feeds
+
+### Communication
+
+- [ ] User add SMS
+- [ ] User add phone calls (notes, category, inbound/outbound)
+
+### Daily life & tracking
+
+- [ ] Time playing games (Steam / PlayStation / Android)
+- [ ] User add purchases
+- [ ] User add household chores
+- [ ] User add google locations visited
+
+### Life & people
+
+- [ ] Life events (birthdays, house moves, wedding, …)
+- [ ] User add friends (link timeline with them)
+- [ ] User specify date of birth
+
+### Account & setup
+
+- [ ] User add their own categories
+- [ ] Light mode and dark mode (dark slate is current; light TBD)
+- [ ] User-chosen colour scheme (Slate/cyan, Teal, Purple, Rose, Amber, High-contrast)
+
+---
+
+## Home screen widgets (later)
+
+- [ ] Widgets for new events (needs a development build)
+- [ ] Quick QR code scan widget (Add QR screen exists; home-screen widget does not)
+
+---
+
+## Next / Nice to have
+
+- [ ] Google Sign-In (re-enable fully if needed)
+- [ ] Persist events to Firebase (optional cloud sync)
+- [ ] Better date picker (calendar UI)
+- [ ] Filter timeline by category
+- [ ] Mark next-action as done from the list
+- [ ] Photos / attachments on events
+- [ ] Custom Firebase password-reset email template (needs Blaze plan)
+- [ ] Android development / Play Store build (share sheet and widgets need this)
+
+---
+
+## Security / device (separate from app features)
+
+- [ ] Laptop security checks (remote apps, mic permissions, Windows password)
+- [ ] Prefer throwaway password for Timeline until device feels safer
+
+---
+
+## Notes
+
+- Current storage: local AsyncStorage only
+- Firebase project: `timelineapp-3bc05`
+- Admin email: `sarah.v.phillips@googlemail.com`
+- Running via Expo in browser (`localhost:8081`) and Expo Go on phone
+- Android package / iOS bundle: `com.sarahphillips.timelineapp`
+- Scheme: `timelineapp`
+- Share-intent: `expo-share-intent` in `app.json` plugins
+- Trello user stories imported 23 Aug 2026
+- Code on laptop: `C:\Users\sarah\Desktop\TimelineApp`
+- Grok project: Timeline app for Sarah Victoria Pauline Phillips
