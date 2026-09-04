@@ -439,6 +439,31 @@ export default function AddEventScreen({ navigation, route }) {
                   : 'Add Event'}
           </Text>
         </TouchableOpacity>
+
+        {isEditing && existing?.id ? (
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={() =>
+              navigation.navigate('ShareEvent', {
+                event: {
+                  id: existing.id,
+                  title: title.trim() || existing.title,
+                  description: description.trim(),
+                  date: existing.date,
+                  category,
+                  shareId: existing.shareId,
+                  isShared: existing.isShared,
+                },
+              })
+            }
+          >
+            <Text style={styles.shareText}>Share with a friend</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.shareHint}>
+            Save the event first, then open it again to share a per-event invite code with a friend.
+          </Text>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -569,5 +594,26 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 17,
     fontWeight: '600',
+  },
+  shareButton: {
+    backgroundColor: 'transparent',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#8b5cf6',
+  },
+  shareText: {
+    color: '#c4b5fd',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  shareHint: {
+    color: '#64748b',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 14,
+    textAlign: 'center',
   },
 });

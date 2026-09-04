@@ -10,7 +10,7 @@ import { syncEventsFromCloud } from './src/services/eventService';
 import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
 import { syncSettingsFromCloud } from './src/services/profileService';
 import { registerThisDevice } from './src/services/deviceSession';
-import { buildShareLinking } from './src/services/shareIntent';
+import { buildAppLinking } from './src/services/appLinking';
 import ShareToTimeline from './src/share/ShareToTimeline';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -25,11 +25,14 @@ import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
+import ShareEventScreen from './src/screens/ShareEventScreen';
+import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
 import { ThemeProvider, useTheme } from './src/themeContext';
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
-const shareLinking = buildShareLinking() || undefined;
+const shareLinking = buildAppLinking() || undefined;
 
 function AppShell() {
   const [user, setUser] = useState(null);
@@ -185,6 +188,25 @@ function AppShell() {
                 name="DateSpan"
                 component={DateSpanScreen}
                 options={{ title: 'Days between dates' }}
+              />
+
+
+              <Stack.Screen
+                name="EventsWithFriends"
+                component={EventsWithFriendsScreen}
+                options={{ title: 'Events with friends' }}
+              />
+
+              <Stack.Screen
+                name="ShareEvent"
+                component={ShareEventScreen}
+                options={{ title: 'Share with a friend' }}
+              />
+
+              <Stack.Screen
+                name="AcceptInvite"
+                component={AcceptInviteScreen}
+                options={{ title: 'Enter invite code' }}
               />
 
               <Stack.Screen

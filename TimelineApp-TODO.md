@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 4 Sep 2026 (tidy Settings/themes; restore EAS + share-intent config; stay on Expo SDK 54)
+**Last updated:** 4 Sep 2026 (Events with friends MVP — per-event share invites)
 
 ---
 
@@ -51,7 +51,8 @@
 ## Built as placeholders (rows exist, not connected yet)
 
 - [x] Settings screen (light/dark + colour palettes; profile display name + DOB; custom labels; poem categories - all local AsyncStorage for now; HomeFab on timeline/year/month/settings)
-- [ ] Share timeline with another Timeline user (alert only)
+- [x] Events with friends MVP (per-event share invites + intersecting view)
+- [ ] Share whole timeline with another Timeline user (still later)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
 ---
@@ -104,7 +105,8 @@
 ### Life & people
 
 - [ ] Life events (birthdays, house moves, wedding, â¦)
-- [ ] User add friends (link timeline with them)
+- [x] User add friends — per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
+- [ ] Broader friend graph / whole-timeline link (later)
 - [x] User specify date of birth (Settings, local for now)
 
 ### Account & setup
@@ -159,3 +161,54 @@
 - [x] Week-by-week view with named dated days (MonâSun).
 
 - [x] EAS / share-intent `app.json` restored (owner `sarahpoet6014`, projectId `0f4f935b-9897-4ac5-b760-39d00794adfc`, splash/icon images, iOS infoPlist, Android adaptiveIcon + CAMERA/media permissions + versionCode, expo-share-intent text+image filters, expo-image-picker plugin). Kept Expo SDK **54** family (share-intent compatible); do not bump to 57 without a share-intent upgrade.
+
+
+## Events with friends (MVP) — Firestore rules to paste
+
+Collections:
+- `sharedEvents/{shareId}` — event snapshot + `participantUids` + `participants` map
+- `eventInvites/{inviteId}` — invite code is the document id; `status`: pending|accepted|declined|expired
+
+Suggested rules (practical; keep existing `isOwner` / `isAdmin` for `users/{uid}/...`):
+
+```
+match /sharedEvents/{id} {
+  // Signed-in read so invitees can preview before accept (MVP).
+  // Tighten later to creator/participant OR pending-invite holder.
+  allow read: if request.auth != null;
+  allow create: if request.auth != null
+    && request.auth.uid == request.resource.data.createdByUid
+    && request.auth.uid in request.resource.data.participantUids;
+  allow update: if request.auth != null
+    && (request.auth.uid == resource.data.createdByUid
+        || request.auth.uid in resource.data.participantUids
+        || (request.auth.uid in request.resource.data.participantUids
+            && !(request.auth.uid in resource.data.participantUids)));
+  allow delete: if request.auth != null
+    && request.auth.uid == resource.data.createdByUid;
+}
+
+match /eventInvites/{id} {
+  allow read: if request.auth != null;
+  allow create: if request.auth != null
+    && request.auth.uid == request.resource.data.fromUid;
+  allow update: if request.auth != null
+    && (request.auth.uid == resource.data.fromUid
+        || (resource.data.status == 'pending'
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedByUid == request.auth.uid));
+  allow delete: if request.auth != null
+    && request.auth.uid == resource.data.fromUid;
+}
+
+// Existing — accept writes the invitee's own event copy:
+match /users/{userId}/events/{eventId} {
+  allow read, write: if isOwner(userId) || isAdmin();
+}
+```
+
+**Test path (two accounts):**
+1. Account A: create/open an event → **Share with a friend** → copy code.
+2. Log out → Account B: Home → **Enter invite code** → paste → Accept.
+3. Both: Home → **Events with friends** — shared node on centre spine with friend colour meeting it.
+

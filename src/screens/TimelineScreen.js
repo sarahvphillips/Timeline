@@ -117,7 +117,7 @@ export default function TimelineScreen({ navigation, route }) {
     if (Platform.OS === 'web' && navigator?.clipboard) {
       try {
         await navigator.clipboard.writeText(prompt);
-        showToast('Copied! Opening Grok ÔÇö paste (Ctrl+V)');
+        showToast('Copied! Opening Grok Ã”Ã‡Ã¶ paste (Ctrl+V)');
         setTimeout(() => openGrok(), 400);
         return;
       } catch {
@@ -168,7 +168,7 @@ export default function TimelineScreen({ navigation, route }) {
             {item.source === 'hobby' && item.hobbyType ? (
               <Text style={styles.hobbyMeta}>
                 {getHobbyTypeIcon(item.hobbyType)} {getHobbyTypeLabel(item.hobbyType)}
-                {item.collectionName ? `  -À  ${item.collectionName}` : ''}
+                {item.collectionName ? `  -Ã€  ${item.collectionName}` : ''}
               </Text>
             ) : null}
 
@@ -219,7 +219,7 @@ export default function TimelineScreen({ navigation, route }) {
                 </Text>
                 {item.nextAction === 'ask_grok_reply' && (
                   <TouchableOpacity style={styles.grokButton} onPress={() => handleAskGrok(item)}>
-                    <Text style={styles.grokButtonText}>Ô£ª Ask Grok</Text>
+                    <Text style={styles.grokButtonText}>Ã”Â£Âª Ask Grok</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -234,6 +234,12 @@ export default function TimelineScreen({ navigation, route }) {
             >
               <Text style={styles.editLink}>Edit</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('ShareEvent', { event: item })}>
+              <Text style={styles.shareLink}>Share with a friend</Text>
+            </TouchableOpacity>
+            {(item.isShared || item.shareId) ? (
+              <Text style={styles.sharedBadge}>Shared event</Text>
+            ) : null}
           </View>
         )}
       </TouchableOpacity>
@@ -413,6 +419,8 @@ const styles = StyleSheet.create({
   qrBlock: { alignItems: 'flex-start', marginBottom: 8 },
   qrImage: { width: 140, height: 140, maxWidth: '100%', backgroundColor: '#fff', borderRadius: 8, marginBottom: 6 },
   eventImage: { width: '100%', height: 180, maxWidth: '100%', backgroundColor: '#0f1024', borderRadius: 10, marginBottom: 8 },
+  shareLink: { color: '#c4b5fd', fontSize: 14, fontWeight: '600', marginTop: 8 },
+  sharedBadge: { color: '#34d399', fontSize: 12, marginTop: 8, fontWeight: '600' },
   editLink: { color: '#60a5fa', marginTop: 8, fontSize: 13 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyTitle: { color: '#f8fafc', fontSize: 20, fontWeight: '600', marginBottom: 8 },

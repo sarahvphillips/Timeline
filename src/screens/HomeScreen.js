@@ -110,12 +110,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     navigation.navigate('Settings');
   };
 
-  const handleShare = () => {
-    Alert.alert(
-      'Share with another Timeline user',
-      'You will be able to invite someone who also has Timeline and share your timeline (or chosen years/events) with them. This is not connected yet.'
-    );
-  };
 
   const thisSession = sessions.find((s) => s.id === thisDeviceId);
   const otherSessions = sessions.filter((s) => s.id !== thisDeviceId);
@@ -175,6 +169,17 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Timeline</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('EventsWithFriends')}>
+        <Text style={styles.buttonText}>Events with friends</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
+        onPress={() => navigation.navigate('AcceptInvite')}
+      >
+        <Text style={[styles.ghostText, { color: colors.faint }]}>Enter invite code</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity
         style={[styles.button, { backgroundColor: colors.blue }]}
         onPress={() => navigation.navigate('AddEvent', { fromEmail: true, source: 'email' })}
@@ -194,9 +199,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Days between dates</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleShare}>
-        <Text style={[styles.ghostText, { color: colors.faint }]}>Share with another user</Text>
-      </TouchableOpacity>
 
       <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
         <Text style={[styles.ghostText, { color: colors.faint }]}>Settings</Text>
