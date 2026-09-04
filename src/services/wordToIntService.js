@@ -4,12 +4,30 @@ import { auth, db } from './firebase';
 
 const LEGACY_WORD_KEY = '@word_to_int_list';
 const GUEST_WORD_KEY = '@word_to_int_list_guest';
+export const LAST_UID_KEY = '@timeline_last_uid';
+
+// Pause cloud wordNumbers sync until cross-account isolation is confirmed.
+// Auth still works; lists stay on-device in per-uid AsyncStorage only.
+export const WORD_NUMBERS_FIRESTORE_SYNC_ENABLED = false;
 
 function wordStorageKey(uid) {
   return uid ? `@word_to_int_list_${uid}` : GUEST_WORD_KEY;
 }
 
-const LAST_UID_KEY = '@timeline_last_uid';
+// Bumps on login/logout so in-flight sync cannot write after an auth switch.
+let authEpoch = 0;
+let activeAuthUid = null;
+
+/** Call from App onAuthStateChanged so word-number I/O is scoped to the current uid. */
+export function beginAuthScope(uid) {
+  authEpoch += 1;
+  activeAuthUid = uid || null;
+  return authEpoch;
+}
+
+function isScopeCurrent(uid, epoch) {
+  return epoch === authEpoch && (uid || null) === activeAuthUid;
+}
 
 async function migrateLegacyWordNumbersOnce(uid) {
   if (!uid) return;
@@ -151,6 +169,7 @@ function wordNumberDoc(uid, id) {
 }
 
 async function pushWordNumberToFirebase(payload) {
+  if (!WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) return;
   const uid = currentUid();
   if (!uid) {
     throw new Error('Not signed in — cannot save to Firebase');
@@ -163,6 +182,7 @@ async function pushWordNumberToFirebase(payload) {
 }
 
 async function fetchWordNumbersFromFirebase() {
+  if (!WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) return [];
   const uid = currentUid();
   if (!uid) return [];
   const snap = await getDocs(collection(db, 'users', uid, 'wordNumbers'));
@@ -204,8 +224,31 @@ function entryBelongsToUid(entry, uid) {
   return entry.ownerUid === uid;
 }
 
+function sortWordNumbers(list) {
+  return (list || []).sort(
+    (a, b) =>
+      new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+  );
+}
+
+/** Local cache only — does not touch Firestore. Uses per-uid (or guest) key. */
+export async function readLocalWordNumbers(uid = currentUid()) {
+  try {
+    if (uid) await migrateLegacyWordNumbersOnce(uid);
+    let local = await readListRaw(uid);
+    if (uid) {
+      local = local.filter((item) => entryBelongsToUid(item, uid));
+    }
+    return sortWordNumbers(local);
+  } catch (e) {
+    console.warn('Failed to load word-to-int list', e);
+    return [];
+  }
+}
+
 /**
  * Pull cloud word-numbers for the signed-in user into the local (per-uid) cache.
+ * No-op cloud I/O while WORD_NUMBERS_FIRESTORE_SYNC_ENABLED is false (local only).
  * Only uploads local entries that belong to this uid when cloud is empty.
  */
 export async function syncWordNumbersFromCloud(uid) {
@@ -216,28 +259,48 @@ export async function syncWordNumbersFromCloud(uid) {
       return [];
     }
   }
+  const epoch = authEpoch;
   await migrateLegacyWordNumbersOnce(uid);
+
+  if (!WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
+    if (!isScopeCurrent(uid, epoch)) return [];
+    return readLocalWordNumbers(uid);
+  }
+
   return getWordNumbers();
 }
 
+/**
+ * Load word-numbers for the UI.
+ * If signed in and WORD_NUMBERS_FIRESTORE_SYNC_ENABLED, sync from Firestore.
+ * Otherwise per-uid local cache only. Logged out uses guest cache only.
+ */
 export async function getWordNumbers() {
   const uid = currentUid();
+  const epoch = authEpoch;
   try {
     if (uid) await migrateLegacyWordNumbersOnce(uid);
     let local = await readListRaw(uid);
     if (uid) {
       local = local.filter((item) => entryBelongsToUid(item, uid));
     }
+
+    if (!uid || !WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
+      if (uid && !isScopeCurrent(uid, epoch)) return [];
+      return sortWordNumbers(local);
+    }
+
     let remote = [];
     try {
-      remote = uid ? await fetchWordNumbersFromFirebase() : [];
+      remote = await fetchWordNumbersFromFirebase();
     } catch (e) {
       console.warn('Firebase word-to-int load skipped', e);
     }
+    if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
 
     // If signed in, cloud empty: upload ONLY entries that already have ownerUid === uid.
     // Never stamp missing ownerUid onto foreign/unscoped entries just to upload.
-    if (uid && remote.length === 0) {
+    if (remote.length === 0) {
       if (local.length > 0) {
         await Promise.all(
           local.map(async (item) => {
@@ -248,12 +311,11 @@ export async function getWordNumbers() {
             }
           }),
         );
+        if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
         await writeList(local, uid);
-        return local.sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
-        );
+        return sortWordNumbers(local);
       }
+      if (!isScopeCurrent(uid, epoch)) return [];
       await writeList([], uid);
       return [];
     }
@@ -263,13 +325,11 @@ export async function getWordNumbers() {
       ownerUid: item.ownerUid || uid || undefined,
     }));
     const merged = mergeLists(local, remoteStamped).filter((item) =>
-      uid ? entryBelongsToUid(item, uid) : true
+      entryBelongsToUid(item, uid)
     );
+    if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
     await writeList(merged, uid);
-    return merged.sort(
-      (a, b) =>
-        new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
-    );
+    return sortWordNumbers(merged);
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
     return [];
@@ -332,6 +392,11 @@ export async function saveWordNumber(entry) {
     throw new Error('Save did not persist on this device');
   }
 
+  if (!WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
+    found.cloudSaved = false;
+    return found;
+  }
+
   try {
     await pushWordNumberToFirebase(found);
     found.cloudSaved = true;
@@ -344,7 +409,8 @@ export async function saveWordNumber(entry) {
 }
 
 export async function deleteWordNumber(id) {
-  const list = await getWordNumbers();
+  const uid = currentUid();
+  const list = await readLocalWordNumbers(uid);
   const target = list.find((item) => String(item.id) === String(id));
   const next = list.filter((item) => {
     if (String(item.id) === String(id)) return false;
@@ -356,9 +422,8 @@ export async function deleteWordNumber(id) {
     }
     return true;
   });
-  const uid = currentUid();
   await writeList(next, uid);
-  if (uid && target?.id) {
+  if (uid && target?.id && WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
     try {
       await deleteDoc(wordNumberDoc(uid, target.id));
     } catch (e) {

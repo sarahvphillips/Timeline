@@ -8,7 +8,7 @@ import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
 import { getMonthName } from './src/services/eventService';
 import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY, beginAuthScope, EVENTS_FIRESTORE_SYNC_ENABLED } from './src/services/eventService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
+import { syncWordNumbersFromCloud, beginAuthScope as beginWordNumbersAuthScope, WORD_NUMBERS_FIRESTORE_SYNC_ENABLED } from './src/services/wordToIntService';
 import { syncSettingsFromCloud } from './src/services/profileService';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from './src/theme';
 import { registerThisDevice } from './src/services/deviceSession';
@@ -49,9 +49,10 @@ function AppShell() {
         setInitializing(false);
         if (firebaseUser) {
           const uid = firebaseUser.uid;
-          // Invalidate any in-flight event I/O from a previous account first.
+          // Invalidate any in-flight event / wordNumbers I/O from a previous account first.
           beginAuthScope(uid);
-          // Load this uid locally (cloud only if EVENTS_FIRESTORE_SYNC_ENABLED).
+          beginWordNumbersAuthScope(uid);
+          // Load this uid locally (cloud only if the matching Firestore sync flag is on).
           // Before @timeline_last_uid so legacy migration sees the previous uid.
           // Then record this login as last_uid for future sessions.
           Promise.all([
@@ -64,7 +65,12 @@ function AppShell() {
               );
             }),
             syncWordNumbersFromCloud(uid).catch((err) => {
-              console.warn('Word-to-Int cloud sync failed', err);
+              console.warn(
+                WORD_NUMBERS_FIRESTORE_SYNC_ENABLED
+                  ? 'Word-to-Int cloud sync failed'
+                  : 'Word-to-Int local load failed',
+                err,
+              );
             }),
             syncSettingsFromCloud(uid).catch((err) => {
               console.warn('Settings cloud sync failed', err);
@@ -77,6 +83,7 @@ function AppShell() {
           });
         } else {
           beginAuthScope(null);
+          beginWordNumbersAuthScope(null);
           // Logged out: guest cache only — never leave the previous user's list active.
           readLocalEvents(null).catch(() => {});
           syncWordNumbersFromCloud(null).catch(() => {});
