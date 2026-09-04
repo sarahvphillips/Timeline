@@ -8,6 +8,7 @@ import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
 import { getMonthName } from './src/services/eventService';
 import { syncEventsFromCloud } from './src/services/eventService';
 import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
+import { syncSettingsFromCloud } from './src/services/profileService';
 import { registerThisDevice } from './src/services/deviceSession';
 import { buildShareLinking } from './src/services/shareIntent';
 import ShareToTimeline from './src/share/ShareToTimeline';
@@ -47,6 +48,9 @@ function AppShell() {
           });
           syncWordNumbersFromCloud(firebaseUser.uid).catch((err) => {
             console.warn('Word-to-Int cloud sync failed', err);
+          });
+          syncSettingsFromCloud(firebaseUser.uid).catch((err) => {
+            console.warn('Settings cloud sync failed', err);
           });
           registerThisDevice(firebaseUser.uid).catch((err) => {
             console.warn('Device session register failed', err);

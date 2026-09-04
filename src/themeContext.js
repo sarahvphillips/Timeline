@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Appearance } from 'react-native';
-import { getColors, loadThemePrefs, saveThemePrefs } from './theme';
+import { getColors, loadThemePrefs, saveThemePrefs, onThemePrefsChanged } from './theme';
 
 const ThemeContext = createContext({
   mode: 'system',
@@ -23,11 +23,17 @@ export function ThemeProvider({ children }) {
       setModeState(prefs.mode);
       setPaletteState(prefs.palette);
     });
+    const unsubPrefs = onThemePrefsChanged((prefs) => {
+      if (cancelled) return;
+      setModeState(prefs.mode);
+      setPaletteState(prefs.palette);
+    });
     const sub = Appearance.addChangeListener(({ colorScheme }) => {
       setSystemScheme(colorScheme || 'dark');
     });
     return () => {
       cancelled = true;
+      unsubPrefs();
       sub?.remove?.();
     };
   }, []);

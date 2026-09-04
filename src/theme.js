@@ -1,5 +1,7 @@
 import { Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from './services/firebase';
 
 export const THEME_MODE_KEY = '@timeline_theme_mode';
 export const THEME_PALETTE_KEY = '@timeline_theme_palette';
@@ -85,6 +87,28 @@ const LIGHT = {
   },
 };
 
+const themePrefsListeners = new Set();
+
+export function onThemePrefsChanged(listener) {
+  themePrefsListeners.add(listener);
+  return () => themePrefsListeners.delete(listener);
+}
+
+function notifyThemePrefs(prefs) {
+  themePrefsListeners.forEach((listener) => {
+    try {
+      listener(prefs);
+    } catch (_) {}
+  });
+}
+
+function normalizePrefs({ mode, palette }) {
+  return {
+    mode: MODES.some((m) => m.id === mode) ? mode : 'system',
+    palette: PALETTES.some((p) => p.id === palette) ? palette : 'slate',
+  };
+}
+
 export function resolvedScheme(mode) {
   if (mode === 'light' || mode === 'dark') return mode;
   const sys = Appearance.getColorScheme();
@@ -105,21 +129,41 @@ export async function loadThemePrefs() {
       AsyncStorage.getItem(THEME_MODE_KEY),
       AsyncStorage.getItem(THEME_PALETTE_KEY),
     ]);
-    return {
-      mode: MODES.some((m) => m.id === mode) ? mode : 'system',
-      palette: PALETTES.some((p) => p.id === palette) ? palette : 'slate',
-    };
+    return normalizePrefs({ mode, palette });
   } catch {
     return { mode: 'system', palette: 'slate' };
   }
 }
 
-export async function saveThemePrefs({ mode, palette }) {
-  const nextMode = MODES.some((m) => m.id === mode) ? mode : 'system';
-  const nextPalette = PALETTES.some((p) => p.id === palette) ? palette : 'slate';
+/** Write theme prefs locally only (used when applying cloud → local). */
+export async function writeThemePrefsLocalOnly({ mode, palette }) {
+  const next = normalizePrefs({ mode, palette });
   await AsyncStorage.multiSet([
-    [THEME_MODE_KEY, nextMode],
-    [THEME_PALETTE_KEY, nextPalette],
+    [THEME_MODE_KEY, next.mode],
+    [THEME_PALETTE_KEY, next.palette],
   ]);
-  return { mode: nextMode, palette: nextPalette };
+  notifyThemePrefs(next);
+  return next;
+}
+
+async function pushThemeToCloud(prefs) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  await setDoc(doc(db, 'users', uid, 'settings', 'theme'), {
+    mode: prefs.mode,
+    palette: prefs.palette,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function saveThemePrefs({ mode, palette }) {
+  const next = await writeThemePrefsLocalOnly({ mode, palette });
+  if (auth.currentUser?.uid) {
+    try {
+      await pushThemeToCloud(next);
+    } catch (e) {
+      console.warn('Could not sync theme to the cloud. Saved on this device.', e);
+    }
+  }
+  return next;
 }
