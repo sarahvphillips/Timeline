@@ -3,9 +3,41 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from '../theme';
 
-const PROFILE_KEY = '@timeline_profile';
-const LABELS_KEY = '@timeline_labels';
-const POEM_CATS_KEY = '@timeline_poem_categories';
+const LEGACY_PROFILE_KEY = '@timeline_profile';
+const LEGACY_LABELS_KEY = '@timeline_labels';
+const LEGACY_POEM_CATS_KEY = '@timeline_poem_categories';
+
+function profileKey(uid) {
+  return uid ? `@timeline_profile_${uid}` : '@timeline_profile_guest';
+}
+function labelsKey(uid) {
+  return uid ? `@timeline_labels_${uid}` : '@timeline_labels_guest';
+}
+function poemCatsKey(uid) {
+  return uid ? `@timeline_poem_categories_${uid}` : '@timeline_poem_categories_guest';
+}
+
+async function migrateLegacySettingsOnce(uid) {
+  if (!uid) return;
+  const pairs = [
+    [LEGACY_PROFILE_KEY, profileKey(uid)],
+    [LEGACY_LABELS_KEY, labelsKey(uid)],
+    [LEGACY_POEM_CATS_KEY, poemCatsKey(uid)],
+  ];
+  for (const [legacy, scoped] of pairs) {
+    try {
+      const existing = await AsyncStorage.getItem(scoped);
+      if (existing != null) continue;
+      const raw = await AsyncStorage.getItem(legacy);
+      if (raw == null) continue;
+      await AsyncStorage.setItem(scoped, raw);
+      await AsyncStorage.removeItem(legacy);
+      console.warn('Migrated legacy', legacy, 'into', scoped);
+    } catch (e) {
+      console.warn('Legacy settings migration skipped for', legacy, e);
+    }
+  }
+}
 
 export const DEFAULT_LABELS = [
   'AI', 'Cars', 'Crafting', 'Family', 'Figaro', 'Greek', 'Life problems',
@@ -65,8 +97,10 @@ async function pushSettingsDoc(docId, payload) {
 }
 
 export async function getProfile() {
+  const uid = getUid();
   try {
-    const raw = await AsyncStorage.getItem(PROFILE_KEY);
+    if (uid) await migrateLegacySettingsOnce(uid);
+    const raw = await AsyncStorage.getItem(profileKey(uid));
     if (!raw) return { displayName: '', dateOfBirth: '' };
     const parsed = JSON.parse(raw);
     return {
@@ -79,13 +113,14 @@ export async function getProfile() {
 }
 
 export async function saveProfile(profile) {
+  const uid = getUid();
   const next = {
     displayName: String(profile.displayName || '').trim(),
     dateOfBirth: String(profile.dateOfBirth || '').trim(),
     updatedAt: new Date().toISOString(),
   };
-  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(next));
-  if (getUid()) {
+  await AsyncStorage.setItem(profileKey(uid), JSON.stringify(next));
+  if (uid) {
     try {
       await pushSettingsDoc('profile', next);
     } catch (e) {
@@ -107,13 +142,16 @@ async function loadList(key, fallback) {
 }
 
 export async function getLabels() {
-  return loadList(LABELS_KEY, DEFAULT_LABELS);
+  const uid = getUid();
+  if (uid) await migrateLegacySettingsOnce(uid);
+  return loadList(labelsKey(uid), DEFAULT_LABELS);
 }
 
 export async function saveLabels(list) {
+  const uid = getUid();
   const next = [...new Set((list || []).map((s) => String(s).trim()).filter(Boolean))];
-  await AsyncStorage.setItem(LABELS_KEY, JSON.stringify(next));
-  if (getUid()) {
+  await AsyncStorage.setItem(labelsKey(uid), JSON.stringify(next));
+  if (uid) {
     try {
       await pushSettingsDoc('labels', {
         items: next,
@@ -127,13 +165,16 @@ export async function saveLabels(list) {
 }
 
 export async function getPoemCategories() {
-  return loadList(POEM_CATS_KEY, DEFAULT_POEM_CATEGORIES);
+  const uid = getUid();
+  if (uid) await migrateLegacySettingsOnce(uid);
+  return loadList(poemCatsKey(uid), DEFAULT_POEM_CATEGORIES);
 }
 
 export async function savePoemCategories(list) {
+  const uid = getUid();
   const next = [...new Set((list || []).map((s) => String(s).trim()).filter(Boolean))];
-  await AsyncStorage.setItem(POEM_CATS_KEY, JSON.stringify(next));
-  if (getUid()) {
+  await AsyncStorage.setItem(poemCatsKey(uid), JSON.stringify(next));
+  if (uid) {
     try {
       await pushSettingsDoc('poemCategories', {
         items: next,
@@ -166,7 +207,7 @@ async function syncProfileFromCloud(uid, local) {
     dateOfBirth: data.dateOfBirth || '',
     updatedAt: toIso(data.updatedAt) || new Date().toISOString(),
   };
-  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(cloud));
+  await AsyncStorage.setItem(profileKey(uid), JSON.stringify(cloud));
   return cloud;
 }
 
@@ -181,6 +222,7 @@ async function syncListFromCloud(uid, docId, storageKey, localList) {
           updatedAt: new Date().toISOString(),
         }),
       );
+      await AsyncStorage.setItem(storageKey, JSON.stringify(localList));
     }
     return localList;
   }
@@ -195,6 +237,7 @@ async function syncListFromCloud(uid, docId, storageKey, localList) {
           updatedAt: new Date().toISOString(),
         }),
       );
+      await AsyncStorage.setItem(storageKey, JSON.stringify(localList));
       return localList;
     }
     return localList;
@@ -256,6 +299,8 @@ export async function syncSettingsFromCloud(uid) {
     };
   }
 
+  await migrateLegacySettingsOnce(uid);
+
   let profile = await getProfile();
   let labels = await getLabels();
   let poemCategories = await getPoemCategories();
@@ -263,7 +308,7 @@ export async function syncSettingsFromCloud(uid) {
 
   // Read raw profile to preserve updatedAt for upload-if-empty
   try {
-    const raw = await AsyncStorage.getItem(PROFILE_KEY);
+    const raw = await AsyncStorage.getItem(profileKey(uid));
     if (raw) {
       const parsed = JSON.parse(raw);
       profile = {
@@ -281,7 +326,7 @@ export async function syncSettingsFromCloud(uid) {
   }
 
   try {
-    labels = await syncListFromCloud(uid, 'labels', LABELS_KEY, labels);
+    labels = await syncListFromCloud(uid, 'labels', labelsKey(uid), labels);
   } catch (e) {
     console.warn('Could not sync labels from the cloud. Using local.', e);
   }
@@ -290,7 +335,7 @@ export async function syncSettingsFromCloud(uid) {
     poemCategories = await syncListFromCloud(
       uid,
       'poemCategories',
-      POEM_CATS_KEY,
+      poemCatsKey(uid),
       poemCategories,
     );
   } catch (e) {

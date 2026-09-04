@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 4 Sep 2026 (Events with friends MVP — per-event share invites)
+**Last updated:** 4 Sep 2026 (per-user AsyncStorage — accounts no longer share local events)
 
 ---
 
@@ -146,7 +146,10 @@
 
 ## Notes
 
-- Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events` is the offline cache (and the only store when logged out)
+- **CLEANUP (manual):** If a second Firebase account on this device already received duplicated events, delete the extra docs under `users/{secondUid}/events` in the Firebase Console (Firestore). Do not rely on Admin SDK unless already set up. After this fix, new logins start with an empty per-uid local cache so the leak should not recur.
+
+
+- Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events_{uid}` offline cache (guest: `@timeline_events_guest`). Legacy global `@timeline_events` migrates once into the first signed-in uid key then is removed.
 - Device sessions: Firestore `users/{uid}/sessions/{sessionId}` (install UUID in AsyncStorage `@timeline_device_id`). Rules need `match /users/{userId}/sessions/{sessionId} { allow read, write: if isOwner(userId) || isAdmin(); }`
 - Firebase project: `timelineapp-3bc05` â Firestore database and rules still need enabling in the console if not already on
 - Admin email: `sarah.v.phillips@googlemail.com`

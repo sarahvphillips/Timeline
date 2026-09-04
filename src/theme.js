@@ -3,8 +3,44 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './services/firebase';
 
-export const THEME_MODE_KEY = '@timeline_theme_mode';
-export const THEME_PALETTE_KEY = '@timeline_theme_palette';
+export const LEGACY_THEME_MODE_KEY = '@timeline_theme_mode';
+export const LEGACY_THEME_PALETTE_KEY = '@timeline_theme_palette';
+/** @deprecated Use themeModeKey(uid) — kept for any external imports. */
+export const THEME_MODE_KEY = LEGACY_THEME_MODE_KEY;
+/** @deprecated Use themePaletteKey(uid) */
+export const THEME_PALETTE_KEY = LEGACY_THEME_PALETTE_KEY;
+
+export function themeModeKey(uid) {
+  return uid ? `@timeline_theme_mode_${uid}` : '@timeline_theme_mode_guest';
+}
+export function themePaletteKey(uid) {
+  return uid ? `@timeline_theme_palette_${uid}` : '@timeline_theme_palette_guest';
+}
+
+async function migrateLegacyThemeOnce(uid) {
+  if (!uid) return;
+  const pairs = [
+    [LEGACY_THEME_MODE_KEY, themeModeKey(uid)],
+    [LEGACY_THEME_PALETTE_KEY, themePaletteKey(uid)],
+  ];
+  for (const [legacy, scoped] of pairs) {
+    try {
+      const existing = await AsyncStorage.getItem(scoped);
+      if (existing != null) continue;
+      const raw = await AsyncStorage.getItem(legacy);
+      if (raw == null) continue;
+      await AsyncStorage.setItem(scoped, raw);
+      await AsyncStorage.removeItem(legacy);
+      console.warn('Migrated legacy theme key', legacy, 'into', scoped);
+    } catch (e) {
+      console.warn('Legacy theme migration skipped', e);
+    }
+  }
+}
+
+function currentUid() {
+  return auth.currentUser?.uid || null;
+}
 
 export const MODES = [
   { id: 'system', label: 'Match device' },
@@ -123,11 +159,12 @@ export function getColors(mode = 'system', paletteId = 'slate') {
 
 export const theme = getColors('dark', 'purple');
 
-export async function loadThemePrefs() {
+export async function loadThemePrefs(uid = currentUid()) {
   try {
+    if (uid) await migrateLegacyThemeOnce(uid);
     const [mode, palette] = await Promise.all([
-      AsyncStorage.getItem(THEME_MODE_KEY),
-      AsyncStorage.getItem(THEME_PALETTE_KEY),
+      AsyncStorage.getItem(themeModeKey(uid)),
+      AsyncStorage.getItem(themePaletteKey(uid)),
     ]);
     return normalizePrefs({ mode, palette });
   } catch {
@@ -136,11 +173,11 @@ export async function loadThemePrefs() {
 }
 
 /** Write theme prefs locally only (used when applying cloud → local). */
-export async function writeThemePrefsLocalOnly({ mode, palette }) {
+export async function writeThemePrefsLocalOnly({ mode, palette }, uid = currentUid()) {
   const next = normalizePrefs({ mode, palette });
   await AsyncStorage.multiSet([
-    [THEME_MODE_KEY, next.mode],
-    [THEME_PALETTE_KEY, next.palette],
+    [themeModeKey(uid), next.mode],
+    [themePaletteKey(uid), next.palette],
   ]);
   notifyThemePrefs(next);
   return next;

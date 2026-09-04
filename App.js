@@ -6,9 +6,10 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
 import { getMonthName } from './src/services/eventService';
-import { syncEventsFromCloud } from './src/services/eventService';
+import { syncEventsFromCloud, readLocalEvents } from './src/services/eventService';
 import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
 import { syncSettingsFromCloud } from './src/services/profileService';
+import { loadThemePrefs, writeThemePrefsLocalOnly } from './src/theme';
 import { registerThisDevice } from './src/services/deviceSession';
 import { buildAppLinking } from './src/services/appLinking';
 import ShareToTimeline from './src/share/ShareToTimeline';
@@ -46,6 +47,8 @@ function AppShell() {
         setUser(firebaseUser);
         setInitializing(false);
         if (firebaseUser) {
+          // Load this uid's per-user cache (empty for a new account) THEN sync.
+          // syncEventsFromCloud migrates legacy global keys once for this uid only.
           syncEventsFromCloud(firebaseUser.uid).catch((err) => {
             console.warn('Event cloud sync failed', err);
           });
@@ -58,6 +61,15 @@ function AppShell() {
           registerThisDevice(firebaseUser.uid).catch((err) => {
             console.warn('Device session register failed', err);
           });
+        } else {
+          // Logged out: switch active cache to guest keys — do not leave the
+          // previous user's list as the cache the next login would upload.
+          readLocalEvents(null).catch(() => {});
+          syncWordNumbersFromCloud(null).catch(() => {});
+          syncSettingsFromCloud(null).catch(() => {});
+          loadThemePrefs(null)
+            .then((prefs) => writeThemePrefsLocalOnly(prefs, null))
+            .catch(() => {});
         }
       });
     } catch (e) {

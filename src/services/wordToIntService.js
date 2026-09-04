@@ -2,7 +2,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
-const STORAGE_KEY = '@word_to_int_list';
+const LEGACY_WORD_KEY = '@word_to_int_list';
+const GUEST_WORD_KEY = '@word_to_int_list_guest';
+
+function wordStorageKey(uid) {
+  return uid ? `@word_to_int_list_${uid}` : GUEST_WORD_KEY;
+}
+
+async function migrateLegacyWordNumbersOnce(uid) {
+  if (!uid) return;
+  const scoped = wordStorageKey(uid);
+  try {
+    const existing = await AsyncStorage.getItem(scoped);
+    if (existing != null) return;
+    const legacy = await AsyncStorage.getItem(LEGACY_WORD_KEY);
+    if (legacy == null) return;
+    await AsyncStorage.setItem(scoped, legacy);
+    await AsyncStorage.removeItem(LEGACY_WORD_KEY);
+    console.warn('Migrated legacy @word_to_int_list into', scoped);
+  } catch (e) {
+    console.warn('Legacy word-numbers migration skipped', e);
+  }
+}
 
 function lettersOnly(text) {
   return (text || '')
@@ -135,40 +156,83 @@ function mergeLists(localList, remoteList) {
   return Array.from(map.values());
 }
 
-async function readListRaw() {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+async function readListRaw(uid = currentUid()) {
+  if (uid) await migrateLegacyWordNumbersOnce(uid);
+  const raw = await AsyncStorage.getItem(wordStorageKey(uid));
   if (!raw) return [];
   const list = JSON.parse(raw);
   if (!Array.isArray(list)) throw new Error('Word-to-int storage is not a list');
   return list;
 }
 
+async function writeList(list, uid = currentUid()) {
+  await AsyncStorage.setItem(wordStorageKey(uid), JSON.stringify(list));
+}
+
+function entryBelongsToUid(entry, uid) {
+  if (!entry || !uid) return false;
+  if (entry.ownerUid && entry.ownerUid !== uid) return false;
+  return true;
+}
+
 /**
- * Pull cloud word-numbers for the signed-in user into the local cache.
- * Used on login from App.js. getWordNumbers already merges remote.
+ * Pull cloud word-numbers for the signed-in user into the local (per-uid) cache.
+ * Only uploads local entries that belong to this uid when cloud is empty.
  */
 export async function syncWordNumbersFromCloud(uid) {
   if (!uid) {
     try {
-      return await readListRaw();
+      return await readListRaw(null);
     } catch (_) {
       return [];
     }
   }
+  await migrateLegacyWordNumbersOnce(uid);
   return getWordNumbers();
 }
 
 export async function getWordNumbers() {
+  const uid = currentUid();
   try {
-    const local = await readListRaw();
+    if (uid) await migrateLegacyWordNumbersOnce(uid);
+    let local = await readListRaw(uid);
+    if (uid) {
+      local = local.filter((item) => entryBelongsToUid(item, uid));
+    }
     let remote = [];
     try {
-      remote = await fetchWordNumbersFromFirebase();
+      remote = uid ? await fetchWordNumbersFromFirebase() : [];
     } catch (e) {
       console.warn('Firebase word-to-int load skipped', e);
     }
-    const merged = mergeLists(local, remote);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+
+    // If signed in, cloud empty, and local has this uid's entries — upload them.
+    if (uid && remote.length === 0 && local.length > 0) {
+      await Promise.all(
+        local.map(async (item) => {
+          try {
+            await pushWordNumberToFirebase({ ...item, ownerUid: uid });
+          } catch (e) {
+            console.warn('Failed to upload local word-number', e);
+          }
+        }),
+      );
+      const stamped = local.map((item) => ({ ...item, ownerUid: item.ownerUid || uid }));
+      await writeList(stamped, uid);
+      return stamped.sort(
+        (a, b) =>
+          new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+      );
+    }
+
+    const remoteStamped = (remote || []).map((item) => ({
+      ...item,
+      ownerUid: item.ownerUid || uid || undefined,
+    }));
+    const merged = mergeLists(local, remoteStamped).filter((item) =>
+      uid ? entryBelongsToUid(item, uid) : true
+    );
+    await writeList(merged, uid);
     return merged.sort(
       (a, b) =>
         new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
@@ -217,6 +281,9 @@ export async function saveWordNumber(entry) {
     );
   });
 
+  const uid = currentUid();
+  if (uid) payload.ownerUid = uid;
+
   if (index !== -1) {
     payload.id = list[index].id;
     payload.createdAt = list[index].createdAt || payload.createdAt;
@@ -225,8 +292,8 @@ export async function saveWordNumber(entry) {
     list.unshift(payload);
   }
 
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  const saved = await readListRaw();
+  await writeList(list, uid);
+  const saved = await readListRaw(uid);
   const found = saved.find((item) => String(item.id) === String(payload.id));
   if (!found) {
     throw new Error('Save did not persist on this device');
@@ -256,8 +323,8 @@ export async function deleteWordNumber(id) {
     }
     return true;
   });
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   const uid = currentUid();
+  await writeList(next, uid);
   if (uid && target?.id) {
     try {
       await deleteDoc(wordNumberDoc(uid, target.id));

@@ -3,7 +3,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
-const STORAGE_KEY = '@timeline_events';
+const LEGACY_EVENTS_KEY = '@timeline_events';
+const GUEST_EVENTS_KEY = '@timeline_events_guest';
+
+function eventsStorageKey(uid) {
+  return uid ? `@timeline_events_${uid}` : GUEST_EVENTS_KEY;
+}
+
+/**
+ * One-time migration: if legacy global @timeline_events exists and this uid
+ * has no scoped key yet, move it to the uid key then remove the global key
+ * so later logins never inherit it.
+ */
+async function migrateLegacyEventsOnce(uid) {
+  if (!uid) return;
+  const scoped = eventsStorageKey(uid);
+  try {
+    const existing = await AsyncStorage.getItem(scoped);
+    if (existing != null) return;
+    const legacy = await AsyncStorage.getItem(LEGACY_EVENTS_KEY);
+    if (legacy == null) return;
+    await AsyncStorage.setItem(scoped, legacy);
+    await AsyncStorage.removeItem(LEGACY_EVENTS_KEY);
+    console.warn('Migrated legacy @timeline_events into', scoped);
+  } catch (e) {
+    console.warn('Legacy events migration skipped', e);
+  }
+}
 
 /**
  * Event shape:
@@ -101,23 +127,35 @@ function sortEvents(events) {
   return events.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
-async function writeCache(events) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+async function writeCache(events, uid = getUid()) {
+  await AsyncStorage.setItem(eventsStorageKey(uid), JSON.stringify(events));
+}
+
+function eventBelongsToUid(ev, uid) {
+  if (!ev || !uid) return false;
+  if (ev.ownerUid && ev.ownerUid !== uid) return false;
+  return true;
 }
 
 async function pushEventToCloud(event) {
   const uid = getUid();
   if (!uid || !event?.id) return;
-  await setDoc(eventDoc(uid, event.id), stripUndefined(event));
+  if (event.ownerUid && event.ownerUid !== uid) {
+    console.warn('Refusing to upload event with mismatched ownerUid', event.id);
+    return;
+  }
+  const payload = { ...event, ownerUid: event.ownerUid || uid };
+  await setDoc(eventDoc(uid, event.id), stripUndefined(payload));
 }
 
-/** Local cache only — does not touch Firestore. */
-export async function readLocalEvents() {
+/** Local cache only — does not touch Firestore. Uses per-uid (or guest) key. */
+export async function readLocalEvents(uid = getUid()) {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (uid) await migrateLegacyEventsOnce(uid);
+    const raw = await AsyncStorage.getItem(eventsStorageKey(uid));
     if (!raw) return [];
     const events = JSON.parse(raw);
-    return sortEvents(events);
+    return sortEvents(Array.isArray(events) ? events : []);
   } catch (e) {
     console.warn('Failed to load events', e);
     return [];
@@ -127,6 +165,7 @@ export async function readLocalEvents() {
 /**
  * Load events for the UI.
  * If signed in, sync from Firestore first so phone/laptop share the same list.
+ * Logged out uses the guest cache only — never the previous user's key.
  */
 export async function getEvents() {
   const uid = getUid();
@@ -135,28 +174,31 @@ export async function getEvents() {
       return await syncEventsFromCloud(uid);
     } catch (e) {
       console.warn('getEvents: cloud sync failed, using local', e);
-      return readLocalEvents();
+      return readLocalEvents(uid);
     }
   }
-  return readLocalEvents();
+  return readLocalEvents(null);
 }
 
 /**
  * Pull cloud events for the signed-in user into the local cache.
- * Cloud wins on id conflict. If cloud is empty and local has events,
- * upload local so existing laptop test events appear on other devices.
+ * Cloud wins on id conflict. If cloud is empty and local (for this uid) has
+ * events that belong to this uid, upload those. Per-uid keys mean a new
+ * account starts with an empty local cache, so empty cloud stays empty.
  */
 export async function syncEventsFromCloud(uid) {
-  if (!uid) return readLocalEvents();
+  if (!uid) return readLocalEvents(null);
 
-  const local = await readLocalEvents();
+  await migrateLegacyEventsOnce(uid);
+  const localAll = await readLocalEvents(uid);
+  const local = localAll.filter((ev) => eventBelongsToUid(ev, uid));
 
   try {
     const snap = await getDocs(eventsCollection(uid));
     const cloudEvents = [];
     snap.forEach((d) => {
       const data = d.data() || {};
-      cloudEvents.push(normalizeEvent(data, d.id));
+      cloudEvents.push(normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id));
     });
 
     if (cloudEvents.length === 0) {
@@ -164,19 +206,24 @@ export async function syncEventsFromCloud(uid) {
         await Promise.all(
           local.map(async (ev) => {
             try {
-              await setDoc(eventDoc(uid, ev.id), stripUndefined(ev));
+              const payload = { ...ev, ownerUid: uid };
+              await setDoc(eventDoc(uid, ev.id), stripUndefined(payload));
             } catch (e) {
               console.warn('Failed to upload local event to Firestore', e);
             }
           }),
         );
+        const stamped = local.map((ev) => ({ ...ev, ownerUid: ev.ownerUid || uid }));
+        await writeCache(stamped, uid);
+        return stamped;
       }
-      return local;
+      await writeCache([], uid);
+      return [];
     }
 
     const byId = {};
     local.forEach((ev) => {
-      if (ev?.id) byId[ev.id] = ev;
+      if (ev?.id) byId[ev.id] = { ...ev, ownerUid: ev.ownerUid || uid };
     });
     const localOnly = [];
     local.forEach((ev) => {
@@ -192,7 +239,8 @@ export async function syncEventsFromCloud(uid) {
       await Promise.all(
         localOnly.map(async (ev) => {
           try {
-            await setDoc(eventDoc(uid, ev.id), stripUndefined(ev));
+            const payload = { ...ev, ownerUid: uid };
+            await setDoc(eventDoc(uid, ev.id), stripUndefined(payload));
           } catch (e) {
             console.warn('Failed to upload local-only event to Firestore', e);
           }
@@ -201,7 +249,7 @@ export async function syncEventsFromCloud(uid) {
     }
 
     const merged = sortEvents(Object.values(byId));
-    await writeCache(merged);
+    await writeCache(merged, uid);
     return merged;
   } catch (e) {
     warnCloud(
@@ -213,15 +261,30 @@ export async function syncEventsFromCloud(uid) {
 }
 
 export async function saveEvent(event) {
-  const events = await getEvents();
+  const uid = getUid();
+  const events = uid ? await syncEventsFromCloud(uid).catch(() => readLocalEvents(uid)) : await readLocalEvents(null);
   const now = new Date().toISOString();
   let saved = null;
 
   if (event.id) {
     const index = events.findIndex((e) => e.id === event.id);
     if (index !== -1) {
-      saved = { ...events[index], ...event, updatedAt: now };
+      saved = {
+        ...events[index],
+        ...event,
+        updatedAt: now,
+        ownerUid: uid || events[index].ownerUid || undefined,
+      };
       events[index] = saved;
+    } else if (uid) {
+      // Allow save of a known id that is not yet in this user's cache
+      saved = {
+        ...event,
+        updatedAt: now,
+        createdAt: event.createdAt || now,
+        ownerUid: uid,
+      };
+      events.push(saved);
     }
   } else {
     saved = {
@@ -231,13 +294,16 @@ export async function saveEvent(event) {
       nextAction: event.nextAction || 'none',
       createdAt: now,
       updatedAt: now,
+      ownerUid: uid || undefined,
     };
     events.push(saved);
   }
 
-  await writeCache(events);
+  if (!saved) return events;
 
-  if (saved && getUid()) {
+  await writeCache(events, uid);
+
+  if (saved && uid) {
     try {
       await pushEventToCloud(saved);
     } catch (e) {
@@ -252,11 +318,11 @@ export async function saveEvent(event) {
 }
 
 export async function deleteEvent(id) {
-  const events = await getEvents();
-  const filtered = events.filter((e) => e.id !== id);
-  await writeCache(filtered);
-
   const uid = getUid();
+  const events = await readLocalEvents(uid);
+  const filtered = events.filter((e) => e.id !== id);
+  await writeCache(filtered, uid);
+
   if (uid) {
     try {
       await deleteDoc(eventDoc(uid, id));
