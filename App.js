@@ -6,7 +6,7 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
 import { getMonthName } from './src/services/eventService';
-import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY } from './src/services/eventService';
+import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY, beginAuthScope, EVENTS_FIRESTORE_SYNC_ENABLED } from './src/services/eventService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
 import { syncSettingsFromCloud } from './src/services/profileService';
@@ -49,11 +49,19 @@ function AppShell() {
         setInitializing(false);
         if (firebaseUser) {
           const uid = firebaseUser.uid;
-          // Sync first so legacy migration sees the *previous* @timeline_last_uid.
+          // Invalidate any in-flight event I/O from a previous account first.
+          beginAuthScope(uid);
+          // Load this uid locally (cloud only if EVENTS_FIRESTORE_SYNC_ENABLED).
+          // Before @timeline_last_uid so legacy migration sees the previous uid.
           // Then record this login as last_uid for future sessions.
           Promise.all([
             syncEventsFromCloud(uid).catch((err) => {
-              console.warn('Event cloud sync failed', err);
+              console.warn(
+                EVENTS_FIRESTORE_SYNC_ENABLED
+                  ? 'Event cloud sync failed'
+                  : 'Event local load failed',
+                err,
+              );
             }),
             syncWordNumbersFromCloud(uid).catch((err) => {
               console.warn('Word-to-Int cloud sync failed', err);
@@ -68,8 +76,8 @@ function AppShell() {
             AsyncStorage.setItem(LAST_UID_KEY, uid).catch(() => {});
           });
         } else {
-          // Logged out: switch active cache to guest keys — do not leave the
-          // previous user's list as the cache the next login would upload.
+          beginAuthScope(null);
+          // Logged out: guest cache only — never leave the previous user's list active.
           readLocalEvents(null).catch(() => {});
           syncWordNumbersFromCloud(null).catch(() => {});
           syncSettingsFromCloud(null).catch(() => {});

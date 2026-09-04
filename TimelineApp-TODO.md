@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 4 Sep 2026 (Expo SDK 57 + expo-share-intent 8 for phone Expo Go)
+**Last updated:** 4 Sep 2026 (events Firestore sync paused; Expo SDK 57)
 
 ---
 
@@ -147,6 +147,8 @@
 ## Notes
 
 - **CLEANUP (manual):** If account B still shows A's events, delete B's docs under `users/{B_uid}/events` in Firebase Console (Firestore) again. Then full-reload Expo Go and sign into B — must be empty. Sign into A — events still there. Do not rely on Admin SDK unless already set up.
+- **Events Firestore sync PAUSED (4 Sep 2026):** `EVENTS_FIRESTORE_SYNC_ENABLED = false` in `eventService.js`. Auth still works. Events are per-uid AsyncStorage only (`@timeline_events_{uid}`) — no upload/pull of `users/{uid}/events` until isolation is confirmed. Flip the flag to `true` to re-enable. Also: auth-scope epoch on login/logout; legacy migration no longer adopts via cloud-non-empty; cloud path (when re-enabled) drops docs with foreign `ownerUid`. Phone A vs browser B confusion is most likely dirty docs already under `users/{B}/events` from the earlier same-device bleed — with sync paused those cloud docs no longer appear. Manual console cleanup of B's events collection still recommended before re-enabling sync (do not wipe A's).
+
 - **Legacy bleed fix (4 Sep 2026):** `eventBelongsToUid` requires `ownerUid === uid` (missing ≠ belong). Legacy `@timeline_events` migrates only when `@timeline_last_uid` matches, every event already has `ownerUid === uid`, or this uid's cloud is non-empty — never into an empty-cloud other account. Same last_uid gate for word-to-int / profile / theme legacy keys. On login, `App.js` sets `@timeline_last_uid` after sync.
 
 

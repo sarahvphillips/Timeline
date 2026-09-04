@@ -7,21 +7,21 @@ const LEGACY_EVENTS_KEY = '@timeline_events';
 const GUEST_EVENTS_KEY = '@timeline_events_guest';
 export const LAST_UID_KEY = '@timeline_last_uid';
 
+// Pause cloud event sync until cross-account isolation is confirmed.
+// Auth still works; events stay on-device in per-uid AsyncStorage only.
+export const EVENTS_FIRESTORE_SYNC_ENABLED = false;
+
 function eventsStorageKey(uid) {
   return uid ? `@timeline_events_${uid}` : GUEST_EVENTS_KEY;
 }
 
 /**
  * One-time migration of legacy global @timeline_events into a per-uid key.
- * NEVER adopts legacy for an arbitrary empty-cloud uid (cross-account bleed).
- * Migrates only when:
- *   - @timeline_last_uid === uid, OR
- *   - every legacy event already has ownerUid === uid, OR
- *   - this uid's Firestore events cloud is non-empty (cloudEmpty === false)
- * Otherwise leave legacy alone for the rightful owner.
- * When migrating, stamp ownerUid on every event then delete the legacy key.
+ * Adopts only events with ownerUid === uid, or (if @timeline_last_uid === uid)
+ * events with missing ownerUid. Never uses cloud non-empty as a reason to adopt.
+ * Leaves foreign-ownerUid rows in the legacy key for the rightful owner.
  */
-async function migrateLegacyEventsOnce(uid, { cloudEmpty } = {}) {
+async function migrateLegacyEventsOnce(uid) {
   if (!uid) return;
   const scoped = eventsStorageKey(uid);
   try {
@@ -36,34 +36,43 @@ async function migrateLegacyEventsOnce(uid, { cloudEmpty } = {}) {
     } catch (_) {
       return;
     }
-    if (!Array.isArray(events)) return;
+    if (!Array.isArray(events) || events.length === 0) return;
 
     const lastUid = await AsyncStorage.getItem(LAST_UID_KEY);
-    const allOwnedByUid =
-      events.length > 0 && events.every((ev) => ev && ev.ownerUid === uid);
     const lastUidMatches = lastUid === uid;
-    const cloudHasEvents = cloudEmpty === false;
 
-    // If cloud is empty, only last_uid / all-owned may adopt. Never a new empty account.
-    if (!lastUidMatches && !allOwnedByUid && !cloudHasEvents) {
+    // Only take events that already belong to this uid. If this device's last
+    // login was this uid, also adopt pre-ownerUid (missing) events — never
+    // foreign ownerUid rows, and never cloud non-empty as a reason to adopt.
+    const adoptable = events.filter((ev) => {
+      if (!ev) return false;
+      if (ev.ownerUid === uid) return true;
+      if (lastUidMatches && !ev.ownerUid) return true;
+      return false;
+    });
+    if (adoptable.length === 0) {
       console.warn(
         'Skipping legacy events migration for',
         uid,
-        '(cloudEmpty=',
-        cloudEmpty,
-        ', last_uid=',
+        '(last_uid=',
         lastUid,
-        ') — not adopting foreign cache',
+        ') — no events owned by this account',
       );
       return;
     }
 
-    const stamped = events.map((ev) => ({
+    const stamped = adoptable.map((ev) => ({
       ...ev,
       ownerUid: ev.ownerUid || uid,
     }));
     await AsyncStorage.setItem(scoped, JSON.stringify(stamped));
-    await AsyncStorage.removeItem(LEGACY_EVENTS_KEY);
+
+    const remaining = events.filter((ev) => !adoptable.includes(ev));
+    if (remaining.length === 0) {
+      await AsyncStorage.removeItem(LEGACY_EVENTS_KEY);
+    } else {
+      await AsyncStorage.setItem(LEGACY_EVENTS_KEY, JSON.stringify(remaining));
+    }
     console.warn('Migrated legacy @timeline_events into', scoped);
   } catch (e) {
     console.warn('Legacy events migration skipped', e);
@@ -117,6 +126,21 @@ function warnCloud(message, error) {
 
 function getUid() {
   return auth.currentUser?.uid || null;
+}
+
+// Bumps on login/logout so in-flight sync cannot write after an auth switch.
+let authEpoch = 0;
+let activeAuthUid = null;
+
+/** Call from App onAuthStateChanged so event I/O is scoped to the current uid. */
+export function beginAuthScope(uid) {
+  authEpoch += 1;
+  activeAuthUid = uid || null;
+  return authEpoch;
+}
+
+function isScopeCurrent(uid, epoch) {
+  return epoch === authEpoch && (uid || null) === activeAuthUid;
 }
 
 function eventsCollection(uid) {
@@ -182,7 +206,15 @@ function eventBelongsToUid(ev, uid) {
   return ev.ownerUid === uid;
 }
 
+/** For UI/local cache under this uid's key: hide foreign ownerUid; keep missing. */
+function eventVisibleForUid(ev, uid) {
+  if (!ev || !uid) return false;
+  if (!ev.ownerUid) return true;
+  return ev.ownerUid === uid;
+}
+
 async function pushEventToCloud(event) {
+  if (!EVENTS_FIRESTORE_SYNC_ENABLED) return;
   const uid = getUid();
   if (!uid || !event?.id) return;
   if (event.ownerUid !== uid) {
@@ -208,17 +240,24 @@ export async function readLocalEvents(uid = getUid()) {
 
 /**
  * Load events for the UI.
- * If signed in, sync from Firestore first so phone/laptop share the same list.
- * Logged out uses the guest cache only — never the previous user's key.
+ * If signed in and EVENTS_FIRESTORE_SYNC_ENABLED, sync from Firestore first.
+ * Otherwise per-uid local cache only. Logged out uses guest cache only.
  */
 export async function getEvents() {
   const uid = getUid();
   if (uid) {
+    if (!EVENTS_FIRESTORE_SYNC_ENABLED) {
+      await migrateLegacyEventsOnce(uid);
+      const local = await readLocalEvents(uid);
+      // Hard isolation: never surface another account's cached rows.
+      return local.filter((ev) => eventVisibleForUid(ev, uid));
+    }
     try {
       return await syncEventsFromCloud(uid);
     } catch (e) {
       console.warn('getEvents: cloud sync failed, using local', e);
-      return readLocalEvents(uid);
+      const local = await readLocalEvents(uid);
+      return local.filter((ev) => eventVisibleForUid(ev, uid));
     }
   }
   return readLocalEvents(null);
@@ -226,32 +265,62 @@ export async function getEvents() {
 
 /**
  * Pull cloud events for the signed-in user into the local cache.
- * Cloud wins on id conflict. If cloud is empty and local (for this uid) has
- * events that belong to this uid, upload those. Per-uid keys mean a new
- * account starts with an empty local cache, so empty cloud stays empty.
+ * No-op cloud I/O while EVENTS_FIRESTORE_SYNC_ENABLED is false (local only).
+ * When enabled: cloud wins on id conflict; upload only ownerUid === uid locals.
+ * Drops/deletes cloud docs whose ownerUid is set to a different account
+ * (self-heal for historical cross-account contamination under this uid path).
  */
 export async function syncEventsFromCloud(uid) {
   if (!uid) return readLocalEvents(null);
 
+  const epoch = authEpoch;
+  await migrateLegacyEventsOnce(uid);
+
+  if (!EVENTS_FIRESTORE_SYNC_ENABLED) {
+    if (!isScopeCurrent(uid, epoch)) return [];
+    const local = await readLocalEvents(uid);
+    const visible = local.filter((ev) => eventVisibleForUid(ev, uid));
+    if (visible.length !== local.length) {
+      await writeCache(visible, uid);
+    }
+    return visible;
+  }
+
   try {
     const snap = await getDocs(eventsCollection(uid));
+    if (!isScopeCurrent(uid, epoch)) return [];
+
     const cloudEvents = [];
+    const foreignIds = [];
     snap.forEach((d) => {
       const data = d.data() || {};
+      // Path is this uid's collection, but ownerUid may still mark a foreign row
+      // left from an earlier bleed — do not show or keep those.
+      if (data.ownerUid && data.ownerUid !== uid) {
+        foreignIds.push(d.id);
+        return;
+      }
       cloudEvents.push(normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id));
     });
 
-    // Migrate legacy only after we know whether this uid's cloud is empty.
-    await migrateLegacyEventsOnce(uid, { cloudEmpty: cloudEvents.length === 0 });
+    if (foreignIds.length > 0) {
+      await Promise.all(
+        foreignIds.map(async (id) => {
+          try {
+            await deleteDoc(eventDoc(uid, id));
+          } catch (e) {
+            console.warn('Failed to remove foreign ownerUid event from cloud', id, e);
+          }
+        }),
+      );
+    }
+
+    if (!isScopeCurrent(uid, epoch)) return [];
 
     const localAll = await readLocalEvents(uid);
-    // Strict ownership: only events with ownerUid === uid are eligible to upload.
     const local = localAll.filter((ev) => eventBelongsToUid(ev, uid));
 
     if (cloudEvents.length === 0) {
-      // Cloud empty: upload ONLY locals that already have ownerUid === uid.
-      // Never stamp missing ownerUid onto foreign/unscoped events just to upload.
-      // If none owned, clear the scoped cache so a polluted key cannot linger.
       if (local.length > 0) {
         await Promise.all(
           local.map(async (ev) => {
@@ -262,6 +331,7 @@ export async function syncEventsFromCloud(uid) {
             }
           }),
         );
+        if (!isScopeCurrent(uid, epoch)) return local;
         await writeCache(local, uid);
         return local;
       }
@@ -295,6 +365,7 @@ export async function syncEventsFromCloud(uid) {
       );
     }
 
+    if (!isScopeCurrent(uid, epoch)) return Object.values(byId);
     const merged = sortEvents(Object.values(byId));
     await writeCache(merged, uid);
     return merged;
@@ -310,7 +381,21 @@ export async function syncEventsFromCloud(uid) {
 
 export async function saveEvent(event) {
   const uid = getUid();
-  const events = uid ? await syncEventsFromCloud(uid).catch(() => readLocalEvents(uid)) : await readLocalEvents(null);
+  let events;
+  if (uid) {
+    if (EVENTS_FIRESTORE_SYNC_ENABLED) {
+      events = await syncEventsFromCloud(uid).catch(async () => {
+        const local = await readLocalEvents(uid);
+        return local.filter((ev) => eventBelongsToUid(ev, uid));
+      });
+    } else {
+      await migrateLegacyEventsOnce(uid);
+      const local = await readLocalEvents(uid);
+      events = local.filter((ev) => eventVisibleForUid(ev, uid));
+    }
+  } else {
+    events = await readLocalEvents(null);
+  }
   const now = new Date().toISOString();
   let saved = null;
 
@@ -371,7 +456,7 @@ export async function deleteEvent(id) {
   const filtered = events.filter((e) => e.id !== id);
   await writeCache(filtered, uid);
 
-  if (uid) {
+  if (uid && EVENTS_FIRESTORE_SYNC_ENABLED) {
     try {
       await deleteDoc(eventDoc(uid, id));
     } catch (e) {
