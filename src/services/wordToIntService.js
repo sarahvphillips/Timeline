@@ -9,6 +9,8 @@ function wordStorageKey(uid) {
   return uid ? `@word_to_int_list_${uid}` : GUEST_WORD_KEY;
 }
 
+const LAST_UID_KEY = '@timeline_last_uid';
+
 async function migrateLegacyWordNumbersOnce(uid) {
   if (!uid) return;
   const scoped = wordStorageKey(uid);
@@ -17,7 +19,34 @@ async function migrateLegacyWordNumbersOnce(uid) {
     if (existing != null) return;
     const legacy = await AsyncStorage.getItem(LEGACY_WORD_KEY);
     if (legacy == null) return;
-    await AsyncStorage.setItem(scoped, legacy);
+
+    let list = [];
+    try {
+      list = JSON.parse(legacy);
+    } catch (_) {
+      return;
+    }
+    if (!Array.isArray(list)) return;
+
+    const lastUid = await AsyncStorage.getItem(LAST_UID_KEY);
+    const allOwnedByUid =
+      list.length > 0 && list.every((item) => item && item.ownerUid === uid);
+    if (lastUid !== uid && !allOwnedByUid) {
+      console.warn(
+        'Skipping legacy word-numbers migration for',
+        uid,
+        '(last_uid=',
+        lastUid,
+        ') — not adopting foreign cache',
+      );
+      return;
+    }
+
+    const stamped = list.map((item) => ({
+      ...item,
+      ownerUid: item.ownerUid || uid,
+    }));
+    await AsyncStorage.setItem(scoped, JSON.stringify(stamped));
     await AsyncStorage.removeItem(LEGACY_WORD_KEY);
     console.warn('Migrated legacy @word_to_int_list into', scoped);
   } catch (e) {
@@ -170,9 +199,9 @@ async function writeList(list, uid = currentUid()) {
 }
 
 function entryBelongsToUid(entry, uid) {
+  // Strict: missing ownerUid does NOT belong — do not upload unscoped entries.
   if (!entry || !uid) return false;
-  if (entry.ownerUid && entry.ownerUid !== uid) return false;
-  return true;
+  return entry.ownerUid === uid;
 }
 
 /**
@@ -206,23 +235,27 @@ export async function getWordNumbers() {
       console.warn('Firebase word-to-int load skipped', e);
     }
 
-    // If signed in, cloud empty, and local has this uid's entries — upload them.
-    if (uid && remote.length === 0 && local.length > 0) {
-      await Promise.all(
-        local.map(async (item) => {
-          try {
-            await pushWordNumberToFirebase({ ...item, ownerUid: uid });
-          } catch (e) {
-            console.warn('Failed to upload local word-number', e);
-          }
-        }),
-      );
-      const stamped = local.map((item) => ({ ...item, ownerUid: item.ownerUid || uid }));
-      await writeList(stamped, uid);
-      return stamped.sort(
-        (a, b) =>
-          new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
-      );
+    // If signed in, cloud empty: upload ONLY entries that already have ownerUid === uid.
+    // Never stamp missing ownerUid onto foreign/unscoped entries just to upload.
+    if (uid && remote.length === 0) {
+      if (local.length > 0) {
+        await Promise.all(
+          local.map(async (item) => {
+            try {
+              await pushWordNumberToFirebase({ ...item, ownerUid: uid });
+            } catch (e) {
+              console.warn('Failed to upload local word-number', e);
+            }
+          }),
+        );
+        await writeList(local, uid);
+        return local.sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+      }
+      await writeList([], uid);
+      return [];
     }
 
     const remoteStamped = (remote || []).map((item) => ({

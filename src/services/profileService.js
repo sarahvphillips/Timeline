@@ -17,8 +17,23 @@ function poemCatsKey(uid) {
   return uid ? `@timeline_poem_categories_${uid}` : '@timeline_poem_categories_guest';
 }
 
+const LAST_UID_KEY = '@timeline_last_uid';
+
 async function migrateLegacySettingsOnce(uid) {
   if (!uid) return;
+  // Only migrate legacy settings into the last-logged-in uid — never into a
+  // different/new empty account (same cross-account bleed pattern as events).
+  const lastUid = await AsyncStorage.getItem(LAST_UID_KEY);
+  if (lastUid !== uid) {
+    console.warn(
+      'Skipping legacy settings migration for',
+      uid,
+      '(last_uid=',
+      lastUid,
+      ') — not adopting foreign cache',
+    );
+    return;
+  }
   const pairs = [
     [LEGACY_PROFILE_KEY, profileKey(uid)],
     [LEGACY_LABELS_KEY, labelsKey(uid)],

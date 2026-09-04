@@ -6,7 +6,8 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
 import { getMonthName } from './src/services/eventService';
-import { syncEventsFromCloud, readLocalEvents } from './src/services/eventService';
+import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY } from './src/services/eventService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncWordNumbersFromCloud } from './src/services/wordToIntService';
 import { syncSettingsFromCloud } from './src/services/profileService';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from './src/theme';
@@ -47,19 +48,24 @@ function AppShell() {
         setUser(firebaseUser);
         setInitializing(false);
         if (firebaseUser) {
-          // Load this uid's per-user cache (empty for a new account) THEN sync.
-          // syncEventsFromCloud migrates legacy global keys once for this uid only.
-          syncEventsFromCloud(firebaseUser.uid).catch((err) => {
-            console.warn('Event cloud sync failed', err);
-          });
-          syncWordNumbersFromCloud(firebaseUser.uid).catch((err) => {
-            console.warn('Word-to-Int cloud sync failed', err);
-          });
-          syncSettingsFromCloud(firebaseUser.uid).catch((err) => {
-            console.warn('Settings cloud sync failed', err);
-          });
-          registerThisDevice(firebaseUser.uid).catch((err) => {
-            console.warn('Device session register failed', err);
+          const uid = firebaseUser.uid;
+          // Sync first so legacy migration sees the *previous* @timeline_last_uid.
+          // Then record this login as last_uid for future sessions.
+          Promise.all([
+            syncEventsFromCloud(uid).catch((err) => {
+              console.warn('Event cloud sync failed', err);
+            }),
+            syncWordNumbersFromCloud(uid).catch((err) => {
+              console.warn('Word-to-Int cloud sync failed', err);
+            }),
+            syncSettingsFromCloud(uid).catch((err) => {
+              console.warn('Settings cloud sync failed', err);
+            }),
+            registerThisDevice(uid).catch((err) => {
+              console.warn('Device session register failed', err);
+            }),
+          ]).finally(() => {
+            AsyncStorage.setItem(LAST_UID_KEY, uid).catch(() => {});
           });
         } else {
           // Logged out: switch active cache to guest keys — do not leave the

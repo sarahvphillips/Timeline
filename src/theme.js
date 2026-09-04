@@ -17,8 +17,21 @@ export function themePaletteKey(uid) {
   return uid ? `@timeline_theme_palette_${uid}` : '@timeline_theme_palette_guest';
 }
 
+const LAST_UID_KEY = '@timeline_last_uid';
+
 async function migrateLegacyThemeOnce(uid) {
   if (!uid) return;
+  const lastUid = await AsyncStorage.getItem(LAST_UID_KEY);
+  if (lastUid !== uid) {
+    console.warn(
+      'Skipping legacy theme migration for',
+      uid,
+      '(last_uid=',
+      lastUid,
+      ') — not adopting foreign cache',
+    );
+    return;
+  }
   const pairs = [
     [LEGACY_THEME_MODE_KEY, themeModeKey(uid)],
     [LEGACY_THEME_PALETTE_KEY, themePaletteKey(uid)],

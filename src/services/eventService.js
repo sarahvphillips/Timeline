@@ -5,17 +5,23 @@ import { auth, db } from './firebase';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
 const GUEST_EVENTS_KEY = '@timeline_events_guest';
+export const LAST_UID_KEY = '@timeline_last_uid';
 
 function eventsStorageKey(uid) {
   return uid ? `@timeline_events_${uid}` : GUEST_EVENTS_KEY;
 }
 
 /**
- * One-time migration: if legacy global @timeline_events exists and this uid
- * has no scoped key yet, move it to the uid key then remove the global key
- * so later logins never inherit it.
+ * One-time migration of legacy global @timeline_events into a per-uid key.
+ * NEVER adopts legacy for an arbitrary empty-cloud uid (cross-account bleed).
+ * Migrates only when:
+ *   - @timeline_last_uid === uid, OR
+ *   - every legacy event already has ownerUid === uid, OR
+ *   - this uid's Firestore events cloud is non-empty (cloudEmpty === false)
+ * Otherwise leave legacy alone for the rightful owner.
+ * When migrating, stamp ownerUid on every event then delete the legacy key.
  */
-async function migrateLegacyEventsOnce(uid) {
+async function migrateLegacyEventsOnce(uid, { cloudEmpty } = {}) {
   if (!uid) return;
   const scoped = eventsStorageKey(uid);
   try {
@@ -23,12 +29,51 @@ async function migrateLegacyEventsOnce(uid) {
     if (existing != null) return;
     const legacy = await AsyncStorage.getItem(LEGACY_EVENTS_KEY);
     if (legacy == null) return;
-    await AsyncStorage.setItem(scoped, legacy);
+
+    let events = [];
+    try {
+      events = JSON.parse(legacy);
+    } catch (_) {
+      return;
+    }
+    if (!Array.isArray(events)) return;
+
+    const lastUid = await AsyncStorage.getItem(LAST_UID_KEY);
+    const allOwnedByUid =
+      events.length > 0 && events.every((ev) => ev && ev.ownerUid === uid);
+    const lastUidMatches = lastUid === uid;
+    const cloudHasEvents = cloudEmpty === false;
+
+    // If cloud is empty, only last_uid / all-owned may adopt. Never a new empty account.
+    if (!lastUidMatches && !allOwnedByUid && !cloudHasEvents) {
+      console.warn(
+        'Skipping legacy events migration for',
+        uid,
+        '(cloudEmpty=',
+        cloudEmpty,
+        ', last_uid=',
+        lastUid,
+        ') — not adopting foreign cache',
+      );
+      return;
+    }
+
+    const stamped = events.map((ev) => ({
+      ...ev,
+      ownerUid: ev.ownerUid || uid,
+    }));
+    await AsyncStorage.setItem(scoped, JSON.stringify(stamped));
     await AsyncStorage.removeItem(LEGACY_EVENTS_KEY);
     console.warn('Migrated legacy @timeline_events into', scoped);
   } catch (e) {
     console.warn('Legacy events migration skipped', e);
   }
+}
+
+/** Clear the per-uid local events cache (e.g. after confirming cloud is empty). */
+export async function clearLocalEventsForUid(uid) {
+  if (!uid) return;
+  await AsyncStorage.setItem(eventsStorageKey(uid), JSON.stringify([]));
 }
 
 /**
@@ -132,26 +177,25 @@ async function writeCache(events, uid = getUid()) {
 }
 
 function eventBelongsToUid(ev, uid) {
+  // Strict: missing ownerUid does NOT belong — do not upload unscoped events.
   if (!ev || !uid) return false;
-  if (ev.ownerUid && ev.ownerUid !== uid) return false;
-  return true;
+  return ev.ownerUid === uid;
 }
 
 async function pushEventToCloud(event) {
   const uid = getUid();
   if (!uid || !event?.id) return;
-  if (event.ownerUid && event.ownerUid !== uid) {
-    console.warn('Refusing to upload event with mismatched ownerUid', event.id);
+  if (event.ownerUid !== uid) {
+    console.warn('Refusing to upload event without matching ownerUid', event.id);
     return;
   }
-  const payload = { ...event, ownerUid: event.ownerUid || uid };
-  await setDoc(eventDoc(uid, event.id), stripUndefined(payload));
+  await setDoc(eventDoc(uid, event.id), stripUndefined({ ...event, ownerUid: uid }));
 }
 
 /** Local cache only — does not touch Firestore. Uses per-uid (or guest) key. */
 export async function readLocalEvents(uid = getUid()) {
   try {
-    if (uid) await migrateLegacyEventsOnce(uid);
+    // Legacy migration runs only from syncEventsFromCloud (needs cloud emptiness).
     const raw = await AsyncStorage.getItem(eventsStorageKey(uid));
     if (!raw) return [];
     const events = JSON.parse(raw);
@@ -189,10 +233,6 @@ export async function getEvents() {
 export async function syncEventsFromCloud(uid) {
   if (!uid) return readLocalEvents(null);
 
-  await migrateLegacyEventsOnce(uid);
-  const localAll = await readLocalEvents(uid);
-  const local = localAll.filter((ev) => eventBelongsToUid(ev, uid));
-
   try {
     const snap = await getDocs(eventsCollection(uid));
     const cloudEvents = [];
@@ -201,21 +241,29 @@ export async function syncEventsFromCloud(uid) {
       cloudEvents.push(normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id));
     });
 
+    // Migrate legacy only after we know whether this uid's cloud is empty.
+    await migrateLegacyEventsOnce(uid, { cloudEmpty: cloudEvents.length === 0 });
+
+    const localAll = await readLocalEvents(uid);
+    // Strict ownership: only events with ownerUid === uid are eligible to upload.
+    const local = localAll.filter((ev) => eventBelongsToUid(ev, uid));
+
     if (cloudEvents.length === 0) {
+      // Cloud empty: upload ONLY locals that already have ownerUid === uid.
+      // Never stamp missing ownerUid onto foreign/unscoped events just to upload.
+      // If none owned, clear the scoped cache so a polluted key cannot linger.
       if (local.length > 0) {
         await Promise.all(
           local.map(async (ev) => {
             try {
-              const payload = { ...ev, ownerUid: uid };
-              await setDoc(eventDoc(uid, ev.id), stripUndefined(payload));
+              await setDoc(eventDoc(uid, ev.id), stripUndefined({ ...ev, ownerUid: uid }));
             } catch (e) {
               console.warn('Failed to upload local event to Firestore', e);
             }
           }),
         );
-        const stamped = local.map((ev) => ({ ...ev, ownerUid: ev.ownerUid || uid }));
-        await writeCache(stamped, uid);
-        return stamped;
+        await writeCache(local, uid);
+        return local;
       }
       await writeCache([], uid);
       return [];
@@ -223,7 +271,7 @@ export async function syncEventsFromCloud(uid) {
 
     const byId = {};
     local.forEach((ev) => {
-      if (ev?.id) byId[ev.id] = { ...ev, ownerUid: ev.ownerUid || uid };
+      if (ev?.id) byId[ev.id] = ev;
     });
     const localOnly = [];
     local.forEach((ev) => {
@@ -239,8 +287,7 @@ export async function syncEventsFromCloud(uid) {
       await Promise.all(
         localOnly.map(async (ev) => {
           try {
-            const payload = { ...ev, ownerUid: uid };
-            await setDoc(eventDoc(uid, ev.id), stripUndefined(payload));
+            await setDoc(eventDoc(uid, ev.id), stripUndefined({ ...ev, ownerUid: uid }));
           } catch (e) {
             console.warn('Failed to upload local-only event to Firestore', e);
           }
@@ -256,7 +303,8 @@ export async function syncEventsFromCloud(uid) {
       'Could not load events from the cloud. Showing events saved on this device.',
       e,
     );
-    return local;
+    const localAll = await readLocalEvents(uid);
+    return localAll.filter((ev) => eventBelongsToUid(ev, uid));
   }
 }
 

@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 4 Sep 2026 (per-user AsyncStorage — accounts no longer share local events)
+**Last updated:** 4 Sep 2026 (strict ownerUid + last_uid — legacy cache no longer attaches to other accounts)
 
 ---
 
@@ -146,10 +146,11 @@
 
 ## Notes
 
-- **CLEANUP (manual):** If a second Firebase account on this device already received duplicated events, delete the extra docs under `users/{secondUid}/events` in the Firebase Console (Firestore). Do not rely on Admin SDK unless already set up. After this fix, new logins start with an empty per-uid local cache so the leak should not recur.
+- **CLEANUP (manual):** If account B still shows A's events, delete B's docs under `users/{B_uid}/events` in Firebase Console (Firestore) again. Then full-reload Expo Go and sign into B — must be empty. Sign into A — events still there. Do not rely on Admin SDK unless already set up.
+- **Legacy bleed fix (4 Sep 2026):** `eventBelongsToUid` requires `ownerUid === uid` (missing ≠ belong). Legacy `@timeline_events` migrates only when `@timeline_last_uid` matches, every event already has `ownerUid === uid`, or this uid's cloud is non-empty — never into an empty-cloud other account. Same last_uid gate for word-to-int / profile / theme legacy keys. On login, `App.js` sets `@timeline_last_uid` after sync.
 
 
-- Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events_{uid}` offline cache (guest: `@timeline_events_guest`). Legacy global `@timeline_events` migrates once into the first signed-in uid key then is removed.
+- Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events_{uid}` offline cache (guest: `@timeline_events_guest`). Legacy global `@timeline_events` migrates only to the rightful uid (see above), with `ownerUid` stamped.
 - Device sessions: Firestore `users/{uid}/sessions/{sessionId}` (install UUID in AsyncStorage `@timeline_device_id`). Rules need `match /users/{userId}/sessions/{sessionId} { allow read, write: if isOwner(userId) || isAdmin(); }`
 - Firebase project: `timelineapp-3bc05` â Firestore database and rules still need enabling in the console if not already on
 - Admin email: `sarah.v.phillips@googlemail.com`
