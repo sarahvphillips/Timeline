@@ -164,7 +164,7 @@
 
 - [x] Week-by-week view with named dated days (MonâSun).
 
-- [x] EAS / share-intent `app.json` restored (owner `sarahpoet6014`, projectId `0f4f935b-9897-4ac5-b760-39d00794adfc`, splash/icon images, iOS infoPlist, Android adaptiveIcon + CAMERA/media permissions + versionCode, expo-share-intent text+image filters, expo-image-picker plugin). Kept Expo SDK **54** family (share-intent compatible); do not bump to 57 without a share-intent upgrade.
+- [x] EAS / share-intent `app.json` restored (owner `sarahpoet6014`, projectId `0f4f935b-9897-4ac5-b760-39d00794adfc`, splash/icon images, iOS infoPlist, Android adaptiveIcon + CAMERA/media permissions + versionCode, expo-share-intent text+image filters, expo-image-picker plugin). Upgraded to Expo SDK **57** (expo ~57.0.0, React Native 0.86.3, expo-share-intent ^8.0.0). Config plugins and intent filters kept; OS share-into-app still needs a real Android/iOS development build (not Expo Go). Restart Metro and reopen in Expo Go SDK 57 on the phone after this upgrade.
 
 
 ## Events with friends (MVP) — Firestore rules to paste
