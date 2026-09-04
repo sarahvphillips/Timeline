@@ -26,7 +26,6 @@ const firebaseConfig = {
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
 
 let auth;
 if (globalThis._timelineAuth) {
@@ -45,9 +44,12 @@ if (globalThis._timelineAuth) {
   globalThis._timelineAuth = auth;
 }
 
+const db = getFirestore(app);
+
 export {
-  auth,
+  app,
   db,
+  auth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithCredential,

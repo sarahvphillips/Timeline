@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents, getYearSummaries } from '../services/eventService';
+import HomeFab from '../components/HomeFab';
 
 export default function YearOverviewScreen({ navigation }) {
   const [years, setYears] = useState([]);
@@ -71,6 +72,7 @@ export default function YearOverviewScreen({ navigation }) {
           );
         })}
       </ScrollView>
+      <HomeFab navigation={navigation} besidePlus={false} />
     </View>
   );
 }

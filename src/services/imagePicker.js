@@ -20,7 +20,11 @@ function makeStoredName(filename, uri) {
 export function isCameraAvailable() {
   if (Platform.OS !== 'web') return true;
   try {
-    return !!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    return !!(
+      typeof navigator !== 'undefined' &&
+      navigator.mediaDevices &&
+      navigator.mediaDevices.getUserMedia
+    );
   } catch (_) {
     return false;
   }
@@ -28,8 +32,9 @@ export function isCameraAvailable() {
 
 /**
  * Copy a picked/shared image into the app document directory so the URI survives.
- * On web, expo-file-system is unavailable; use a data URI when base64 is provided so the image survives reload.
- * Returns { uri, filename } or null.
+ * Do not use File.copy / copyAsync on Android — they throw
+ * Missing READ permission on content:// URIs.
+ * Write base64 when we have it; otherwise keep the picker URI.
  */
 export async function persistPickedImage(uri, filename, base64, mimeType) {
   if (!uri) return null;
@@ -44,17 +49,7 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
     return { uri, filename: originalName };
   }
 
-  try {
-    const { File, Directory, Paths } = require('expo-file-system');
-    const dir = new Directory(Paths.document, 'timeline-images');
-    if (!dir.exists) {
-      dir.create({ intermediates: true, idempotent: true });
-    }
-    const dest = new File(dir, storedName);
-    const src = new File(uri);
-    src.copy(dest);
-    return { uri: dest.uri, filename: originalName };
-  } catch (firstErr) {
+  if (base64) {
     try {
       const FileSystem = require('expo-file-system/legacy');
       const dirUri = FileSystem.documentDirectory + 'timeline-images/';
@@ -63,13 +58,16 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
         await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
       }
       const dest = dirUri + storedName;
-      await FileSystem.copyAsync({ from: uri, to: dest });
+      await FileSystem.writeAsStringAsync(dest, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       return { uri: dest, filename: originalName };
-    } catch (secondErr) {
-      console.warn('persistPickedImage: copy failed, using original URI', firstErr, secondErr);
-      return { uri, filename: originalName };
+    } catch (e) {
+      console.warn('persistPickedImage: base64 write failed', e);
     }
   }
+
+  return { uri, filename: originalName };
 }
 
 async function persistAsset(asset) {
@@ -83,7 +81,10 @@ export async function pickFromGallery() {
     if (Platform.OS !== 'web') {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Photos permission', 'Permission to access your photos is needed to choose a picture.');
+        Alert.alert(
+          'Photos permission',
+          'Permission to access your photos is needed to choose a picture.'
+        );
         return null;
       }
     }
@@ -91,7 +92,8 @@ export async function pickFromGallery() {
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 0.85,
-      base64: Platform.OS === 'web',
+      // base64 avoids Android File.copy READ permission errors
+      base64: true,
     });
     if (result.canceled || !result.assets || !result.assets[0]) return null;
     return persistAsset(result.assets[0]);
@@ -104,13 +106,19 @@ export async function pickFromGallery() {
 export async function pickFromCamera() {
   try {
     if (!isCameraAvailable()) {
-      Alert.alert('Camera unavailable', 'This browser or device cannot take a photo. Choose from gallery or files instead.');
+      Alert.alert(
+        'Camera unavailable',
+        'This browser or device cannot take a photo. Choose from gallery or files instead.'
+      );
       return null;
     }
     if (Platform.OS !== 'web') {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Camera permission', 'Permission to use the camera is needed to take a photo.');
+        Alert.alert(
+          'Camera permission',
+          'Permission to use the camera is needed to take a photo.'
+        );
         return null;
       }
     }
@@ -118,12 +126,15 @@ export async function pickFromCamera() {
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 0.85,
-      base64: Platform.OS === 'web',
+      base64: true,
     });
     if (result.canceled || !result.assets || !result.assets[0]) return null;
     return persistAsset(result.assets[0]);
   } catch (e) {
-    Alert.alert('Could not open camera', e && e.message ? e.message : 'Camera is not available here. Try gallery or files.');
+    Alert.alert(
+      'Could not open camera',
+      e && e.message ? e.message : 'Camera is not available here. Try gallery or files.'
+    );
     return null;
   }
 }
@@ -137,7 +148,7 @@ export async function pickFromFile() {
     });
     if (result.canceled || !result.assets || !result.assets[0]) return null;
     const asset = result.assets[0];
-    return persistPickedImage(asset.uri, asset.name);
+    return persistPickedImage(asset.uri, asset.name, asset.base64, asset.mimeType);
   } catch (e) {
     Alert.alert('Could not open files', e && e.message ? e.message : 'Please try again.');
     return null;
@@ -153,7 +164,7 @@ export async function pickFromSource(source) {
 
 /**
  * Native action sheet via Alert. Returns true if Alert was shown.
- * Web Alert cannot show multiple buttons ? callers should use ImageSourceSheet instead.
+ * Web Alert cannot show multiple buttons — callers should use ImageSourceSheet instead.
  */
 export function promptImageSourceNative(opts) {
   const onPicked = opts && opts.onPicked;
@@ -189,7 +200,9 @@ export function promptImageSourceNative(opts) {
     buttons.push({
       text: 'Remove photo',
       style: 'destructive',
-      onPress: () => { if (onRemove) onRemove(); },
+      onPress: () => {
+        if (onRemove) onRemove();
+      },
     });
   }
   buttons.push({ text: 'Cancel', style: 'cancel' });

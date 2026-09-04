@@ -1,7 +1,7 @@
-# Timeline App – Todo List
+# Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 2 Sep 2026 (Settings appearance)
+**Last updated:** 4 Sep 2026 (tidy Settings/themes; restore EAS + share-intent config; stay on Expo SDK 54)
 
 ---
 
@@ -14,7 +14,7 @@
 - [x] Add / Edit event
 - [x] Categories: Personal, Work, Family, Health, Travel, Hobby, Days Between, Other
 - [x] Email-as-event (manual): source type, category, next action, From field
-- [x] Next action: “Ask Grok to draft a reply”
+- [x] Next action: âAsk Grok to draft a replyâ
 - [x] Ask Grok: copy prompt + on-screen toast + open Grok
 - [x] App running in browser on HP laptop
 - [x] User login with email and password
@@ -22,13 +22,13 @@
   *(Welcome email with next steps still open)*
 - [x] User add things like hobbies (MVP)  
   Poetry (title + poem text), Singing/Music (title + description + file note), Reading (progress). Full audio file attach still open.
-- [x] Add poem – own screen (`AddPoemScreen`)
-- [x] Home – simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
-- [x] Year overview timeline (centre line, count bubbles, tap year → months)
-- [x] Month view (centre spine, J–D, count bubbles, empty months as ticks, + menu)
-- [x] Month items – centre line (Option B): items alternate left/right, tap to expand
-- [x] Timeline cards – compact, expandable
-- [x] Add button – single + with menu (Event, Email, Hobby/Poetry, QR, …)
+- [x] Add poem â own screen (`AddPoemScreen`)
+- [x] Home â simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
+- [x] Year overview timeline (centre line, count bubbles, tap year â months)
+- [x] Month view (centre spine, JâD, count bubbles, empty months as ticks, + menu)
+- [x] Month items â centre line (Option B): items alternate left/right, tap to expand
+- [x] Timeline cards â compact, expandable
+- [x] Add button â single + with menu (Event, Email, Hobby/Poetry, QR, â¦)
 - [x] Word to Int converter + saved number list
 - [x] Word to Int: Java hashCode method (full phrase, 32-bit signed)
 - [x] Word to Int: lookup matches saved date spans; Use as day count to Days between
@@ -50,18 +50,18 @@
 
 ## Built as placeholders (rows exist, not connected yet)
 
-- [x] Settings screen (light/dark + colour palettes; Home navigates here)
+- [x] Settings screen (light/dark + colour palettes; profile display name + DOB; custom labels; poem categories - all local AsyncStorage for now; HomeFab on timeline/year/month/settings)
 - [ ] Share timeline with another Timeline user (alert only)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
 ---
 
-## Priority – Email integration
+## Priority â Email integration
 
 - [x] Share to Timeline (wired; needs Android/iOS dev build to test from Gmail or photo apps)
-- [x] Add from email in-app (Home → Add Event with From + body)
+- [x] Add from email in-app (Home â Add Event with From + body)
 - [ ] **In-app Pick from Gmail**  
-  List recent emails via Gmail API; tap → Add Event pre-filled
+  List recent emails via Gmail API; tap â Add Event pre-filled
 - [ ] Welcome email on register
 
 ---
@@ -75,15 +75,15 @@
 
 ---
 
-## From Trello – still open
+## From Trello â still open
 
 ### Media & content
 
 - [x] User add image (camera, gallery, or files; Google Photos appears via the Android system gallery - no separate OAuth)
 - [ ] Full audio file attach for singing/music
 - [ ] Labels shown on expanded timeline card
-- [ ] Customisable poem categories
-- [ ] Label / tag system (poems and events)
+- [x] Customisable poem categories (Settings, local for now)
+- [x] Label / tag system basics (Settings can edit labels list locally; showing on expanded cards still open)
 - [ ] User add tv or films watched (description + score /10)
 - [ ] User add Spotify activity
 - [ ] User add friends photos from social media
@@ -103,9 +103,9 @@
 
 ### Life & people
 
-- [ ] Life events (birthdays, house moves, wedding, …)
+- [ ] Life events (birthdays, house moves, wedding, â¦)
 - [ ] User add friends (link timeline with them)
-- [ ] User specify date of birth
+- [x] User specify date of birth (Settings, local for now)
 
 ### Account & setup
 
@@ -146,7 +146,7 @@
 
 - Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events` is the offline cache (and the only store when logged out)
 - Device sessions: Firestore `users/{uid}/sessions/{sessionId}` (install UUID in AsyncStorage `@timeline_device_id`). Rules need `match /users/{userId}/sessions/{sessionId} { allow read, write: if isOwner(userId) || isAdmin(); }`
-- Firebase project: `timelineapp-3bc05` — Firestore database and rules still need enabling in the console if not already on
+- Firebase project: `timelineapp-3bc05` â Firestore database and rules still need enabling in the console if not already on
 - Admin email: `sarah.v.phillips@googlemail.com`
 - Running via Expo in browser (`localhost:8081`) and Expo Go on phone
 - Android package / iOS bundle: `com.sarahphillips.timelineapp`
@@ -156,4 +156,6 @@
 - Code on laptop: `C:\Users\sarah\Desktop\TimelineApp`
 - Grok project: Timeline app for Sarah Victoria Pauline Phillips
 
-- [x] Week-by-week view with named dated days (Mon–Sun).
+- [x] Week-by-week view with named dated days (MonâSun).
+
+- [x] EAS / share-intent `app.json` restored (owner `sarahpoet6014`, projectId `0f4f935b-9897-4ac5-b760-39d00794adfc`, splash/icon images, iOS infoPlist, Android adaptiveIcon + CAMERA/media permissions + versionCode, expo-share-intent text+image filters, expo-image-picker plugin). Kept Expo SDK **54** family (share-intent compatible); do not bump to 57 without a share-intent upgrade.

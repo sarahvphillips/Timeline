@@ -1,84 +1,8 @@
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 const STORAGE_KEY = '@word_to_int_list';
-
-let cloudWarningShown = false;
-
-function warnCloud(message, error) {
-  if (error !== undefined) {
-    console.warn(message, error);
-  } else {
-    console.warn(message);
-  }
-  if (cloudWarningShown) return;
-  cloudWarningShown = true;
-  try {
-    Alert.alert('Cloud sync', message);
-  } catch (_) {}
-}
-
-function getUid() {
-  return auth.currentUser?.uid || null;
-}
-
-function wordNumbersCollection(uid) {
-  return collection(db, 'users', uid, 'wordNumbers');
-}
-
-function wordNumberDoc(uid, entryId) {
-  return doc(db, 'users', uid, 'wordNumbers', entryId);
-}
-
-/** Strip undefined (Firestore rejects it) and convert Date to ISO strings. */
-function stripUndefined(value) {
-  if (value === undefined) return undefined;
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) {
-    return value
-      .map(stripUndefined)
-      .filter((item) => item !== undefined);
-  }
-  if (value && typeof value === 'object') {
-    const out = {};
-    Object.keys(value).forEach((key) => {
-      const next = stripUndefined(value[key]);
-      if (next !== undefined) out[key] = next;
-    });
-    return out;
-  }
-  return value;
-}
-
-function toIso(value) {
-  if (!value) return value;
-  if (typeof value.toDate === 'function') {
-    try {
-      return value.toDate().toISOString();
-    } catch (_) {
-      return value;
-    }
-  }
-  if (value instanceof Date) return value.toISOString();
-  return value;
-}
-
-function normalizeWordNumber(data, fallbackId) {
-  const entry = { ...data, id: data.id || fallbackId };
-  if (entry.createdAt) entry.createdAt = toIso(entry.createdAt);
-  if (entry.updatedAt) entry.updatedAt = toIso(entry.updatedAt);
-  return entry;
-}
-
-function sortWordNumbers(list) {
-  return list.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-}
-
-async function writeCache(list) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
 
 function lettersOnly(text) {
   return (text || '')
@@ -168,95 +92,110 @@ export function formatBreakdown(result, field = 'ordinal') {
   return result.breakdown.map((b) => `${b.letter}(${b[field]})`).join(' + ');
 }
 
+function currentUid() {
+  return auth?.currentUser?.uid || null;
+}
+
+function wordNumberDoc(uid, id) {
+  return doc(db, 'users', uid, 'wordNumbers', String(id));
+}
+
+async function pushWordNumberToFirebase(payload) {
+  const uid = currentUid();
+  if (!uid) {
+    throw new Error('Not signed in — cannot save to Firebase');
+  }
+  const clean = {};
+  Object.keys(payload).forEach((key) => {
+    if (payload[key] !== undefined) clean[key] = payload[key];
+  });
+  await setDoc(wordNumberDoc(uid, clean.id), clean, { merge: true });
+}
+
+async function fetchWordNumbersFromFirebase() {
+  const uid = currentUid();
+  if (!uid) return [];
+  const snap = await getDocs(collection(db, 'users', uid, 'wordNumbers'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+function mergeLists(localList, remoteList) {
+  const map = new Map();
+  [...(localList || []), ...(remoteList || [])].forEach((item) => {
+    if (!item?.id) return;
+    const existing = map.get(item.id);
+    if (!existing) {
+      map.set(item.id, item);
+      return;
+    }
+    const a = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+    const b = new Date(item.updatedAt || item.createdAt || 0).getTime();
+    map.set(item.id, b >= a ? { ...existing, ...item } : { ...item, ...existing });
+  });
+  return Array.from(map.values());
+}
+
+async function readListRaw() {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  if (!raw) return [];
+  const list = JSON.parse(raw);
+  if (!Array.isArray(list)) throw new Error('Word-to-int storage is not a list');
+  return list;
+}
+
+/**
+ * Pull cloud word-numbers for the signed-in user into the local cache.
+ * Used on login from App.js. getWordNumbers already merges remote.
+ */
+export async function syncWordNumbersFromCloud(uid) {
+  if (!uid) {
+    try {
+      return await readListRaw();
+    } catch (_) {
+      return [];
+    }
+  }
+  return getWordNumbers();
+}
+
 export async function getWordNumbers() {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const list = JSON.parse(raw);
-    return sortWordNumbers(list);
+    const local = await readListRaw();
+    let remote = [];
+    try {
+      remote = await fetchWordNumbersFromFirebase();
+    } catch (e) {
+      console.warn('Firebase word-to-int load skipped', e);
+    }
+    const merged = mergeLists(local, remote);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    return merged.sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+    );
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
     return [];
   }
 }
 
-/**
- * Pull cloud word numbers for the signed-in user into the local cache.
- * Cloud wins on id conflict. If cloud is empty and local has entries,
- * upload local so existing numbers appear on other devices.
- */
-export async function syncWordNumbersFromCloud(uid) {
-  if (!uid) return getWordNumbers();
-
-  const local = await getWordNumbers();
-
-  try {
-    const snap = await getDocs(wordNumbersCollection(uid));
-    const cloudEntries = [];
-    snap.forEach((d) => {
-      const data = d.data() || {};
-      cloudEntries.push(normalizeWordNumber(data, d.id));
-    });
-
-    if (cloudEntries.length === 0) {
-      if (local.length > 0) {
-        await Promise.all(
-          local.map(async (entry) => {
-            try {
-              await setDoc(wordNumberDoc(uid, entry.id), stripUndefined(entry));
-            } catch (e) {
-              console.warn('Failed to upload local word number to Firestore', e);
-            }
-          }),
-        );
-      }
-      return local;
-    }
-
-    const byId = {};
-    local.forEach((entry) => {
-      if (entry?.id) byId[entry.id] = entry;
-    });
-    const localOnly = [];
-    local.forEach((entry) => {
-      if (entry?.id && !cloudEntries.some((c) => c.id === entry.id)) {
-        localOnly.push(entry);
-      }
-    });
-    cloudEntries.forEach((entry) => {
-      if (entry?.id) byId[entry.id] = entry;
-    });
-
-    if (localOnly.length > 0) {
-      await Promise.all(
-        localOnly.map(async (entry) => {
-          try {
-            await setDoc(wordNumberDoc(uid, entry.id), stripUndefined(entry));
-          } catch (e) {
-            console.warn('Failed to upload local-only word number to Firestore', e);
-          }
-        }),
-      );
-    }
-
-    const merged = sortWordNumbers(Object.values(byId));
-    await writeCache(merged);
-    return merged;
-  } catch (e) {
-    warnCloud(
-      'Could not load numbers from the cloud. Showing numbers saved on this device.',
-      e,
-    );
-    return local;
-  }
-}
-
 export async function saveWordNumber(entry) {
-  const list = await getWordNumbers();
-  const now = new Date().toISOString();
   const result = convertPhrase(entry.phrase);
+  if (!result.phrase) {
+    throw new Error('Missing phrase');
+  }
+
+  let list;
+  try {
+    list = await readListRaw();
+  } catch (e) {
+    console.warn('Word-to-int list unreadable; not overwriting', e);
+    throw new Error('Could not read the saved number list');
+  }
+
+  const now = new Date().toISOString();
   const payload = {
-    id: entry.id || Date.now().toString() + Math.random().toString(36).slice(2, 8),
+    id: entry.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     phrase: result.phrase,
     notes: (entry.notes || '').trim(),
     preferred: entry.preferred || 'ordinal',
@@ -270,39 +209,38 @@ export async function saveWordNumber(entry) {
     updatedAt: now,
   };
 
-  const index = list.findIndex(
-    (item) =>
-      item.id === payload.id ||
-      String(item.phrase || '').toLowerCase() === payload.phrase.toLowerCase()
-  );
-  let saved;
+  const index = list.findIndex((item) => {
+    if (entry.id && String(item.id) === String(entry.id)) return true;
+    return (
+      String(item.phrase || '').trim().toLowerCase() === payload.phrase.toLowerCase() &&
+      (item.preferred || 'ordinal') === payload.preferred
+    );
+  });
+
   if (index !== -1) {
-    saved = {
-      ...list[index],
-      ...payload,
-      id: list[index].id,
-      createdAt: list[index].createdAt || payload.createdAt,
-    };
-    list[index] = saved;
+    payload.id = list[index].id;
+    payload.createdAt = list[index].createdAt || payload.createdAt;
+    list[index] = { ...list[index], ...payload };
   } else {
-    saved = payload;
     list.unshift(payload);
   }
 
-  await writeCache(list);
-
-  if (saved?.id && getUid()) {
-    try {
-      await setDoc(wordNumberDoc(getUid(), saved.id), stripUndefined(saved));
-    } catch (e) {
-      warnCloud(
-        'Could not sync this number to the cloud. It is saved on this device.',
-        e,
-      );
-    }
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  const saved = await readListRaw();
+  const found = saved.find((item) => String(item.id) === String(payload.id));
+  if (!found) {
+    throw new Error('Save did not persist on this device');
   }
 
-  return payload;
+  try {
+    await pushWordNumberToFirebase(found);
+    found.cloudSaved = true;
+  } catch (e) {
+    found.cloudSaved = false;
+    found.cloudError = e?.message || 'Firebase save failed';
+    console.warn('Firebase word-to-int save failed', e);
+  }
+  return found;
 }
 
 export async function deleteWordNumber(id) {
@@ -318,26 +256,15 @@ export async function deleteWordNumber(id) {
     }
     return true;
   });
-  const removed = list.filter((item) => !next.some((n) => String(n.id) === String(item.id)));
-  await writeCache(next);
-
-  const uid = getUid();
-  if (uid) {
-    await Promise.all(
-      removed.map(async (item) => {
-        if (!item?.id) return;
-        try {
-          await deleteDoc(wordNumberDoc(uid, item.id));
-        } catch (e) {
-          warnCloud(
-            'Could not delete this number from the cloud. It is removed on this device.',
-            e,
-          );
-        }
-      }),
-    );
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const uid = currentUid();
+  if (uid && target?.id) {
+    try {
+      await deleteDoc(wordNumberDoc(uid, target.id));
+    } catch (e) {
+      console.warn('Firebase word-to-int delete skipped', e);
+    }
   }
-
   return next;
 }
 

@@ -96,15 +96,20 @@ export default function WordToIntScreen({ navigation, route }) {
     }
     setSaving(true);
     try {
-      await saveWordNumber({
+      const saved = await saveWordNumber({
         phrase: result.phrase,
         notes,
         preferred: method,
       });
-      setNotes('');
       await loadList();
-    } catch {
-      Alert.alert('Error', 'Could not save this number.');
+      Alert.alert(
+        saved.cloudSaved ? 'Saved on phone and Firebase' : 'Saved on this phone only',
+        saved.cloudSaved
+          ? `"${saved.phrase}" = ${preferredNumber(saved)} (${saved.preferred || method})`
+          : `"${saved.phrase}" is on this device. Firebase: ${saved.cloudError || 'not signed in or Firestore is off'}.`
+      );
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'Could not save this number.');
     } finally {
       setSaving(false);
     }
@@ -146,9 +151,14 @@ export default function WordToIntScreen({ navigation, route }) {
         wordNumberValue: number,
       });
       await loadList();
-      Alert.alert('Saved', 'Added to your number list and to the timeline.');
-    } catch {
-      Alert.alert('Error', 'Could not save to the timeline.');
+      Alert.alert(
+        saved.cloudSaved ? 'Saved on phone, timeline and Firebase' : 'Saved on this phone only',
+        saved.cloudSaved
+          ? `"${result.phrase}" is on the number list, timeline, and Firebase.`
+          : `"${result.phrase}" is on this device. Firebase: ${saved.cloudError || 'not signed in or Firestore is off'}.`
+      );
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'Could not save to the timeline.');
     } finally {
       setSaving(false);
     }

@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents, getMonthSummaries } from '../services/eventService';
+import HomeFab from '../components/HomeFab';
 
 export default function MonthOverviewScreen({ navigation, route }) {
   const startYear = route.params?.year || new Date().getFullYear();
@@ -111,6 +112,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
         })}
       </ScrollView>
 
+      <HomeFab navigation={navigation} />
       <TouchableOpacity style={styles.fab} onPress={() => setMenuOpen(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>

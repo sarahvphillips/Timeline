@@ -29,6 +29,7 @@ import {
   filterEventsByYearMonth,
   getMonthName,
 } from '../services/eventService';
+import HomeFab from '../components/HomeFab';
 
 const GROK_URL = 'https://grok.x.ai';
 
@@ -116,7 +117,7 @@ export default function TimelineScreen({ navigation, route }) {
     if (Platform.OS === 'web' && navigator?.clipboard) {
       try {
         await navigator.clipboard.writeText(prompt);
-        showToast('Copied! Opening Grok â€” paste (Ctrl+V)');
+        showToast('Copied! Opening Grok ÔÇö paste (Ctrl+V)');
         setTimeout(() => openGrok(), 400);
         return;
       } catch {
@@ -167,7 +168,7 @@ export default function TimelineScreen({ navigation, route }) {
             {item.source === 'hobby' && item.hobbyType ? (
               <Text style={styles.hobbyMeta}>
                 {getHobbyTypeIcon(item.hobbyType)} {getHobbyTypeLabel(item.hobbyType)}
-                {item.collectionName ? `  Â·  ${item.collectionName}` : ''}
+                {item.collectionName ? `  -À  ${item.collectionName}` : ''}
               </Text>
             ) : null}
 
@@ -218,7 +219,7 @@ export default function TimelineScreen({ navigation, route }) {
                 </Text>
                 {item.nextAction === 'ask_grok_reply' && (
                   <TouchableOpacity style={styles.grokButton} onPress={() => handleAskGrok(item)}>
-                    <Text style={styles.grokButtonText}>âœ¦ Ask Grok</Text>
+                    <Text style={styles.grokButtonText}>Ô£ª Ask Grok</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -286,6 +287,7 @@ export default function TimelineScreen({ navigation, route }) {
         </View>
       )}
 
+      <HomeFab navigation={navigation} />
       <TouchableOpacity style={styles.fab} onPress={() => setMenuOpen(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>

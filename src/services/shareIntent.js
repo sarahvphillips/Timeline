@@ -126,19 +126,31 @@ export function parseSharedEmail(shareIntent) {
 }
 
 export function isShareIntentAvailable() {
-  if (typeof navigator !== 'undefined' && typeof window !== 'undefined') {
-    try {
-      const { Platform } = require('react-native');
-      if (Platform.OS === 'web') return false;
-    } catch (_) {
-      return false;
-    }
-  }
   try {
     const { Platform } = require('react-native');
     if (Platform.OS === 'web') return false;
+  } catch (_) {
+    return false;
+  }
+  // expo-share-intent@5.x is built for SDK 54; on 55+ it often throws
+  // "undefined is not a function" at startup. Keep Share disabled until upgraded.
+  try {
+    const Constants = require('expo-constants').default;
+    const sdk =
+      Constants.expoConfig?.sdkVersion ||
+      Constants.manifest?.sdkVersion ||
+      Constants.manifest2?.extra?.expoClient?.sdkVersion ||
+      '';
+    const major = parseInt(String(sdk).split('.')[0], 10);
+    if (Number.isFinite(major) && major >= 55) {
+      return false;
+    }
+  } catch (_) {
+    // If we cannot read SDK, still try the module check below.
+  }
+  try {
     const mod = require('expo-share-intent');
-    return !!(mod && mod.ShareIntentModule);
+    return !!(mod && mod.ShareIntentModule && typeof mod.ShareIntentModule === 'object');
   } catch (_) {
     return false;
   }

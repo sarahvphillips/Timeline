@@ -111,7 +111,8 @@ async function pushEventToCloud(event) {
   await setDoc(eventDoc(uid, event.id), stripUndefined(event));
 }
 
-export async function getEvents() {
+/** Local cache only — does not touch Firestore. */
+export async function readLocalEvents() {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -124,14 +125,31 @@ export async function getEvents() {
 }
 
 /**
+ * Load events for the UI.
+ * If signed in, sync from Firestore first so phone/laptop share the same list.
+ */
+export async function getEvents() {
+  const uid = getUid();
+  if (uid) {
+    try {
+      return await syncEventsFromCloud(uid);
+    } catch (e) {
+      console.warn('getEvents: cloud sync failed, using local', e);
+      return readLocalEvents();
+    }
+  }
+  return readLocalEvents();
+}
+
+/**
  * Pull cloud events for the signed-in user into the local cache.
  * Cloud wins on id conflict. If cloud is empty and local has events,
  * upload local so existing laptop test events appear on other devices.
  */
 export async function syncEventsFromCloud(uid) {
-  if (!uid) return getEvents();
+  if (!uid) return readLocalEvents();
 
-  const local = await getEvents();
+  const local = await readLocalEvents();
 
   try {
     const snap = await getDocs(eventsCollection(uid));
