@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 4 Sep 2026 (strict ownerUid + last_uid — legacy cache no longer attaches to other accounts)
+**Last updated:** 4 Sep 2026 (Expo SDK 57 + expo-share-intent 8 for phone Expo Go)
 
 ---
 
