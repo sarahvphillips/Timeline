@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Image,
   Dimensions,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { auth } from '../services/firebase';
@@ -17,7 +19,7 @@ import {
 } from '../services/shareService';
 import { getProfile, getProfilePhotoUri } from '../services/profileService';
 import HomeFab from '../components/HomeFab';
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 function Avatar({ name, photoUri, colour, size = 44 }) {
   const initial = (name || 'Y').charAt(0).toUpperCase();
@@ -68,6 +70,8 @@ export default function EventsWithFriendsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [sharedEvents, setSharedEvents] = useState([]);
   const [me, setMe] = useState({ displayName: 'You', photoUri: null, initial: 'Y' });
+  // TEMP design target — remove when friends view matches sketch.
+  const [showDesignTarget, setShowDesignTarget] = useState(false);
 
   const myUid = auth.currentUser?.uid;
 
@@ -123,6 +127,15 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* TEMP design target — remove when friends view matches sketch. */}
+      <TouchableOpacity
+        style={styles.designBtn}
+        onPress={() => setShowDesignTarget(true)}
+        accessibilityLabel="Temporary design target preview"
+      >
+        <Text style={styles.designBtnText}>Design</Text>
+      </TouchableOpacity>
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.intro}>
           Your spine stays in the centre. Friends&apos; coloured lines meet yours only at shared
@@ -263,6 +276,35 @@ export default function EventsWithFriendsScreen({ navigation }) {
         </TouchableOpacity>
       </ScrollView>
       <HomeFab navigation={navigation} besidePlus={false} />
+
+      {/* TEMP design target — remove when friends view matches sketch. */}
+      <Modal
+        visible={showDesignTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDesignTarget(false)}
+      >
+        <Pressable style={styles.designModalBackdrop} onPress={() => setShowDesignTarget(false)}>
+          <Pressable style={styles.designModalCard} onPress={(e) => e.stopPropagation?.()}>
+            <View style={styles.designModalHeader}>
+              <Text style={styles.designModalTitle}>Design target (temp)</Text>
+              <TouchableOpacity
+                onPress={() => setShowDesignTarget(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.designModalClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.designImageWrap}>
+              <Image
+                source={require('../../assets/friends-design-target.jpg')}
+                style={styles.designImage}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -275,7 +317,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scroll: { padding: 16, paddingBottom: 100 },
+  scroll: { padding: 16, paddingBottom: 100, paddingTop: 44 },
+  // TEMP design target — remove when friends view matches sketch.
+  designBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 12,
+    zIndex: 20,
+    backgroundColor: '#334155',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  designBtnText: { color: '#fbbf24', fontSize: 12, fontWeight: '700' },
+  designModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  designModalCard: {
+    flex: 1,
+    maxHeight: SCREEN_H * 0.92,
+    backgroundColor: '#0f1024',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#475569',
+    overflow: 'hidden',
+  },
+  designModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+  },
+  designModalTitle: { color: '#fbbf24', fontSize: 14, fontWeight: '700' },
+  designModalClose: { color: '#94a3b8', fontSize: 14, fontWeight: '600' },
+  designImageWrap: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 8 },
+  designImage: { width: SCREEN_W - 40, height: SCREEN_H * 0.75 },
   intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 16 },
   avatarRow: {
     flexDirection: 'row',

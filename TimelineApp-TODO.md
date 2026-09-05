@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 5 Sep 2026 (friend source label; delete event; web save feedback; Firestore sync still enabled)
+**Last updated:** 5 Sep 2026 (temp Design button on friends view; friend source label; delete event; web save feedback)
 
 ---
 
@@ -111,7 +111,8 @@
 - [x] User add friends — per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
 - [ ] Broader friend graph / whole-timeline link (later)
 - [ ] **Friend usernames (privacy)** — some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
-- [ ] **Polish Events with friends timeline display** — curved coloured friend lines, avatars on lines; current intersecting view is MVP/first cut, refine later (do not block on this). Discuss more friends-view features with Sarah before polish. Design-ref image: Sarah will re-send (was sent to Grok, not in this repo yet) — add a temporary corner preview button once `assets/friends-design-ref.png` is available; remove when design is finished.
+- [ ] **Polish Events with friends timeline display** — curved coloured friend lines, avatars on lines; current intersecting view is MVP/first cut, refine later (do not block on this). Discuss more friends-view features with Sarah before polish.
+- [ ] **TEMP: Design button on Events with friends** — top-right corner opens `assets/friends-design-target.jpg` modal preview. Remove when friends view polish matches the sketch.
 - [x] User specify date of birth (Settings, local for now)
 
 ### Account & setup
