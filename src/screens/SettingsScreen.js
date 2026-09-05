@@ -7,6 +7,7 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../themeContext';
@@ -32,6 +33,7 @@ export default function SettingsScreen({ navigation }) {
   const [newPoemCat, setNewPoemCat] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [cacheNotice, setCacheNotice] = useState('');
 
   const load = useCallback(async () => {
     const [profile, labs, cats] = await Promise.all([
@@ -68,33 +70,48 @@ export default function SettingsScreen({ navigation }) {
   };
 
 
-  const handleClearLocalCache = () => {
-    Alert.alert(
+  const notify = (title, message) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+      window.alert(title + (message ? '\n\n' + message : ''));
+      return;
+    }
+    Alert.alert(title, message);
+  };
+
+  const confirmAction = (title, message) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      return Promise.resolve(window.confirm(title + (message ? '\n\n' + message : '')));
+    }
+    return new Promise((resolve) => {
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Clear', style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
+  };
+
+  const handleClearLocalCache = async () => {
+    setCacheNotice('');
+    const ok = await confirmAction(
       "Clear this account's local cache",
       "Removes only this signed-in account's events, Word-to-Int list, date spans, and profile photo saved on this device. Other accounts on this device stay untouched. Firestore / cloud data is not changed.",
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            setClearingCache(true);
-            try {
-              await clearThisAccountLocalCache();
-              await load();
-              Alert.alert(
-                'Local cache cleared',
-                "This account's on-device lists are empty. Open Timeline or Word to Int to confirm — they should refresh empty. Other accounts keep their local data.",
-              );
-            } catch (e) {
-              Alert.alert('Could not clear', e?.message || 'Please try again while signed in.');
-            } finally {
-              setClearingCache(false);
-            }
-          },
-        },
-      ],
     );
+    if (!ok) return;
+    setClearingCache(true);
+    try {
+      await clearThisAccountLocalCache();
+      await load();
+      const success =
+        "Local cache cleared. This account's on-device lists are empty — open Timeline or Word to Int to confirm. Other accounts keep their local data.";
+      setCacheNotice(success);
+      notify('Local cache cleared', success);
+    } catch (e) {
+      const fail = e?.message || 'Please try again while signed in.';
+      setCacheNotice('Could not clear: ' + fail);
+      notify('Could not clear', fail);
+    } finally {
+      setClearingCache(false);
+    }
   };
 
   const addToList = async (value, list, setter, saveFn, clear) => {
@@ -265,6 +282,9 @@ export default function SettingsScreen({ navigation }) {
             {clearingCache ? 'Clearing…' : "Clear this account's local cache"}
           </Text>
         </TouchableOpacity>
+        {!!cacheNotice && (
+          <Text style={{ color: colors.text, marginTop: 10, lineHeight: 20 }}>{cacheNotice}</Text>
+        )}
 
       </ScrollView>
       <HomeFab navigation={navigation} besidePlus={false} />
