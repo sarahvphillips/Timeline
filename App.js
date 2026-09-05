@@ -9,6 +9,7 @@ import { getMonthName } from './src/services/eventService';
 import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY, beginAuthScope, EVENTS_FIRESTORE_SYNC_ENABLED } from './src/services/eventService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncWordNumbersFromCloud, beginAuthScope as beginWordNumbersAuthScope, WORD_NUMBERS_FIRESTORE_SYNC_ENABLED } from './src/services/wordToIntService';
+import { beginAuthScope as beginSpansAuthScope } from './src/services/dateSpanService';
 import { syncSettingsFromCloud } from './src/services/profileService';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from './src/theme';
 import { registerThisDevice } from './src/services/deviceSession';
@@ -52,6 +53,7 @@ function AppShell() {
           // Invalidate any in-flight event / wordNumbers I/O from a previous account first.
           beginAuthScope(uid);
           beginWordNumbersAuthScope(uid);
+          beginSpansAuthScope(uid);
           // Load this uid locally (cloud only if the matching Firestore sync flag is on).
           // Before @timeline_last_uid so legacy migration sees the previous uid.
           // Then record this login as last_uid for future sessions.
@@ -84,6 +86,7 @@ function AppShell() {
         } else {
           beginAuthScope(null);
           beginWordNumbersAuthScope(null);
+          beginSpansAuthScope(null);
           // Logged out: guest cache only — never leave the previous user's list active.
           readLocalEvents(null).catch(() => {});
           syncWordNumbersFromCloud(null).catch(() => {});
@@ -132,7 +135,7 @@ function AppShell() {
     <ShareToTimeline navigationRef={navigationRef} user={user}>
       <NavigationContainer ref={navigationRef} linking={shareLinking}>
         <ThemedStatusBar />
-        <ThemedNavigator>
+        <ThemedNavigator navKey={user?.uid || 'logged-out'}>
           {!user ? (
             <Stack.Screen
               name="Login"
@@ -274,10 +277,11 @@ function ThemedStatusBar() {
   return <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />;
 }
 
-function ThemedNavigator({ children }) {
+function ThemedNavigator({ children, navKey }) {
   const { colors, scheme } = useTheme();
   return (
     <Stack.Navigator
+      key={navKey}
       screenOptions={{
         headerShown: true,
         headerStyle: { backgroundColor: colors.headerBg },

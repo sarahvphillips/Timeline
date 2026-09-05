@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 4 Sep 2026 (events + wordNumbers Firestore sync paused; Expo SDK 57)
+**Last updated:** 5 Sep 2026 (AsyncStorage uid isolation first slice; clear-cache; sync still paused)
 
 ---
 
@@ -147,6 +147,27 @@
 ## Notes
 
 - **CLEANUP (manual):** If account B still shows A's events, delete B's docs under `users/{B_uid}/events` in Firebase Console (Firestore) again. Then full-reload Expo Go and sign into B — must be empty. Sign into A — events still there. Do not rely on Admin SDK unless already set up.
+
+- **AsyncStorage key audit (5 Sep 2026) — first-slice isolation**
+
+  | Key pattern | Scope | Notes |
+  |---|---|---|
+  | `@timeline_events_{uid}` / `@timeline_events_guest` | uid / guest | Events local cache. Legacy `@timeline_events` migrates only to rightful uid. |
+  | `@word_to_int_list_{uid}` / `@word_to_int_list_guest` | uid / guest | Word-to-Int local cache. Legacy `@word_to_int_list` same last_uid gate. |
+  | `@date_span_list_{uid}` / `@date_span_list_guest` | uid / guest | Date spans (newly scoped 5 Sep). Legacy `@date_span_list` migrates only when `@timeline_last_uid` matches. |
+  | `@timeline_profile_{uid}` / guest | uid / guest | Display name + DOB. |
+  | `@timeline_labels_{uid}` / guest | uid / guest | Custom labels. |
+  | `@timeline_poem_categories_{uid}` / guest | uid / guest | Poem categories. |
+  | `@timeline_theme_mode_{uid}` / `@timeline_theme_palette_{uid}` (+ guest) | uid / guest | Appearance prefs. |
+  | `@profile_photo_{uid}` / `@profile_photo_guest` | uid / guest | Profile photo URI (newly scoped 5 Sep). Legacy `@profile_photo` last_uid-gated. |
+  | `@timeline_last_uid` | device-global | Last successful login uid (migration gate). Not cleared by cache clear. |
+  | `@timeline_device_id` | device-global | Install UUID for sessions. Intentionally shared across accounts. |
+  | Firebase Auth persistence (RN AsyncStorage) | auth SDK | Keep intact — do not wipe. |
+
+  **Settings → Clear this account's local cache:** empties only current uid's events, wordNumbers, date spans, and profile photo. Does **not** clear other uids' keys, guest keys of other sessions, Firestore, `@timeline_last_uid`, or `@timeline_device_id`. Auth scopes re-bumped after clear; navigator remounts on uid change so in-memory lists reset.
+
+  **Still paused:** `EVENTS_FIRESTORE_SYNC_ENABLED=false`, `WORD_NUMBERS_FIRESTORE_SYNC_ENABLED=false`.
+
 - **Events Firestore sync PAUSED (4 Sep 2026):** `EVENTS_FIRESTORE_SYNC_ENABLED = false` in `eventService.js`. Auth still works. Events are per-uid AsyncStorage only (`@timeline_events_{uid}`) — no upload/pull of `users/{uid}/events` until isolation is confirmed. Flip the flag to `true` to re-enable. Also: auth-scope epoch on login/logout; legacy migration no longer adopts via cloud-non-empty; cloud path (when re-enabled) drops docs with foreign `ownerUid`. Phone A vs browser B confusion is most likely dirty docs already under `users/{B}/events` from the earlier same-device bleed — with sync paused those cloud docs no longer appear. Manual console cleanup of B's events collection still recommended before re-enabling sync (do not wipe A's).
 
 - **WordNumbers Firestore sync PAUSED (4 Sep 2026):** WORD_NUMBERS_FIRESTORE_SYNC_ENABLED = false in wordToIntService.js. No upload/pull of users/{uid}/wordNumbers while false; per-uid AsyncStorage (@word_to_int_list_{uid} / guest) only. Auth-scope epoch added (same pattern as events) so in-flight sync cannot write after account switch. Did not wipe Firestore wordNumbers; Sarah cleared local lists herself. Events sync remains paused.

@@ -10,16 +10,13 @@ import {
   Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
 import {
   getMySharedEvents,
   listOtherParticipants,
 } from '../services/shareService';
-import { getProfile } from '../services/profileService';
+import { getProfile, getProfilePhotoUri } from '../services/profileService';
 import HomeFab from '../components/HomeFab';
-
-const PROFILE_PHOTO_KEY = '@profile_photo';
 const { width: SCREEN_W } = Dimensions.get('window');
 
 function Avatar({ name, photoUri, colour, size = 44 }) {
@@ -80,7 +77,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
       const [events, profile, photoUri] = await Promise.all([
         getMySharedEvents(),
         getProfile().catch(() => ({ displayName: '' })),
-        AsyncStorage.getItem(PROFILE_PHOTO_KEY).catch(() => null),
+        getProfilePhotoUri().catch(() => null),
       ]);
       const displayName =
         profile?.displayName ||

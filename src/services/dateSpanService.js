@@ -1,6 +1,63 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from './firebase';
 
-const STORAGE_KEY = '@date_span_list';
+const LEGACY_STORAGE_KEY = '@date_span_list';
+const GUEST_STORAGE_KEY = '@date_span_list_guest';
+const LAST_UID_KEY = '@timeline_last_uid';
+
+function spansStorageKey(uid) {
+  return uid ? `@date_span_list_${uid}` : GUEST_STORAGE_KEY;
+}
+
+function currentUid() {
+  return auth?.currentUser?.uid || null;
+}
+
+// Bumps on login/logout so in-flight I/O cannot write after an auth switch.
+let authEpoch = 0;
+let activeAuthUid = null;
+
+/** Call from App onAuthStateChanged so span I/O is scoped to the current uid. */
+export function beginAuthScope(uid) {
+  authEpoch += 1;
+  activeAuthUid = uid || null;
+  return authEpoch;
+}
+
+function isScopeCurrent(uid, epoch) {
+  return epoch === authEpoch && (uid || null) === activeAuthUid;
+}
+
+/**
+ * One-time migration of legacy global @date_span_list into a per-uid key.
+ * Only adopts when @timeline_last_uid matches (same gate as profile/theme).
+ */
+async function migrateLegacySpansOnce(uid) {
+  if (!uid) return;
+  const scoped = spansStorageKey(uid);
+  try {
+    const existing = await AsyncStorage.getItem(scoped);
+    if (existing != null) return;
+    const lastUid = await AsyncStorage.getItem(LAST_UID_KEY);
+    if (lastUid !== uid) {
+      console.warn(
+        'Skipping legacy date-span migration for',
+        uid,
+        '(last_uid=',
+        lastUid,
+        ') — not adopting foreign cache',
+      );
+      return;
+    }
+    const legacy = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy == null) return;
+    await AsyncStorage.setItem(scoped, legacy);
+    await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+    console.warn('Migrated legacy @date_span_list into', scoped);
+  } catch (e) {
+    console.warn('Legacy date-span migration skipped', e);
+  }
+}
 
 const WEEKDAYS = [
   'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
@@ -173,12 +230,31 @@ export function formatWeekLine(span) {
   return `${padUnit(span.weeks, 'week', 'weeks')} and ${padUnit(span.weekDays, 'day', 'days')}`;
 }
 
+async function readListRaw(uid = currentUid()) {
+  if (uid) await migrateLegacySpansOnce(uid);
+  const raw = await AsyncStorage.getItem(spansStorageKey(uid));
+  if (!raw) return [];
+  const list = JSON.parse(raw);
+  return Array.isArray(list) ? list : [];
+}
+
+async function writeList(list, uid = currentUid()) {
+  await AsyncStorage.setItem(spansStorageKey(uid), JSON.stringify(list));
+}
+
+/** Clear the per-uid local date-span cache only (does not touch other uids or Firestore). */
+export async function clearLocalSpansForUid(uid) {
+  if (!uid) return;
+  await AsyncStorage.setItem(spansStorageKey(uid), JSON.stringify([]));
+}
+
 export async function getSpans() {
+  const uid = currentUid();
+  const epoch = authEpoch;
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const list = JSON.parse(raw);
-    return (Array.isArray(list) ? list : []).sort(
+    const list = await readListRaw(uid);
+    if (uid && !isScopeCurrent(uid, epoch)) return [];
+    return list.sort(
       (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
     );
   } catch (e) {
@@ -188,7 +264,12 @@ export async function getSpans() {
 }
 
 export async function saveSpan(entry) {
-  const list = await getSpans();
+  const uid = currentUid();
+  const epoch = authEpoch;
+  const list = await readListRaw(uid);
+  if (uid && !isScopeCurrent(uid, epoch)) {
+    throw new Error('Account changed — span not saved');
+  }
   const now = new Date().toISOString();
   const from = parseDateTime(entry.fromDate, entry.fromTime || '00:00:00');
   const to = parseDateTime(entry.toDate, entry.toTime || '00:00:00');
@@ -210,6 +291,7 @@ export async function saveSpan(entry) {
     resultLine: span ? formatResultLine(span) : entry.resultLine || '',
     createdAt: entry.createdAt || now,
     updatedAt: now,
+    ownerUid: uid || undefined,
   };
 
   const index = list.findIndex((item) => String(item.id) === String(payload.id));
@@ -224,14 +306,20 @@ export async function saveSpan(entry) {
     list.unshift(payload);
   }
 
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  if (uid && !isScopeCurrent(uid, epoch)) {
+    throw new Error('Account changed — span not saved');
+  }
+  await writeList(list, uid);
   return payload;
 }
 
 export async function deleteSpan(id) {
-  const list = await getSpans();
+  const uid = currentUid();
+  const epoch = authEpoch;
+  const list = await readListRaw(uid);
   const next = list.filter((item) => String(item.id) !== String(id));
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  if (uid && !isScopeCurrent(uid, epoch)) return list;
+  await writeList(next, uid);
   return next;
 }
 

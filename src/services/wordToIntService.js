@@ -218,6 +218,13 @@ async function writeList(list, uid = currentUid()) {
   await AsyncStorage.setItem(wordStorageKey(uid), JSON.stringify(list));
 }
 
+/** Clear the per-uid local wordNumbers cache only (does not touch other uids or Firestore). */
+export async function clearLocalWordNumbersForUid(uid) {
+  if (!uid) return;
+  await AsyncStorage.setItem(wordStorageKey(uid), JSON.stringify([]));
+}
+
+
 function entryBelongsToUid(entry, uid) {
   // Strict: missing ownerUid does NOT belong — do not upload unscoped entries.
   if (!entry || !uid) return false;

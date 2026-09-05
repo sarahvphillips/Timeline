@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSourceSheet';
 import {
   getOrCreateDeviceId,
@@ -8,8 +7,7 @@ import {
   otherRecentSessions,
 } from '../services/deviceSession';
 import { useTheme } from '../themeContext';
-
-const PROFILE_PHOTO_KEY = '@profile_photo';
+import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -37,7 +35,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
 
   useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(PROFILE_PHOTO_KEY)
+    getProfilePhotoUri()
       .then((uri) => {
         if (!cancelled && uri) setPhotoUri(uri);
       })
@@ -45,7 +43,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) return undefined;
@@ -75,7 +73,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const savePhoto = async (picked) => {
     if (!picked || !picked.uri) return;
     try {
-      await AsyncStorage.setItem(PROFILE_PHOTO_KEY, picked.uri);
+      await saveProfilePhotoUri(picked.uri);
       setPhotoUri(picked.uri);
     } catch {
       Alert.alert('Could not save photo', 'Please try again.');
@@ -84,7 +82,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
 
   const removePhoto = async () => {
     try {
-      await AsyncStorage.removeItem(PROFILE_PHOTO_KEY);
+      await saveProfilePhotoUri(null);
     } catch (_) {}
     setPhotoUri(null);
   };

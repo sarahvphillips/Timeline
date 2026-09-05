@@ -16,7 +16,11 @@ function labelsKey(uid) {
 function poemCatsKey(uid) {
   return uid ? `@timeline_poem_categories_${uid}` : '@timeline_poem_categories_guest';
 }
+function profilePhotoKey(uid) {
+  return uid ? `@profile_photo_${uid}` : '@profile_photo_guest';
+}
 
+const LEGACY_PROFILE_PHOTO_KEY = '@profile_photo';
 const LAST_UID_KEY = '@timeline_last_uid';
 
 async function migrateLegacySettingsOnce(uid) {
@@ -38,6 +42,7 @@ async function migrateLegacySettingsOnce(uid) {
     [LEGACY_PROFILE_KEY, profileKey(uid)],
     [LEGACY_LABELS_KEY, labelsKey(uid)],
     [LEGACY_POEM_CATS_KEY, poemCatsKey(uid)],
+    [LEGACY_PROFILE_PHOTO_KEY, profilePhotoKey(uid)],
   ];
   for (const [legacy, scoped] of pairs) {
     try {
@@ -304,6 +309,32 @@ async function syncThemeFromCloud(uid) {
  * into the local cache. Cloud wins when a doc has data; if cloud is empty
  * and local has data, upload local. Failures keep the cache.
  */
+
+export async function getProfilePhotoUri(uid = getUid()) {
+  try {
+    if (uid) await migrateLegacySettingsOnce(uid);
+    return (await AsyncStorage.getItem(profilePhotoKey(uid))) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+export async function saveProfilePhotoUri(uri, uid = getUid()) {
+  if (!uri) {
+    await AsyncStorage.removeItem(profilePhotoKey(uid));
+    return null;
+  }
+  if (uid) await migrateLegacySettingsOnce(uid);
+  await AsyncStorage.setItem(profilePhotoKey(uid), uri);
+  return uri;
+}
+
+/** Clear only this uid's local profile photo (not other accounts). */
+export async function clearLocalProfilePhotoForUid(uid) {
+  if (!uid) return;
+  await AsyncStorage.removeItem(profilePhotoKey(uid));
+}
+
 export async function syncSettingsFromCloud(uid) {
   if (!uid) {
     return {

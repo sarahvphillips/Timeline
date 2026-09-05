@@ -20,6 +20,7 @@ import {
   getPoemCategories,
   savePoemCategories,
 } from '../services/profileService';
+import { clearThisAccountLocalCache } from '../services/localCache';
 
 export default function SettingsScreen({ navigation }) {
   const { mode, palette, scheme, colors, setMode, setPalette } = useTheme();
@@ -30,6 +31,7 @@ export default function SettingsScreen({ navigation }) {
   const [newLabel, setNewLabel] = useState('');
   const [newPoemCat, setNewPoemCat] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
 
   const load = useCallback(async () => {
     const [profile, labs, cats] = await Promise.all([
@@ -63,6 +65,36 @@ export default function SettingsScreen({ navigation }) {
     } finally {
       setSavingProfile(false);
     }
+  };
+
+
+  const handleClearLocalCache = () => {
+    Alert.alert(
+      "Clear this account's local cache",
+      "Removes only this signed-in account's events, Word-to-Int list, date spans, and profile photo saved on this device. Other accounts on this device stay untouched. Firestore / cloud data is not changed.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            setClearingCache(true);
+            try {
+              await clearThisAccountLocalCache();
+              await load();
+              Alert.alert(
+                'Local cache cleared',
+                "This account's on-device lists are empty. Open Timeline or Word to Int to confirm — they should refresh empty. Other accounts keep their local data.",
+              );
+            } catch (e) {
+              Alert.alert('Could not clear', e?.message || 'Please try again while signed in.');
+            } finally {
+              setClearingCache(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const addToList = async (value, list, setter, saveFn, clear) => {
@@ -219,6 +251,21 @@ export default function SettingsScreen({ navigation }) {
             <Text style={styles.saveBtnText}>Add</Text>
           </TouchableOpacity>
         </View>
+
+        <Text style={[styles.section, { color: colors.muted }]}>Local cache</Text>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Clears only this signed-in account's on-device events, Word-to-Int entries, date spans, and profile photo. Does not delete Firestore data or other accounts' local keys.
+        </Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.danger || '#dc2626', opacity: clearingCache ? 0.6 : 1 }]}
+          onPress={handleClearLocalCache}
+          disabled={clearingCache}
+        >
+          <Text style={styles.saveBtnText}>
+            {clearingCache ? 'Clearing…' : "Clear this account's local cache"}
+          </Text>
+        </TouchableOpacity>
+
       </ScrollView>
       <HomeFab navigation={navigation} besidePlus={false} />
     </View>

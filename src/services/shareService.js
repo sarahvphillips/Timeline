@@ -10,12 +10,9 @@ import {
   where,
   arrayUnion,
 } from 'firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from './firebase';
 import { saveEvent, getEvents } from './eventService';
-import { getProfile } from './profileService';
-
-const PROFILE_PHOTO_KEY = '@profile_photo';
+import { getProfile, getProfilePhotoUri } from './profileService';
 
 export const FRIEND_COLOURS = ['#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#a78bfa', '#fb7185'];
 
@@ -76,11 +73,7 @@ export function qrImageUrl(data, size = 220) {
 }
 
 async function loadLocalPhotoUri() {
-  try {
-    return (await AsyncStorage.getItem(PROFILE_PHOTO_KEY)) || null;
-  } catch (_) {
-    return null;
-  }
+  return getProfilePhotoUri();
 }
 
 async function currentParticipantProfile(colour) {
