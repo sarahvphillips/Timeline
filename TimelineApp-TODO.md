@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 5 Sep 2026 (temp Design button on friends view; friend source label; delete event; web save feedback)
+**Last updated:** 5 Sep 2026 (Settings Soon shell + About + signed-in devices; Food product map noted)
 
 ---
 
@@ -51,6 +51,7 @@
 ## Built as placeholders (rows exist, not connected yet)
 
 - [x] Settings screen (light/dark + colour palettes; profile display name + DOB; custom labels; poem categories - all local AsyncStorage for now; HomeFab on timeline/year/month/settings)
+- [x] Settings menu shell (5 Sep 2026): working prefs at top; Account (real **Signed-in devices** from `users/{uid}/sessions` + Soon rows); Timeline / Sharing & mail / Privacy Soon rows (web `window.alert` / native Alert); wired **About** (app name, version 1.0.0 from expo-constants/app.json, Expo SDK 57, #kern2622); local cache clear kept near bottom
 - [x] Events with friends MVP (per-event share invites + intersecting view)
 - [x] Delete event with confirm (Add Event edit + Timeline expanded Delete; web uses window.confirm; removes local + Firestore for uid when sync on)
 - [x] Add Event save feedback on web (window.alert like Settings clear-cache; Save disabled while saving; on-screen Saved notice; goBack once)
@@ -70,7 +71,12 @@
 
 ---
 
-## Food tracking (scope TBD)
+## Food tracking (scope TBD — do not implement yet)
+
+Product map (noted 5 Sep 2026):
+- Layers: **Cupboard** / **Plan** / **Eaten**
+- **Show Food in + menu** toggle — default **off**
+- Next optional step when picked up: toggle + simple Food form only (no full Cupboard/Plan yet)
 
 - [ ] **Food tracking**  
   1. Simple meal log on the Timeline  
