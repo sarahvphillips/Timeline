@@ -1,4 +1,4 @@
-import { Alert, Share, Platform } from 'react-native';
+﻿import { Alert, Share, Platform } from 'react-native';
 import {
   doc,
   setDoc,
@@ -132,7 +132,8 @@ export function getEventFriendSourceLabel(event, myUid) {
     if (typeof email === 'string' && email.includes('@')) {
       return `From friend - ${email}`;
     }
-    return 'From friend - }
+    return 'From friend';
+  }
   if (event.isShared || event.shareId) return 'Shared event';
   return null;
 }
@@ -285,7 +286,7 @@ export async function acceptInviteByCode(rawCode) {
   if (!shared) throw new Error('Shared event not found.');
 
   if ((shared.participantUids || []).includes(uid)) {
-    // Already a participant — still ensure a local event exists.
+    // Already a participant â€” still ensure a local event exists.
     const local = await ensureLocalSharedEvent(shared, uid, invite);
     return { shared, invite, event: local, alreadyParticipant: true };
   }

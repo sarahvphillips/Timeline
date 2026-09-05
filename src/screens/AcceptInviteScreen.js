@@ -123,9 +123,9 @@ export default function AcceptInviteScreen({ navigation, route }) {
           <Text style={styles.previewMeta}>
             {preview.shared.date ? new Date(preview.shared.date).toLocaleDateString() : ''}
             {preview.invite?.fromEmail
-              ? ` · From friend - {preview.invite.fromEmail}`
+              ? ` · From friend - ${preview.invite.fromEmail}`
               : preview.shared?.createdByEmail
-                ? ` · From friend - {preview.shared.createdByEmail}`
+                ? ` · From friend - ${preview.shared.createdByEmail}`
                 : preview.invite?.fromName
                   ? ` · from ${preview.invite.fromName}`
                   : ''}
