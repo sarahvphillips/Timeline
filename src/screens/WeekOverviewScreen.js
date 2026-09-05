@@ -16,6 +16,7 @@ import {
   filterEventsByDay,
   getMonthName,
   getCategoryColor,
+  EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 
 function formatWeekRange(week) {
@@ -42,9 +43,13 @@ export default function WeekOverviewScreen({ navigation, route }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const data = await getEvents();
-    setEvents(data);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const data = await getEvents();
+      setEvents(data);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useFocusEffect(
@@ -68,6 +73,9 @@ export default function WeekOverviewScreen({ navigation, route }) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#3b82f6" />
+        {EVENTS_FIRESTORE_SYNC_ENABLED ? (
+          <Text style={styles.syncHint}>Syncing events…</Text>
+        ) : null}
       </View>
     );
   }

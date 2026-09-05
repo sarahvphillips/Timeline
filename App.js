@@ -40,6 +40,7 @@ const shareLinking = buildAppLinking() || undefined;
 function AppShell() {
   const [user, setUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -47,13 +48,18 @@ function AppShell() {
     try {
       unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
         setUser(firebaseUser);
-        setInitializing(false);
         if (firebaseUser) {
           const uid = firebaseUser.uid;
           // Invalidate any in-flight event / wordNumbers I/O from a previous account first.
           beginAuthScope(uid);
           beginWordNumbersAuthScope(uid);
           beginSpansAuthScope(uid);
+          // Pull before paint: hold the shell until the first cloud sync finishes
+          // (or local load when sync flags are off) so Year/Month never flash stale cache.
+          const waitForCloud =
+            EVENTS_FIRESTORE_SYNC_ENABLED || WORD_NUMBERS_FIRESTORE_SYNC_ENABLED;
+          if (waitForCloud) setCloudSyncing(true);
+          setInitializing(false);
           // Load this uid locally (cloud only if the matching Firestore sync flag is on).
           // Before @timeline_last_uid so legacy migration sees the previous uid.
           // Then record this login as last_uid for future sessions.
@@ -82,11 +88,14 @@ function AppShell() {
             }),
           ]).finally(() => {
             AsyncStorage.setItem(LAST_UID_KEY, uid).catch(() => {});
+            setCloudSyncing(false);
           });
         } else {
           beginAuthScope(null);
           beginWordNumbersAuthScope(null);
           beginSpansAuthScope(null);
+          setCloudSyncing(false);
+          setInitializing(false);
           // Logged out: guest cache only — never leave the previous user's list active.
           readLocalEvents(null).catch(() => {});
           syncWordNumbersFromCloud(null).catch(() => {});
@@ -123,10 +132,13 @@ function AppShell() {
     );
   }
 
-  if (initializing) {
+  if (initializing || (user && cloudSyncing)) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#3b82f6" />
+        {cloudSyncing ? (
+          <Text style={styles.syncText}>Syncing your timeline…</Text>
+        ) : null}
       </View>
     );
   }
@@ -269,6 +281,11 @@ const styles = StyleSheet.create({
     color: '#f87171',
     padding: 20,
     textAlign: 'center',
+  },
+  syncText: {
+    color: '#94a3b8',
+    marginTop: 12,
+    fontSize: 14,
   },
 });
 

@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 5 Sep 2026 (AsyncStorage uid isolation first slice; clear-cache; sync still paused)
+**Last updated:** 5 Sep 2026 (Firestore events + wordNumbers sync re-enabled; pull-before-paint; still no Storage for photos)
 
 ---
 
@@ -166,11 +166,11 @@
 
   **Settings → Clear this account's local cache:** empties only current uid's events, wordNumbers, date spans, and profile photo. Does **not** clear other uids' keys, guest keys of other sessions, Firestore, `@timeline_last_uid`, or `@timeline_device_id`. Auth scopes re-bumped after clear; navigator remounts on uid change so in-memory lists reset.
 
-  **Still paused:** `EVENTS_FIRESTORE_SYNC_ENABLED=false`, `WORD_NUMBERS_FIRESTORE_SYNC_ENABLED=false`.
+  **Sync re-enabled (5 Sep 2026):** `EVENTS_FIRESTORE_SYNC_ENABLED=true`, `WORD_NUMBERS_FIRESTORE_SYNC_ENABLED=true`. Clear-this-account local cache confirmed (B cleared, A untouched). Account B should start from **empty cloud** after clear (previously 0 events under B) — create new events on B only; they must not reappear on A.
 
-- **Events Firestore sync PAUSED (4 Sep 2026):** `EVENTS_FIRESTORE_SYNC_ENABLED = false` in `eventService.js`. Auth still works. Events are per-uid AsyncStorage only (`@timeline_events_{uid}`) — no upload/pull of `users/{uid}/events` until isolation is confirmed. Flip the flag to `true` to re-enable. Also: auth-scope epoch on login/logout; legacy migration no longer adopts via cloud-non-empty; cloud path (when re-enabled) drops docs with foreign `ownerUid`. Phone A vs browser B confusion is most likely dirty docs already under `users/{B}/events` from the earlier same-device bleed — with sync paused those cloud docs no longer appear. Manual console cleanup of B's events collection still recommended before re-enabling sync (do not wipe A's).
+- **Events / wordNumbers Firestore sync RE-ENABLED (5 Sep 2026):** Flags true in `eventService.js` / `wordToIntService.js`. Kept uid scoping, `ownerUid` checks, `beginAuthScope`, and clear-local-cache. App shell waits for the first cloud pull before painting Home/Timeline; Year/Month/Week/Timeline and Word-to-Int show a syncing state and await `getEvents` / `getWordNumbers` (no empty-then-fill flash). Local-only photo URIs (`file://`, `content://`, etc.) are stripped on upload (merge write) — **still no Firebase Storage** for photos; `imageUri` / `coverImageUri` remain device-local. Do not invent Storage in this pass.
 
-- **WordNumbers Firestore sync PAUSED (4 Sep 2026):** WORD_NUMBERS_FIRESTORE_SYNC_ENABLED = false in wordToIntService.js. No upload/pull of users/{uid}/wordNumbers while false; per-uid AsyncStorage (@word_to_int_list_{uid} / guest) only. Auth-scope epoch added (same pattern as events) so in-flight sync cannot write after account switch. Did not wipe Firestore wordNumbers; Sarah cleared local lists herself. Events sync remains paused.
+- **Isolation note:** Phone A keeps its local + cloud events. Browser B after clear should sync empty (or only B’s own cloud docs). Creating an event on B must persist via Firestore for B only.
 
 - **Legacy bleed fix (4 Sep 2026):** `eventBelongsToUid` requires `ownerUid === uid` (missing ≠ belong). Legacy `@timeline_events` migrates only when `@timeline_last_uid` matches, every event already has `ownerUid === uid`, or this uid's cloud is non-empty — never into an empty-cloud other account. Same last_uid gate for word-to-int / profile / theme legacy keys. On login, `App.js` sets `@timeline_last_uid` after sync.
 

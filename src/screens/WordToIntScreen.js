@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -20,6 +21,7 @@ import {
   findPhrasesForNumber,
   javaHashCode,
   METHODS,
+  WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
@@ -41,6 +43,7 @@ export default function WordToIntScreen({ navigation, route }) {
   const [method, setMethod] = useState('ordinal');
   const [list, setList] = useState([]);
   const [spans, setSpans] = useState([]);
+  const [listLoading, setListLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lookupNumber, setLookupNumber] = useState('');
   const lastPhraseParam = useRef(null);
@@ -48,9 +51,15 @@ export default function WordToIntScreen({ navigation, route }) {
   const result = convertPhrase(phrase);
 
   const loadList = useCallback(async () => {
-    const [words, savedSpans] = await Promise.all([getWordNumbers(), getSpans()]);
-    setList(words);
-    setSpans(savedSpans);
+    // Await cloud pull before showing saved list (avoids empty-then-fill flash).
+    setListLoading(true);
+    try {
+      const [words, savedSpans] = await Promise.all([getWordNumbers(), getSpans()]);
+      setList(words);
+      setSpans(savedSpans);
+    } finally {
+      setListLoading(false);
+    }
   }, []);
 
   useFocusEffect(
@@ -345,7 +354,14 @@ export default function WordToIntScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <Text style={styles.listTitle}>Saved numbers</Text>
-      {list.length === 0 ? (
+      {listLoading ? (
+        <View style={styles.listLoading}>
+          <ActivityIndicator size="small" color="#3b82f6" />
+          <Text style={styles.empty}>
+            {WORD_NUMBERS_FIRESTORE_SYNC_ENABLED ? 'Syncing numbers…' : 'Loading…'}
+          </Text>
+        </View>
+      ) : list.length === 0 ? (
         <Text style={styles.empty}>No saved numbers yet. Convert a phrase and save it here.</Text>
       ) : (
         list.map((item) => (
@@ -530,6 +546,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 28,
     marginBottom: 10,
+  },
+  listLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   empty: {
     color: '#94a3b8',

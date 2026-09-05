@@ -6,9 +6,9 @@ const LEGACY_WORD_KEY = '@word_to_int_list';
 const GUEST_WORD_KEY = '@word_to_int_list_guest';
 export const LAST_UID_KEY = '@timeline_last_uid';
 
-// Pause cloud wordNumbers sync until cross-account isolation is confirmed.
-// Auth still works; lists stay on-device in per-uid AsyncStorage only.
-export const WORD_NUMBERS_FIRESTORE_SYNC_ENABLED = false;
+// Firestore sync for wordNumbers (per-uid). Isolation: ownerUid checks,
+// beginAuthScope, clear-local-cache, and pull-before-paint on the list screen.
+export const WORD_NUMBERS_FIRESTORE_SYNC_ENABLED = true;
 
 function wordStorageKey(uid) {
   return uid ? `@word_to_int_list_${uid}` : GUEST_WORD_KEY;

@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getEvents, getMonthSummaries } from '../services/eventService';
+import { getEvents, getMonthSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 
 export default function MonthOverviewScreen({ navigation, route }) {
@@ -11,9 +11,14 @@ export default function MonthOverviewScreen({ navigation, route }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const data = await getEvents();
-    setEvents(data);
-    setLoading(false);
+    // Await cloud pull before painting month spine from local cache.
+    setLoading(true);
+    try {
+      const data = await getEvents();
+      setEvents(data);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useFocusEffect(
@@ -31,6 +36,9 @@ export default function MonthOverviewScreen({ navigation, route }) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#3b82f6" />
+        {EVENTS_FIRESTORE_SYNC_ENABLED ? (
+          <Text style={styles.syncHint}>Syncing events…</Text>
+        ) : null}
       </View>
     );
   }

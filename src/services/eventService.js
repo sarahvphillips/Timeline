@@ -7,9 +7,9 @@ const LEGACY_EVENTS_KEY = '@timeline_events';
 const GUEST_EVENTS_KEY = '@timeline_events_guest';
 export const LAST_UID_KEY = '@timeline_last_uid';
 
-// Pause cloud event sync until cross-account isolation is confirmed.
-// Auth still works; events stay on-device in per-uid AsyncStorage only.
-export const EVENTS_FIRESTORE_SYNC_ENABLED = false;
+// Firestore sync for events (per-uid). Isolation: ownerUid checks, beginAuthScope,
+// clear-local-cache, and pull-before-paint on Year/Month lists.
+export const EVENTS_FIRESTORE_SYNC_ENABLED = true;
 
 function eventsStorageKey(uid) {
   return uid ? `@timeline_events_${uid}` : GUEST_EVENTS_KEY;
@@ -171,6 +171,34 @@ function stripUndefined(value) {
   return value;
 }
 
+
+/** True for device-local paths that must not be treated as portable cloud URLs. */
+function isLocalOnlyImageUri(uri) {
+  if (!uri || typeof uri !== 'string') return false;
+  const t = uri.trim();
+  if (!t) return false;
+  if (/^(https?:|gs:)/i.test(t)) return false;
+  if (/^(file:|content:|blob:|ph:|assets-library:|ms-appdata:|ms-appx:|data:)/i.test(t)) return true;
+  // Bare absolute / relative paths without a remote scheme
+  if (!t.includes('://')) return true;
+  return false;
+}
+
+/**
+ * Prepare an event for Firestore: strip undefined and omit local-only image URIs
+ * so we never upload file:// (etc.) as if they were portable. Does not invent Storage.
+ * Use with setDoc merge:true so omitting image fields does not wipe existing cloud URLs.
+ */
+function eventPayloadForCloud(event, uid) {
+  const payload = { ...event, ownerUid: uid };
+  ['imageUri', 'coverImageUri'].forEach((key) => {
+    if (isLocalOnlyImageUri(payload[key])) {
+      delete payload[key];
+    }
+  });
+  return stripUndefined(payload);
+}
+
 function toIso(value) {
   if (!value) return value;
   if (typeof value.toDate === 'function') {
@@ -221,7 +249,8 @@ async function pushEventToCloud(event) {
     console.warn('Refusing to upload event without matching ownerUid', event.id);
     return;
   }
-  await setDoc(eventDoc(uid, event.id), stripUndefined({ ...event, ownerUid: uid }));
+  // merge: true so stripping local-only imageUri/coverImageUri does not wipe cloud fields
+  await setDoc(eventDoc(uid, event.id), eventPayloadForCloud(event, uid), { merge: true });
 }
 
 /** Local cache only — does not touch Firestore. Uses per-uid (or guest) key. */
@@ -325,7 +354,7 @@ export async function syncEventsFromCloud(uid) {
         await Promise.all(
           local.map(async (ev) => {
             try {
-              await setDoc(eventDoc(uid, ev.id), stripUndefined({ ...ev, ownerUid: uid }));
+              await setDoc(eventDoc(uid, ev.id), eventPayloadForCloud(ev, uid), { merge: true });
             } catch (e) {
               console.warn('Failed to upload local event to Firestore', e);
             }
@@ -357,7 +386,7 @@ export async function syncEventsFromCloud(uid) {
       await Promise.all(
         localOnly.map(async (ev) => {
           try {
-            await setDoc(eventDoc(uid, ev.id), stripUndefined({ ...ev, ownerUid: uid }));
+            await setDoc(eventDoc(uid, ev.id), eventPayloadForCloud(ev, uid), { merge: true });
           } catch (e) {
             console.warn('Failed to upload local-only event to Firestore', e);
           }

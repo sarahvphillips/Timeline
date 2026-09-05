@@ -28,6 +28,7 @@ import {
   buildGrokReplyPrompt,
   filterEventsByYearMonth,
   getMonthName,
+  EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 
@@ -64,10 +65,14 @@ export default function TimelineScreen({ navigation, route }) {
   };
 
   const loadEvents = useCallback(async () => {
-    const data = await getEvents();
-    setAllEvents(data);
-    setLoading(false);
-    setRefreshing(false);
+    setLoading(true);
+    try {
+      const data = await getEvents();
+      setAllEvents(data);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useFocusEffect(
@@ -266,6 +271,9 @@ export default function TimelineScreen({ navigation, route }) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#3b82f6" />
+        {EVENTS_FIRESTORE_SYNC_ENABLED ? (
+          <Text style={styles.syncHint}>Syncing events…</Text>
+        ) : null}
       </View>
     );
   }
@@ -341,6 +349,11 @@ export default function TimelineScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1024' },
   center: { flex: 1, backgroundColor: '#0f1024', justifyContent: 'center', alignItems: 'center' },
+  syncHint: {
+    color: '#94a3b8',
+    marginTop: 12,
+    fontSize: 14,
+  },
   heading: {
     color: '#94a3b8',
     fontSize: 14,

@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getEvents, getYearSummaries } from '../services/eventService';
+import { getEvents, getYearSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 
 export default function YearOverviewScreen({ navigation }) {
@@ -9,9 +9,14 @@ export default function YearOverviewScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const events = await getEvents();
-    setYears(getYearSummaries(events));
-    setLoading(false);
+    // Always await cloud pull (via getEvents) before painting spine — never flash stale/empty cache.
+    setLoading(true);
+    try {
+      const events = await getEvents();
+      setYears(getYearSummaries(events));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useFocusEffect(
@@ -24,6 +29,9 @@ export default function YearOverviewScreen({ navigation }) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#3b82f6" />
+        {EVENTS_FIRESTORE_SYNC_ENABLED ? (
+          <Text style={styles.syncHint}>Syncing events…</Text>
+        ) : null}
       </View>
     );
   }
