@@ -98,6 +98,45 @@ async function currentParticipantProfile(colour) {
 }
 
 /**
+ * Resolve inviter/friend email from invite + sharedEvent data already stored.
+ * Client Auth cannot look up another user's email by uid safely, so we prefer
+ * emails persisted at share/accept time (invite.fromEmail, createdByEmail,
+ * participants[uid].email).
+ */
+export function resolveInviterEmail({ shared, invite, fromUid } = {}) {
+  const uid = fromUid || invite?.fromUid || shared?.createdByUid || null;
+  const candidates = [
+    invite?.fromEmail,
+    shared?.createdByEmail,
+    uid && shared?.participants?.[uid]?.email,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.includes('@')) return c.trim();
+  }
+  return undefined;
+}
+
+/**
+ * Label for event detail/source UI.
+ * - Invitee (accepted share): "From friend - email" or "From friend - * - Creator's own shared event: "Shared event"
+ * - Personal: null
+ */
+export function getEventFriendSourceLabel(event, myUid) {
+  if (!event) return null;
+  const fromFriend =
+    event.source === 'shared' ||
+    !!event.sharedFromEmail ||
+    (event.sharedFrom && myUid && event.sharedFrom !== myUid);
+  if (fromFriend) {
+    const email = event.sharedFromEmail || event.fromEmail;
+    if (typeof email === 'string' && email.includes('@')) {
+      return `From friend - ${email}`;
+    }
+    return 'From friend - }
+  if (event.isShared || event.shareId) return 'Shared event';
+  return null;
+}
+/**
  * Create a sharedEvents doc + invite code for an existing local/cloud event.
  * Creator is already a participant. Links shareId onto the creator's event.
  */
@@ -147,6 +186,7 @@ export async function createEventShare(event) {
       category: event.category || 'personal',
       createdByUid: uid,
       createdByName: me.displayName,
+      createdByEmail: me.email,
       sourceEventId: event.id,
       participantUids: [uid],
       participants: {
@@ -164,6 +204,7 @@ export async function createEventShare(event) {
     shareId,
     fromUid: uid,
     fromName: me.displayName,
+    fromEmail: me.email,
     code,
     status: 'pending',
     eventTitle: (sharedPayload && sharedPayload.title) || event.title || 'Shared event',
@@ -245,7 +286,7 @@ export async function acceptInviteByCode(rawCode) {
 
   if ((shared.participantUids || []).includes(uid)) {
     // Already a participant — still ensure a local event exists.
-    const local = await ensureLocalSharedEvent(shared, uid);
+    const local = await ensureLocalSharedEvent(shared, uid, invite);
     return { shared, invite, event: local, alreadyParticipant: true };
   }
 
@@ -267,28 +308,43 @@ export async function acceptInviteByCode(rawCode) {
   });
 
   const refreshed = await getSharedEvent(shared.id);
-  const local = await ensureLocalSharedEvent(refreshed || shared, uid);
+  const local = await ensureLocalSharedEvent(refreshed || shared, uid, invite);
   return { shared: refreshed || shared, invite, event: local, alreadyParticipant: false };
 }
 
-async function ensureLocalSharedEvent(shared, uid) {
+async function ensureLocalSharedEvent(shared, uid, invite = null) {
+  const friendEmail = resolveInviterEmail({ shared, invite, fromUid: shared.createdByUid });
   const events = await getEvents();
   const existing = events.find(
     (e) => e.shareId === shared.id || (e.isShared && e.title === shared.title && e.date === shared.date),
   );
   if (existing) {
-    if (!existing.shareId) {
-      await saveEvent({
+    const isInvitee = shared.createdByUid && shared.createdByUid !== uid;
+    const needsMeta =
+      !existing.shareId ||
+      (isInvitee && existing.source !== 'shared') ||
+      !existing.sharedFrom ||
+      (friendEmail && !existing.sharedFromEmail);
+    if (needsMeta) {
+      const patched = {
         ...existing,
         shareId: shared.id,
         isShared: true,
-        sharedFrom: shared.createdByUid,
-      });
+        sharedFrom: existing.sharedFrom || shared.createdByUid,
+        sharedFromEmail: existing.sharedFromEmail || friendEmail,
+      };
+      if (isInvitee) {
+        patched.source = 'shared';
+        patched.sharedFrom = shared.createdByUid;
+        if (friendEmail) patched.sharedFromEmail = friendEmail;
+      }
+      await saveEvent(patched);
+      return patched;
     }
     return existing;
   }
 
-  const payload = {
+  const payload = stripUndefined({
     title: shared.title,
     description: shared.description || '',
     date: shared.date || new Date().toISOString(),
@@ -298,7 +354,8 @@ async function ensureLocalSharedEvent(shared, uid) {
     shareId: shared.id,
     isShared: true,
     sharedFrom: shared.createdByUid,
-  };
+    sharedFromEmail: friendEmail,
+  });
   await saveEvent(payload);
   const after = await getEvents();
   return after.find((e) => e.shareId === shared.id) || payload;
@@ -400,6 +457,7 @@ export function listOtherParticipants(shared, myUid) {
     return {
       uid,
       displayName: profile.displayName || profile.email || 'Friend',
+      email: profile.email || undefined,
       photoUri: profile.photoUri || null,
       initial: profile.initial || (profile.displayName || profile.email || 'F').charAt(0).toUpperCase(),
       colour: profile.colour || FRIEND_COLOURS[(index + 1) % FRIEND_COLOURS.length],

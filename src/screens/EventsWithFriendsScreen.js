@@ -140,7 +140,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
             <View key={f.uid} style={styles.avatarCol}>
               <Avatar name={f.displayName} photoUri={f.photoUri} colour={f.colour} />
               <Text style={[styles.avatarLabel, { color: f.colour }]} numberOfLines={1}>
-                {f.displayName}
+                {f.email || f.displayName}
               </Text>
             </View>
           ))}
@@ -210,6 +210,19 @@ export default function EventsWithFriendsScreen({ navigation }) {
                           {ev.title}
                         </Text>
                         <Text style={styles.nodeDate}>{dateLabel}</Text>
+                        {(() => {
+                          const isInvitee = ev.createdByUid && myUid && ev.createdByUid !== myUid;
+                          if (!isInvitee) return null;
+                          const email =
+                            ev.createdByEmail ||
+                            (ev.participants && ev.participants[ev.createdByUid] && ev.participants[ev.createdByUid].email) ||
+                            null;
+                          return (
+                            <Text style={styles.fromFriend} numberOfLines={1}>
+                              {email ? `From friend - ${email}` : 'From friend'}
+                            </Text>
+                          );
+                        })()}
                         <View style={styles.chipRow}>
                           {friends.map((f) => (
                             <View key={f.uid} style={[styles.miniChip, { borderColor: f.colour }]}>
@@ -350,6 +363,7 @@ const styles = StyleSheet.create({
   },
   nodeTitle: { color: '#f8fafc', fontSize: 15, fontWeight: '700', textAlign: 'center' },
   nodeDate: { color: '#a5b4fc', fontSize: 12, marginTop: 4 },
+  fromFriend: { color: '#34d399', fontSize: 11, fontWeight: '600', marginTop: 4, textAlign: 'center' },
   chipRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
   miniChip: {
     width: 22,

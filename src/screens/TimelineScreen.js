@@ -31,6 +31,8 @@ import {
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
+import { getEventFriendSourceLabel } from '../services/shareService';
+import { auth } from '../services/firebase';
 
 const GROK_URL = 'https://grok.x.ai';
 
@@ -91,18 +93,33 @@ export default function TimelineScreen({ navigation, route }) {
       ? `${getMonthName(month)} ${year}`
       : 'All events';
 
-  const handleDelete = (event) => {
-    Alert.alert('Delete event', `Delete "${event.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          const updated = await deleteEvent(event.id);
-          setAllEvents(updated);
-        },
-      },
-    ]);
+  const handleDelete = async (event) => {
+    const title = 'Delete event';
+    const message = `Delete "${event.title}"? This removes it from this device` +
+      (auth.currentUser ? ' and from your cloud copy.' : '.');
+    let ok = false;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      ok = window.confirm(title + '\n\n' + message);
+    } else {
+      ok = await new Promise((resolve) => {
+        Alert.alert(title, message, [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+        ]);
+      });
+    }
+    if (!ok) return;
+    try {
+      const updated = await deleteEvent(event.id);
+      setAllEvents(updated);
+    } catch (e) {
+      const fail = e?.message || 'Could not delete.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+        window.alert('Could not delete\n\n' + fail);
+      } else {
+        Alert.alert('Could not delete', fail);
+      }
+    }
   };
 
   const openGrok = async () => {
@@ -239,12 +256,18 @@ export default function TimelineScreen({ navigation, route }) {
             >
               <Text style={styles.editLink}>Edit</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDelete(item)}>
+              <Text style={styles.deleteLink}>Delete</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('ShareEvent', { event: item })}>
               <Text style={styles.shareLink}>Share with a friend</Text>
             </TouchableOpacity>
-            {(item.isShared || item.shareId) ? (
-              <Text style={styles.sharedBadge}>Shared event</Text>
-            ) : null}
+            {(() => {
+              const sourceLabel = getEventFriendSourceLabel(item, auth.currentUser?.uid);
+              return sourceLabel ? (
+                <Text style={styles.sharedBadge}>{sourceLabel}</Text>
+              ) : null;
+            })()}
           </View>
         )}
       </TouchableOpacity>
@@ -435,6 +458,7 @@ const styles = StyleSheet.create({
   shareLink: { color: '#c4b5fd', fontSize: 14, fontWeight: '600', marginTop: 8 },
   sharedBadge: { color: '#34d399', fontSize: 12, marginTop: 8, fontWeight: '600' },
   editLink: { color: '#60a5fa', marginTop: 8, fontSize: 13 },
+  deleteLink: { color: '#f87171', marginTop: 8, fontSize: 13, fontWeight: '600' },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyTitle: { color: '#f8fafc', fontSize: 20, fontWeight: '600', marginBottom: 8 },
   emptyText: { color: '#94a3b8', textAlign: 'center' },

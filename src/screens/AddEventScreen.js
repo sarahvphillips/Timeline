@@ -12,12 +12,15 @@ import {
 } from 'react-native';
 import {
   saveEvent,
+  deleteEvent,
   CATEGORIES,
   NEXT_ACTIONS,
   HOBBY_TYPES,
   buildGrokReplyPrompt,
 } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
+import { getEventFriendSourceLabel } from '../services/shareService';
+import { auth } from '../services/firebase';
 
 export default function AddEventScreen({ navigation, route }) {
   const existing = route.params?.event || null;
@@ -55,6 +58,8 @@ export default function AddEventScreen({ navigation, route }) {
   const [imageUri, setImageUri] = useState(existing?.imageUri || route.params?.imageUri || '');
   const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [saveNotice, setSaveNotice] = useState('');
 
   useEffect(() => {
     if (route.params?.event) return;
@@ -69,9 +74,31 @@ export default function AddEventScreen({ navigation, route }) {
     if (typeof p.photoNote === 'string') setPhotoNote(p.photoNote);
   }, [route.params?.shareKey, route.params?.title, route.params?.description, route.params?.emailFrom, route.params?.date, route.params?.imageUri]);
 
+  const notify = (title, message) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+      window.alert(title + (message ? '\n\n' + message : ''));
+      return;
+    }
+    Alert.alert(title, message);
+  };
+
+  const confirmAction = (title, message, confirmLabel = 'OK') => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      return Promise.resolve(window.confirm(title + (message ? '\n\n' + message : '')));
+    }
+    return new Promise((resolve) => {
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: confirmLabel, style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
+  };
+
   const handleSave = async () => {
+    if (saving || deleting) return;
+    setSaveNotice('');
     if (!title.trim()) {
-      Alert.alert(
+      notify(
         'Missing title',
         source === 'hobby'
           ? 'Please enter a title (e.g. poem title or song name).'
@@ -82,7 +109,7 @@ export default function AddEventScreen({ navigation, route }) {
 
     const parsed = new Date(date);
     if (isNaN(parsed.getTime())) {
-      Alert.alert('Invalid date', 'Please use the format YYYY-MM-DD.');
+      notify('Invalid date', 'Please use the format YYYY-MM-DD.');
       return;
     }
 
@@ -120,29 +147,61 @@ export default function AddEventScreen({ navigation, route }) {
             : undefined,
         imageUri: imageUri || undefined,
         photoNote: photoNote.trim() || undefined,
+        shareId: existing?.shareId,
+        isShared: existing?.isShared,
+        sharedFrom: existing?.sharedFrom,
+        sharedFromEmail: existing?.sharedFromEmail,
       };
       await saveEvent(saved);
 
+      let notice = isEditing ? 'Updated.' : 'Saved.';
       if (nextAction === 'ask_grok_reply') {
         const prompt = buildGrokReplyPrompt(saved);
         if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
           try {
             await navigator.clipboard.writeText(prompt);
-            Alert.alert(
-              'Saved + prompt copied',
-              'Event saved. A Grok reply prompt has been copied to your clipboard.'
-            );
-          } catch {
-            Alert.alert('Event saved', 'Open Grok to draft a reply using the email details.');
+            notice = 'Saved. Grok reply prompt copied to clipboard.';
+          } catch (_) {
+            notice = 'Saved. Open Grok to draft a reply.';
           }
+        } else {
+          notice = 'Saved. Open Grok to draft a reply.';
         }
       }
-
+      setSaveNotice(notice);
+      notify(isEditing ? 'Updated' : 'Saved', notice);
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Error', 'Could not save the event. Please try again.');
+      const fail = 'Could not save the event. Please try again.';
+      setSaveNotice(fail);
+      notify('Error', fail);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!existing?.id || saving || deleting) return;
+    const ok = await confirmAction(
+      'Delete event',
+      'Delete "' + (title.trim() || existing.title || 'this event') + '"? This removes it from this device'
+        + (auth.currentUser ? ' and from your cloud copy.' : '.'),
+      'Delete',
+    );
+    if (!ok) return;
+    setDeleting(true);
+    setSaveNotice('');
+    try {
+      await deleteEvent(existing.id);
+      setSaveNotice('Deleted.');
+      notify('Deleted', 'Event removed.');
+      navigation.goBack();
+    } catch (e) {
+      const fail = e?.message || 'Could not delete. Please try again.';
+      setSaveNotice(fail);
+      notify('Could not delete', fail);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -158,6 +217,12 @@ export default function AddEventScreen({ navigation, route }) {
     return 'Optional details?';
   };
 
+  const friendSourceLabel = getEventFriendSourceLabel(
+    existing || { source, sharedFromEmail: existing?.sharedFromEmail, sharedFrom: existing?.sharedFrom, isShared: existing?.isShared, shareId: existing?.shareId, fromEmail: existing?.fromEmail },
+    auth.currentUser?.uid,
+  );
+  const isFromFriend = source === 'shared' || (friendSourceLabel && friendSourceLabel.startsWith('From friend'));
+
   const sourceChips = [
     { id: 'manual', label: 'Manual' },
     { id: 'email', label: 'From email' },
@@ -165,6 +230,9 @@ export default function AddEventScreen({ navigation, route }) {
   ];
   if (source === 'share' || source === 'image') {
     sourceChips.push({ id: source, label: 'Shared photo' });
+  }
+  if (isFromFriend || source === 'shared') {
+    sourceChips.push({ id: 'shared', label: 'From friend' });
   }
 
   const isPoetry = source === 'hobby' && hobbyType === 'poetry';
@@ -207,6 +275,11 @@ export default function AddEventScreen({ navigation, route }) {
             </TouchableOpacity>
           ))}
         </View>
+        {isFromFriend || source === 'shared' ? (
+          <Text style={styles.friendSource}>
+            {friendSourceLabel || 'From friend'}
+          </Text>
+        ) : null}
 
         {source === 'hobby' && (
           <>
@@ -425,13 +498,13 @@ export default function AddEventScreen({ navigation, route }) {
         />
 
         <TouchableOpacity
-          style={[styles.saveButton, saving && styles.saveDisabled]}
+          style={[styles.saveButton, (saving || deleting) && styles.saveDisabled]}
           onPress={handleSave}
-          disabled={saving}
+          disabled={saving || deleting}
         >
           <Text style={styles.saveText}>
             {saving
-              ? 'Saving?'
+              ? 'Saving…'
               : isEditing
                 ? 'Update'
                 : source === 'hobby'
@@ -439,6 +512,7 @@ export default function AddEventScreen({ navigation, route }) {
                   : 'Add Event'}
           </Text>
         </TouchableOpacity>
+        {saveNotice ? <Text style={styles.saveNotice}>{saveNotice}</Text> : null}
 
         {isEditing && existing?.id ? (
           <TouchableOpacity
@@ -464,6 +538,16 @@ export default function AddEventScreen({ navigation, route }) {
             Save the event first, then open it again to share a per-event invite code with a friend.
           </Text>
         )}
+
+        {isEditing && existing?.id ? (
+          <TouchableOpacity
+            style={[styles.deleteButton, (saving || deleting) && styles.saveDisabled]}
+            onPress={handleDelete}
+            disabled={saving || deleting}
+          >
+            <Text style={styles.deleteText}>{deleting ? 'Deleting…' : 'Delete event'}</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -484,6 +568,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 6,
   },
+  friendSource: {
+    color: '#34d399',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 10,
+  },
+  saveNotice: {
+    color: '#34d399',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  deleteButton: {
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+    backgroundColor: '#450a0a',
+    alignItems: 'center',
+  },
+  deleteText: { color: '#fca5a5', fontSize: 16, fontWeight: '600' },
   intro: {
     color: '#a5b4fc',
     fontSize: 14,

@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 5 Sep 2026 (Firestore events + wordNumbers sync re-enabled; pull-before-paint; still no Storage for photos)
+**Last updated:** 5 Sep 2026 (friend source label; delete event; web save feedback; Firestore sync still enabled)
 
 ---
 
@@ -52,6 +52,9 @@
 
 - [x] Settings screen (light/dark + colour palettes; profile display name + DOB; custom labels; poem categories - all local AsyncStorage for now; HomeFab on timeline/year/month/settings)
 - [x] Events with friends MVP (per-event share invites + intersecting view)
+- [x] Delete event with confirm (Add Event edit + Timeline expanded Delete; web uses window.confirm; removes local + Firestore for uid when sync on)
+- [x] Add Event save feedback on web (window.alert like Settings clear-cache; Save disabled while saving; on-screen Saved notice; goBack once)
+- [x] Friend source on shared events — invitee UI shows `From friend - email` (or `From friend - if unknown); `sharedFromEmail` / invite `fromEmail` / `createdByEmail` persisted on accept/share
 - [ ] Share whole timeline with another Timeline user (still later)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
@@ -107,6 +110,8 @@
 - [ ] Life events (birthdays, house moves, wedding, â¦)
 - [x] User add friends — per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
 - [ ] Broader friend graph / whole-timeline link (later)
+- [ ] **Friend usernames (privacy)** — some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
+- [ ] **Polish Events with friends timeline display** — curved coloured friend lines, avatars on lines; current intersecting view is MVP/first cut, refine later (do not block on this). Discuss more friends-view features with Sarah before polish. Design-ref image: Sarah will re-send (was sent to Grok, not in this repo yet) — add a temporary corner preview button once `assets/friends-design-ref.png` is available; remove when design is finished.
 - [x] User specify date of birth (Settings, local for now)
 
 ### Account & setup

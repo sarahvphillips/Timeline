@@ -18,6 +18,8 @@ import {
   getCategoryColor,
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
+import { getEventFriendSourceLabel } from '../services/shareService';
+import { auth } from '../services/firebase';
 
 function formatWeekRange(week) {
   const start = week.days[0];
@@ -163,9 +165,17 @@ export default function WeekOverviewScreen({ navigation, route }) {
                           accessibilityLabel={`Open ${item.title}`}
                         >
                           <View style={[styles.eventDot, { backgroundColor: color }]} />
-                          <Text style={styles.eventTitle} numberOfLines={2}>
-                            {item.title}
-                          </Text>
+                          <View style={styles.eventTextCol}>
+                            <Text style={styles.eventTitle} numberOfLines={2}>
+                              {item.title}
+                            </Text>
+                            {(() => {
+                              const sourceLabel = getEventFriendSourceLabel(item, auth.currentUser?.uid);
+                              return sourceLabel ? (
+                                <Text style={styles.friendSource} numberOfLines={1}>{sourceLabel}</Text>
+                              ) : null;
+                            })()}
+                          </View>
                         </TouchableOpacity>
                       );
                     })}
@@ -332,6 +342,8 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginRight: 10,
   },
+  eventTextCol: { flex: 1, minWidth: 0 },
+  friendSource: { color: '#34d399', fontSize: 11, fontWeight: '600', marginTop: 2 },
   eventTitle: {
     color: '#f8fafc',
     fontSize: 15,

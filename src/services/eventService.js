@@ -93,7 +93,11 @@ export async function clearLocalEventsForUid(uid) {
  *   description: string,
  *   date: string (ISO),
  *   category: string,
- *   source: 'manual' | 'email' | 'hobby',
+ *   source: 'manual' | 'email' | 'hobby' | 'shared' | ...,
+ *   isShared?: boolean,
+ *   shareId?: string,
+ *   sharedFrom?: string,       // inviter uid
+ *   sharedFromEmail?: string,  // inviter email (persisted on accept)
  *   nextAction: 'none' | 'ask_grok_reply' | 'follow_up' | 'done',
  *   emailFrom?: string,
  *   hobbyType?: 'poetry' | 'singing' | 'music' | 'reading' | 'other',
