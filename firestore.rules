@@ -1,4 +1,4 @@
-﻿rules_version = '2';
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() {
@@ -49,8 +49,8 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.auth.uid == request.resource.data.fromUid;
-      // fromUid always; pending→accepted by acceptedByUid;
-      // pending→declined by declinedByUid; accepted→declined by acceptedByUid (leave cleanup)
+      // fromUid always; pending -> accepted by acceptedByUid;
+      // pending -> declined by declinedByUid; accepted -> declined by acceptedByUid (leave cleanup)
       allow update: if isSignedIn()
         && (
           request.auth.uid == resource.data.fromUid
