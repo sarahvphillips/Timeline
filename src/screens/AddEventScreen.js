@@ -23,6 +23,8 @@ import {
   getEventFriendSourceLabel,
   isSharedEventInvitee,
   leaveSharedEvent,
+  submitEditSuggestion,
+  syncLocalEventFromShared,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
 
@@ -64,6 +66,9 @@ export default function AddEventScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saveNotice, setSaveNotice] = useState('');
+  const [suggestionNote, setSuggestionNote] = useState('');
+  const [suggesting, setSuggesting] = useState(false);
+  const [syncedExisting, setSyncedExisting] = useState(existing);
 
   useEffect(() => {
     if (route.params?.event) return;
@@ -77,6 +82,32 @@ export default function AddEventScreen({ navigation, route }) {
     if (typeof p.imageUri === 'string' && p.imageUri) setImageUri(p.imageUri);
     if (typeof p.photoNote === 'string') setPhotoNote(p.photoNote);
   }, [route.params?.shareKey, route.params?.title, route.params?.description, route.params?.emailFrom, route.params?.date, route.params?.imageUri]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!existing?.shareId) {
+        setSyncedExisting(existing);
+        return;
+      }
+      try {
+        const refreshed = await syncLocalEventFromShared(existing);
+        if (cancelled) return;
+        if (refreshed) {
+          setSyncedExisting(refreshed);
+          if (typeof refreshed.description === 'string') setDescription(refreshed.description);
+          if (typeof refreshed.title === 'string') setTitle(refreshed.title);
+          if (refreshed.date) setDate(String(refreshed.date).slice(0, 10));
+          if (refreshed.category) setCategory(refreshed.category);
+        }
+      } catch (e) {
+        console.warn('Could not sync shared event copy', e);
+        if (!cancelled) setSyncedExisting(existing);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [existing?.id, existing?.shareId]);
 
   const notify = (title, message) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
@@ -100,6 +131,10 @@ export default function AddEventScreen({ navigation, route }) {
 
   const handleSave = async () => {
     if (saving || deleting) return;
+    if (existing && isSharedEventInvitee(existing, auth.currentUser?.uid)) {
+      notify('Suggest a note', 'Invitees cannot edit this event directly. Use Suggest a note below.');
+      return;
+    }
     setSaveNotice('');
     if (!title.trim()) {
       notify(
@@ -236,6 +271,30 @@ export default function AddEventScreen({ navigation, route }) {
     }
   };
 
+
+  const handleSuggestNote = async () => {
+    if (!existing?.shareId || saving || deleting || suggesting) return;
+    const trimmed = suggestionNote.trim();
+    if (!trimmed) {
+      notify('Suggest a note', 'Write a short note for the creator to approve.');
+      return;
+    }
+    setSuggesting(true);
+    setSaveNotice('');
+    try {
+      const result = await submitEditSuggestion(existing.shareId, trimmed);
+      setSuggestionNote('');
+      setSaveNotice('Suggestion sent.');
+      notify('Suggestion sent', result?.notice || 'Your note was sent to the creator for approval.');
+    } catch (e) {
+      const fail = e?.message || 'Could not send suggestion. Please try again.';
+      setSaveNotice(fail);
+      notify('Could not suggest', fail);
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
   const descriptionPlaceholder = () => {
     if (source === 'email') return 'Paste a short part of the email or your notes?';
     if (source === 'hobby') {
@@ -249,24 +308,26 @@ export default function AddEventScreen({ navigation, route }) {
   };
 
   const myUid = auth.currentUser?.uid;
+  const eventBase = syncedExisting || existing;
   const eventForLabel = {
-    ...(existing || {}),
-    source: existing?.source || source,
-    sharedFromEmail: existing?.sharedFromEmail,
-    sharedFrom: existing?.sharedFrom,
-    isShared: existing?.isShared,
-    shareId: existing?.shareId,
-    fromEmail: existing?.fromEmail,
+    ...(eventBase || {}),
+    source: eventBase?.source || source,
+    sharedFromEmail: eventBase?.sharedFromEmail,
+    sharedFrom: eventBase?.sharedFrom,
+    isShared: eventBase?.isShared,
+    shareId: eventBase?.shareId,
+    fromEmail: eventBase?.fromEmail,
   };
   const friendSourceLabel = getEventFriendSourceLabel(eventForLabel, myUid);
   // Same shared / From friend label as Timeline list (creator: Shared event; invitee: From friend)
   const showSharedSource = !!friendSourceLabel
     || source === 'shared'
-    || !!existing?.isShared
-    || !!existing?.shareId
-    || !!existing?.sharedFromEmail
-    || !!(existing?.sharedFrom && myUid && existing.sharedFrom !== myUid);
-  const isInvitee = isSharedEventInvitee(existing || eventForLabel, myUid);
+    || !!eventBase?.isShared
+    || !!eventBase?.shareId
+    || !!eventBase?.sharedFromEmail
+    || !!(eventBase?.sharedFrom && myUid && eventBase.sharedFrom !== myUid);
+  const isInvitee = isSharedEventInvitee(eventBase || eventForLabel, myUid);
+  const coreReadOnly = isInvitee;
   const sharedChipLabel = (friendSourceLabel && friendSourceLabel.startsWith('From friend'))
     ? 'From friend'
     : (friendSourceLabel === 'Shared event' ? 'Shared event' : 'From friend');
@@ -371,7 +432,7 @@ export default function AddEventScreen({ navigation, route }) {
               : 'Title *'}
         </Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, coreReadOnly && styles.inputReadOnly]}
           placeholder={
             source === 'hobby' && hobbyType === 'poetry'
               ? 'e.g. Rain over Rainham'
@@ -382,7 +443,8 @@ export default function AddEventScreen({ navigation, route }) {
           placeholderTextColor="#64748b"
           value={title}
           onChangeText={setTitle}
-          autoFocus={!isEditing}
+          editable={!coreReadOnly}
+          autoFocus={!isEditing && !coreReadOnly}
         />
 
         {source === 'email' && (
@@ -394,6 +456,7 @@ export default function AddEventScreen({ navigation, route }) {
               placeholderTextColor="#64748b"
               value={emailFrom}
               onChangeText={setEmailFrom}
+              editable={!coreReadOnly}
               autoCapitalize="none"
               keyboardType="email-address"
             />
@@ -402,11 +465,12 @@ export default function AddEventScreen({ navigation, route }) {
 
         <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, coreReadOnly && styles.inputReadOnly]}
           placeholder="2026-08-23"
           placeholderTextColor="#64748b"
           value={date}
           onChangeText={setDate}
+          editable={!coreReadOnly}
           keyboardType="numbers-and-punctuation"
         />
 
@@ -421,7 +485,7 @@ export default function AddEventScreen({ navigation, route }) {
                   styles.catChip,
                   selected && { backgroundColor: cat.color + '33', borderColor: cat.color },
                 ]}
-                onPress={() => setCategory(cat.id)}
+                onPress={() => { if (!coreReadOnly) setCategory(cat.id); }}
               >
                 <Text
                   style={[
@@ -519,7 +583,7 @@ export default function AddEventScreen({ navigation, route }) {
               <TouchableOpacity
                 key={action.id}
                 style={[styles.catChip, selected && styles.actionSelected]}
-                onPress={() => setNextAction(action.id)}
+                onPress={() => { if (!coreReadOnly) setNextAction(action.id); }}
               >
                 <Text style={[styles.catText, selected && styles.actionTextSelected]}>
                   {action.label}
@@ -541,77 +605,108 @@ export default function AddEventScreen({ navigation, route }) {
             styles.input,
             styles.textArea,
             source === 'hobby' && hobbyType === 'poetry' && styles.poemArea,
+            coreReadOnly && styles.inputReadOnly,
           ]}
           placeholder={descriptionPlaceholder()}
           placeholderTextColor="#64748b"
           value={description}
           onChangeText={setDescription}
+          editable={!coreReadOnly}
           multiline
           numberOfLines={source === 'hobby' && hobbyType === 'poetry' ? 8 : 4}
           textAlignVertical="top"
         />
 
-        <TouchableOpacity
-          style={[styles.saveButton, (saving || deleting) && styles.saveDisabled]}
-          onPress={handleSave}
-          disabled={saving || deleting}
-        >
-          <Text style={styles.saveText}>
-            {saving
-              ? 'Saving…'
-              : isEditing
-                ? 'Update'
-                : source === 'hobby'
-                  ? 'Add hobby'
-                  : 'Add Event'}
-          </Text>
-        </TouchableOpacity>
-        {saveNotice ? <Text style={styles.saveNotice}>{saveNotice}</Text> : null}
-
-        {isEditing && existing?.id ? (
-          <TouchableOpacity
-            style={styles.shareButton}
-            onPress={() =>
-              navigation.navigate('ShareEvent', {
-                event: {
-                  id: existing.id,
-                  title: title.trim() || existing.title,
-                  description: description.trim(),
-                  date: existing.date,
-                  category,
-                  shareId: existing.shareId,
-                  isShared: existing.isShared,
-                },
-              })
-            }
-          >
-            <Text style={styles.shareText}>Share with a friend</Text>
-          </TouchableOpacity>
+        {isInvitee ? (
+          <>
+            <Text style={styles.inviteeHint}>
+              This is a shared event from a friend. Core fields are read-only — suggest a note for them to approve.
+            </Text>
+            <Text style={styles.label}>Suggest a note</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="e.g. Also discussed next meeting date…"
+              placeholderTextColor="#64748b"
+              value={suggestionNote}
+              onChangeText={setSuggestionNote}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              editable={!suggesting && !deleting}
+            />
+            <TouchableOpacity
+              style={[styles.saveButton, (suggesting || deleting) && styles.saveDisabled]}
+              onPress={handleSuggestNote}
+              disabled={suggesting || deleting}
+            >
+              <Text style={styles.saveText}>{suggesting ? 'Sending…' : 'Submit suggestion'}</Text>
+            </TouchableOpacity>
+            {saveNotice ? <Text style={styles.saveNotice}>{saveNotice}</Text> : null}
+            {isEditing && existing?.id ? (
+              <TouchableOpacity
+                style={[styles.deleteButton, (saving || deleting || suggesting) && styles.saveDisabled]}
+                onPress={handleLeave}
+                disabled={saving || deleting || suggesting}
+              >
+                <Text style={styles.deleteText}>{deleting ? 'Leaving...' : 'Leave event'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
         ) : (
-          <Text style={styles.shareHint}>
-            Save the event first, then open it again to share a per-event invite code with a friend.
-          </Text>
-        )}
+          <>
+            <TouchableOpacity
+              style={[styles.saveButton, (saving || deleting) && styles.saveDisabled]}
+              onPress={handleSave}
+              disabled={saving || deleting}
+            >
+              <Text style={styles.saveText}>
+                {saving
+                  ? 'Saving…'
+                  : isEditing
+                    ? 'Update'
+                    : source === 'hobby'
+                      ? 'Add hobby'
+                      : 'Add Event'}
+              </Text>
+            </TouchableOpacity>
+            {saveNotice ? <Text style={styles.saveNotice}>{saveNotice}</Text> : null}
 
-        {isEditing && existing?.id ? (
-          isInvitee ? (
-            <TouchableOpacity
-              style={[styles.deleteButton, (saving || deleting) && styles.saveDisabled]}
-              onPress={handleLeave}
-              disabled={saving || deleting}
-            >
-              <Text style={styles.deleteText}>{deleting ? 'Leaving...' : 'Leave event'}</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.deleteButton, (saving || deleting) && styles.saveDisabled]}
-              onPress={handleDelete}
-              disabled={saving || deleting}
-            >
-              <Text style={styles.deleteText}>{deleting ? 'Deleting...' : 'Delete event'}</Text>
-            </TouchableOpacity>
-          )
-        ) : null}
+            {isEditing && existing?.id ? (
+              <TouchableOpacity
+                style={styles.shareButton}
+                onPress={() =>
+                  navigation.navigate('ShareEvent', {
+                    event: {
+                      id: existing.id,
+                      title: title.trim() || existing.title,
+                      description: description.trim(),
+                      date: existing.date,
+                      category,
+                      shareId: existing.shareId,
+                      isShared: existing.isShared,
+                    },
+                  })
+                }
+              >
+                <Text style={styles.shareText}>Share with a friend</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.shareHint}>
+                Save the event first, then open it again to share a per-event invite code with a friend.
+              </Text>
+            )}
+
+            {isEditing && existing?.id ? (
+              <TouchableOpacity
+                style={[styles.deleteButton, (saving || deleting) && styles.saveDisabled]}
+                onPress={handleDelete}
+                disabled={saving || deleting}
+              >
+                <Text style={styles.deleteText}>{deleting ? 'Deleting...' : 'Delete event'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

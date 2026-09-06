@@ -668,6 +668,269 @@ export function formatRecentLeftNotice(shared) {
   return `${who} ${verb} this shared event`;
 }
 
+function makeSuggestionId() {
+  return `sug_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function listEditSuggestions(shared) {
+  const raw = shared?.editSuggestions;
+  return Array.isArray(raw) ? raw.filter(Boolean) : [];
+}
+
+export function pendingEditSuggestions(shared) {
+  return listEditSuggestions(shared).filter((s) => s && s.status === 'pending');
+}
+
+export function formatRecentSuggestionNotice(shared) {
+  const rs = shared?.recentSuggestion;
+  if (!rs) return null;
+  if (typeof rs.notice === 'string' && rs.notice.trim()) return rs.notice.trim();
+  const who =
+    (typeof rs.fromEmail === 'string' && rs.fromEmail.includes('@') && rs.fromEmail.trim()) ||
+    (rs.fromDisplayName && String(rs.fromDisplayName).trim()) ||
+    'A friend';
+  return `${who} suggested a note on this shared event`;
+}
+
+export function countPendingSuggestions(shared) {
+  return pendingEditSuggestions(shared).length;
+}
+
+/** Clear creator-facing suggestion banner after they have seen it. */
+export async function clearRecentSuggestionNotice(shareId) {
+  const uid = getUid();
+  if (!uid || !shareId) return;
+  const shared = await getSharedEvent(shareId);
+  if (!shared) return;
+  if (shared.createdByUid && shared.createdByUid !== uid) return;
+  await updateDoc(doc(db, 'sharedEvents', shareId), {
+    recentSuggestion: null,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Invitee suggests a note on a shared event (does not edit core fields).
+ * Persists on sharedEvents/{shareId}.editSuggestions[] and sets recentSuggestion
+ * for the creator Share screen banner.
+ */
+export async function submitEditSuggestion(shareId, note) {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to suggest a note.');
+  if (!shareId) throw new Error('Missing shared event.');
+  const trimmed = String(note || '').trim();
+  if (!trimmed) throw new Error('Write a short note to suggest.');
+
+  const shared = await getSharedEvent(shareId);
+  if (!shared) throw new Error('Shared event not found.');
+  if (shared.createdByUid === uid) {
+    throw new Error('You own this event — edit it directly instead of suggesting.');
+  }
+  const stillParticipant = (shared.participantUids || []).includes(uid);
+  if (!stillParticipant) {
+    const hadEntry = !!(shared.participants && shared.participants[uid]);
+    if (!hadEntry) throw new Error('Only invitees on this share can suggest notes.');
+  }
+
+  const me = await currentParticipantProfile().catch(() => ({
+    uid,
+    displayName: auth.currentUser?.displayName || '',
+    email: auth.currentUser?.email || undefined,
+  }));
+  const nowIso = new Date().toISOString();
+  const fromEmail =
+    (typeof me.email === 'string' && me.email.includes('@') && me.email.trim()) ||
+    (auth.currentUser?.email || undefined);
+  const suggestion = stripUndefined({
+    id: makeSuggestionId(),
+    fromUid: uid,
+    fromEmail: fromEmail || undefined,
+    fromDisplayName: me.displayName || undefined,
+    note: trimmed,
+    status: 'pending',
+    createdAt: nowIso,
+  });
+
+  const existing = listEditSuggestions(shared);
+  const editSuggestions = [...existing, suggestion];
+  const who = leaveNoticeLabel(me);
+  const notice = `${who} suggested a note on this shared event`;
+
+  await updateDoc(
+    doc(db, 'sharedEvents', shareId),
+    stripUndefined({
+      editSuggestions,
+      recentSuggestion: {
+        suggestionId: suggestion.id,
+        fromUid: uid,
+        fromEmail: fromEmail || undefined,
+        fromDisplayName: me.displayName || undefined,
+        createdAt: nowIso,
+        notice,
+      },
+      updatedAt: nowIso,
+    }),
+  );
+
+  return { suggestion, notice };
+}
+
+function attributedNoteBlock(suggestion) {
+  const who =
+    (typeof suggestion?.fromEmail === 'string' && suggestion.fromEmail.includes('@')
+      ? suggestion.fromEmail.trim()
+      : null) ||
+    (suggestion?.fromDisplayName && String(suggestion.fromDisplayName).trim()) ||
+    'friend';
+  return `\n\nNote from ${who}:\n${String(suggestion.note || '').trim()}`;
+}
+
+/**
+ * Pull latest sharedEvents fields onto the user's local event copy (description etc.).
+ * Used so invitees see approved notes without needing write access to each other.
+ */
+export async function syncLocalEventFromShared(localEvent) {
+  const uid = getUid();
+  if (!uid || !localEvent?.shareId) return localEvent || null;
+  const shared = await getSharedEvent(localEvent.shareId);
+  if (!shared) return localEvent;
+
+  const nextDesc = shared.description != null ? String(shared.description) : localEvent.description || '';
+  const nextTitle = shared.title != null ? String(shared.title) : localEvent.title;
+  const nextDate = shared.date || localEvent.date;
+  const nextCategory = shared.category || localEvent.category;
+
+  const changed =
+    nextDesc !== (localEvent.description || '') ||
+    nextTitle !== localEvent.title ||
+    nextDate !== localEvent.date ||
+    nextCategory !== localEvent.category;
+
+  if (!changed) return localEvent;
+
+  const patched = {
+    ...localEvent,
+    title: nextTitle,
+    description: nextDesc,
+    date: nextDate,
+    category: nextCategory || localEvent.category,
+    shareId: shared.id,
+    isShared: true,
+  };
+  await saveEvent(patched);
+  return patched;
+}
+
+/**
+ * Creator approves a pending suggestion: append attributed note to shared description,
+ * mark approved, update creator's local event copy. Invitee copies refresh via
+ * syncLocalEventFromShared when they open the event.
+ */
+export async function approveEditSuggestion(shareId, suggestionId) {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to approve suggestions.');
+  if (!shareId || !suggestionId) throw new Error('Missing suggestion.');
+
+  const shared = await getSharedEvent(shareId);
+  if (!shared) throw new Error('Shared event not found.');
+  if (shared.createdByUid && shared.createdByUid !== uid) {
+    throw new Error('Only the event creator can approve suggestions.');
+  }
+
+  const suggestions = listEditSuggestions(shared);
+  const idx = suggestions.findIndex((s) => s && s.id === suggestionId);
+  if (idx < 0) throw new Error('Suggestion not found.');
+  const suggestion = suggestions[idx];
+  if (suggestion.status !== 'pending') {
+    throw new Error(`Suggestion is already ${suggestion.status}.`);
+  }
+
+  const nowIso = new Date().toISOString();
+  const block = attributedNoteBlock(suggestion);
+  const newDescription = `${shared.description || ''}${block}`;
+  const updatedSuggestions = suggestions.map((s, i) =>
+    i === idx
+      ? stripUndefined({ ...s, status: 'approved', resolvedAt: nowIso, resolvedByUid: uid })
+      : s,
+  );
+
+  const pendingLeft = updatedSuggestions.filter((s) => s.status === 'pending');
+  const patch = stripUndefined({
+    description: newDescription,
+    editSuggestions: updatedSuggestions,
+    updatedAt: nowIso,
+    recentSuggestion: pendingLeft.length
+      ? shared.recentSuggestion || null
+      : null,
+  });
+
+  await updateDoc(doc(db, 'sharedEvents', shareId), patch);
+
+  // Update creator's local event copy (and any same-shareId row we own).
+  const events = await getEvents();
+  const mine = events.filter((e) => e.shareId === shareId || e.id === shared.sourceEventId);
+  for (const ev of mine) {
+    await saveEvent({
+      ...ev,
+      description: newDescription,
+      title: shared.title || ev.title,
+      date: shared.date || ev.date,
+      category: shared.category || ev.category,
+      shareId,
+      isShared: true,
+    });
+  }
+
+  return {
+    description: newDescription,
+    suggestion: { ...suggestion, status: 'approved', resolvedAt: nowIso },
+    pendingCount: pendingLeft.length,
+  };
+}
+
+/** Creator declines a pending suggestion (no description change). */
+export async function declineEditSuggestion(shareId, suggestionId) {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to decline suggestions.');
+  if (!shareId || !suggestionId) throw new Error('Missing suggestion.');
+
+  const shared = await getSharedEvent(shareId);
+  if (!shared) throw new Error('Shared event not found.');
+  if (shared.createdByUid && shared.createdByUid !== uid) {
+    throw new Error('Only the event creator can decline suggestions.');
+  }
+
+  const suggestions = listEditSuggestions(shared);
+  const idx = suggestions.findIndex((s) => s && s.id === suggestionId);
+  if (idx < 0) throw new Error('Suggestion not found.');
+  const suggestion = suggestions[idx];
+  if (suggestion.status !== 'pending') {
+    throw new Error(`Suggestion is already ${suggestion.status}.`);
+  }
+
+  const nowIso = new Date().toISOString();
+  const updatedSuggestions = suggestions.map((s, i) =>
+    i === idx
+      ? stripUndefined({ ...s, status: 'declined', resolvedAt: nowIso, resolvedByUid: uid })
+      : s,
+  );
+  const pendingLeft = updatedSuggestions.filter((s) => s.status === 'pending');
+
+  await updateDoc(
+    doc(db, 'sharedEvents', shareId),
+    stripUndefined({
+      editSuggestions: updatedSuggestions,
+      updatedAt: nowIso,
+      recentSuggestion: pendingLeft.length ? shared.recentSuggestion || null : null,
+    }),
+  );
+
+  return {
+    suggestion: { ...suggestion, status: 'declined', resolvedAt: nowIso },
+    pendingCount: pendingLeft.length,
+  };
+}
+
 export function warnShare(message, error) {
   if (error !== undefined) console.warn(message, error);
   else console.warn(message);

@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 6 Sep 2026 (Shared leave/ownership + Food save hotfix)
+**Last updated:** 6 Sep 2026 (Shared edit suggestions MVP)
 
 ---
 
@@ -59,6 +59,7 @@
 - [x] Add Event edit Source area shows shared / From friend (same label as Timeline) for `source===shared` / isShared / sharedFromEmail
 - [x] Shared ownership: creator Delete (own copy; may end share for them); invitee **Leave event** (removes users/{uid}/events copy only; sets participants[uid].status left/declined + recentLeft notice; does not delete sharedEvents/creator event)
 - [x] Creator notice: Share screen banner when someone left/declined (`recentLeft`, prefer email); Decline invite uses same notify path
+- [x] Shared edit suggestions MVP: invitee Suggest a note (core fields read-only); persist \editSuggestions\ on \sharedEvents/{shareId}\; creator Approve/Decline on Share screen; approve appends attributed note to description + syncs creator copy; invitee copies refresh via \syncLocalEventFromShared\; ecentSuggestion\ banner / pending count
 - [ ] Share whole timeline with another Timeline user (still later)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
@@ -256,4 +257,9 @@ match /users/{userId}/events/{eventId} {
 1. Account A: create/open an event → **Share with a friend** → copy code.
 2. Log out → Account B: Home → **Enter invite code** → paste → Accept.
 3. Both: Home → **Events with friends** — shared node on centre spine with friend colour meeting it.
+
+**Edit suggestions test path:**
+1. A: share event → B: accept invite.
+2. B: open shared event → core fields read-only → **Suggest a note** → Submit.
+3. A: Share with a friend → see pending suggestion / banner → **Approve** (note appears on description for A; B sees it after reopening) or **Decline**.
 
