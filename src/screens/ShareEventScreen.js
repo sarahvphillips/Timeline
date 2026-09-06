@@ -233,7 +233,7 @@ export default function ShareEventScreen({ navigation, route }) {
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Share with a friend</Text>
       <Text style={styles.hint}>
-        Per-event invite only — not your whole timeline. Your friend enters this code (or opens the link)
+        Per-event invite only - not your whole timeline. Your friend enters this code (or opens the link)
         on their Timeline account. It appears for them after they accept.
       </Text>
 
@@ -326,8 +326,8 @@ export default function ShareEventScreen({ navigation, route }) {
       </Text>
 
       <View style={styles.qrWrap}>
-        <Image source={{ uri: qrImageUrl(inviteUrl, 220) }} style={styles.qr} />
-        <Text style={styles.qrHint}>Scan to open the invite (deep link)</Text>
+        <Image source={{ uri: qrImageUrl(inviteUrl, 300) }} style={styles.qr} />
+        <Text style={styles.qrHint}>Large QR for coffee-table scan - friend taps Scan QR on Enter invite</Text>
       </View>
 
       <TouchableOpacity style={styles.button} onPress={handleCopyCode} disabled={busy}>
@@ -354,8 +354,8 @@ export default function ShareEventScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <Text style={styles.testPath}>
-        Test path: Account A creates this invite → log out → Account B signs in → Home → Enter invite code
-        (or Events with friends → Enter code) → paste {code} → Accept. Both see the shared point under
+        Test path: Account A creates this invite -> log out -> Account B signs in -> Home -> Enter invite code
+        (or Events with friends -> Enter code) -> paste {code} -> Accept. Both see the shared point under
         Events with friends.
       </Text>
     </ScrollView>
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   linkLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 6 },
   link: { color: '#60a5fa', fontSize: 14, marginBottom: 20 },
   qrWrap: { alignItems: 'center', marginBottom: 20 },
-  qr: { width: 220, height: 220, backgroundColor: '#fff', borderRadius: 8 },
+  qr: { width: 300, height: 300, backgroundColor: '#fff', borderRadius: 12 },
   qrHint: { color: '#64748b', fontSize: 12, marginTop: 8 },
   button: {
     backgroundColor: '#3b82f6',

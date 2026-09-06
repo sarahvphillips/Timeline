@@ -19,7 +19,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.sarahphillips.timelineapp",
       "infoPlist": {
-        "NSCameraUsageDescription": "Timeline uses the camera so you can take photos for your profile and events.",
+        "NSCameraUsageDescription": "Timeline uses the camera so you can take photos for your profile and events, and scan a friend's invite QR code.",
         "NSPhotoLibraryUsageDescription": "Timeline uses your photos for your profile picture and pictures on events."
       },
       "icon": "./assets/icon.png"
@@ -63,8 +63,16 @@
         "expo-image-picker",
         {
           "photosPermission": "Timeline uses your photos for your profile picture and pictures on events.",
-          "cameraPermission": "Timeline uses the camera so you can take photos for your profile and events.",
+          "cameraPermission": "Timeline uses the camera so you can take photos for your profile and events, and scan a friend's invite QR code.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Timeline uses the camera so you can take photos for your profile and events, and scan a friend's invite QR code.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ]
     ],

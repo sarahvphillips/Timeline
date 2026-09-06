@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,119 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Modal,
+  SafeAreaView,
 } from 'react-native';
 import {
   getInviteByCode,
   getSharedEvent,
   acceptInviteByCode,
   rejectInviteByCode,
+  parseInviteCodeFromScan,
 } from '../services/shareService';
+
+let CameraView = null;
+let useCameraPermissions = null;
+if (Platform.OS !== 'web') {
+  try {
+    const cam = require('expo-camera');
+    CameraView = cam.CameraView;
+    useCameraPermissions = cam.useCameraPermissions;
+  } catch (_) {
+    CameraView = null;
+    useCameraPermissions = null;
+  }
+}
+
+function useFallbackCameraPermissions() {
+  return [null, async () => ({ granted: false })];
+}
+
+function NativeScanButton({ onScanned }) {
+  const usePerms = useCameraPermissions || useFallbackCameraPermissions;
+  const [permission, requestPermission] = usePerms();
+  const [open, setOpen] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const handlingRef = useRef(false);
+
+  const openScanner = async () => {
+    if (!CameraView) {
+      Alert.alert(
+        'Scanner unavailable',
+        'Camera scanner is not available on this device. Paste the invite code instead.',
+      );
+      return;
+    }
+    handlingRef.current = false;
+    setScanned(false);
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result?.granted) {
+        Alert.alert(
+          'Camera permission needed',
+          "Timeline needs the camera to scan your friend's invite QR code. You can also paste the code manually.",
+        );
+        return;
+      }
+    }
+    setOpen(true);
+  };
+
+  const handleBarcode = ({ data }) => {
+    if (handlingRef.current || scanned) return;
+    const code = parseInviteCodeFromScan(data);
+    if (!code) return;
+    handlingRef.current = true;
+    setScanned(true);
+    setOpen(false);
+    onScanned(code);
+  };
+
+  return (
+    <>
+      <TouchableOpacity style={styles.scanButton} onPress={openScanner} accessibilityRole="button">
+        <Text style={styles.scanButtonText}>Scan QR</Text>
+        <Text style={styles.scanButtonSub}>Point at friend's Share screen</Text>
+      </TouchableOpacity>
+
+      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+        <SafeAreaView style={styles.scannerRoot}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Scan invite QR</Text>
+            <TouchableOpacity onPress={() => setOpen(false)} hitSlop={12}>
+              <Text style={styles.scannerClose}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.scannerHint}>Aim at the QR on your friend's phone</Text>
+          {CameraView ? (
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={scanned ? undefined : handleBarcode}
+            />
+          ) : (
+            <View style={styles.cameraFallback}>
+              <Text style={styles.cameraFallbackText}>Camera not available</Text>
+            </View>
+          )}
+          <View style={styles.scannerFrame} pointerEvents="none" />
+        </SafeAreaView>
+      </Modal>
+    </>
+  );
+}
+
+function WebScanNote() {
+  return (
+    <View style={styles.webNote}>
+      <Text style={styles.webNoteTitle}>Scan QR</Text>
+      <Text style={styles.webNoteText}>
+        Scan QR works on the phone app (Expo Go / Android). Paste the invite code here on web.
+      </Text>
+    </View>
+  );
+}
 
 export default function AcceptInviteScreen({ navigation, route }) {
   const initialCode = String(route.params?.code || '').trim().toUpperCase();
@@ -66,10 +172,23 @@ export default function AcceptInviteScreen({ navigation, route }) {
     }
   };
 
+  const applyScannedCode = (scannedCode) => {
+    const normalised = String(scannedCode || '').trim().toUpperCase();
+    if (!normalised) {
+      Alert.alert(
+        'Could not read QR',
+        'No invite code found in that QR. Try again or paste the code.',
+      );
+      return;
+    }
+    setCode(normalised);
+    lookup(normalised);
+  };
+
   const handleAccept = async () => {
     const normalised = String(code || '').trim().toUpperCase();
     if (!normalised) {
-      Alert.alert('Enter a code', 'Paste the invite code from your friend.');
+      Alert.alert('Enter a code', 'Paste the invite code from your friend, or tap Scan QR.');
       return;
     }
     setAccepting(true);
@@ -95,7 +214,6 @@ export default function AcceptInviteScreen({ navigation, route }) {
     }
   };
 
-
   const notify = (title, message) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
       window.alert(title + (message ? '\n\n' + message : ''));
@@ -119,7 +237,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
   const handleReject = async () => {
     const normalised = String(code || '').trim().toUpperCase();
     if (!normalised) {
-      notify('Enter a code', 'Paste the invite code from your friend.');
+      notify('Enter a code', 'Paste the invite code from your friend, or tap Scan QR.');
       return;
     }
     const ok = await confirmAction(
@@ -147,13 +265,12 @@ export default function AcceptInviteScreen({ navigation, route }) {
     }
   };
 
-
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Enter invite code</Text>
       <Text style={styles.hint}>
-        Your friend shared a single event (not their whole timeline). Paste the code or open the
-        timelineapp://share/… link while signed in.
+        Your friend shared a single event (not their whole timeline). Scan their Share QR, paste the
+        code, or open the timelineapp://share/... link while signed in.
       </Text>
 
       <Text style={styles.label}>Invite code</Text>
@@ -168,8 +285,14 @@ export default function AcceptInviteScreen({ navigation, route }) {
         maxLength={12}
       />
 
+      {Platform.OS === 'web' ? (
+        <WebScanNote />
+      ) : (
+        <NativeScanButton onScanned={applyScannedCode} />
+      )}
+
       <TouchableOpacity style={styles.secondary} onPress={() => lookup(code)} disabled={loadingPreview}>
-        <Text style={styles.secondaryText}>{loadingPreview ? 'Looking up…' : 'Look up'}</Text>
+        <Text style={styles.secondaryText}>{loadingPreview ? 'Looking up...' : 'Look up'}</Text>
       </TouchableOpacity>
 
       {preview?.error ? <Text style={styles.error}>{preview.error}</Text> : null}
@@ -179,11 +302,11 @@ export default function AcceptInviteScreen({ navigation, route }) {
           <Text style={styles.previewMeta}>
             {preview.shared.date ? new Date(preview.shared.date).toLocaleDateString() : ''}
             {preview.invite?.fromEmail
-              ? ` · From friend - ${preview.invite.fromEmail}`
+              ? ` - From friend - ${preview.invite.fromEmail}`
               : preview.shared?.createdByEmail
-                ? ` · From friend - ${preview.shared.createdByEmail}`
+                ? ` - From friend - ${preview.shared.createdByEmail}`
                 : preview.invite?.fromName
-                  ? ` · from ${preview.invite.fromName}`
+                  ? ` - from ${preview.invite.fromName}`
                   : ''}
           </Text>
           {preview.shared.description ? (
@@ -216,8 +339,8 @@ export default function AcceptInviteScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <Text style={styles.testPath}>
-        Two-account test: Account A shares an event and copies the code → Account B opens this screen,
-        pastes the code, Accept → check Timeline list and Events with friends.
+        Coffee-table test: Account A shares an event and shows the QR -> Account B opens this screen,
+        taps Scan QR, Accept -> check Timeline and Events with friends. Manual code paste still works.
       </Text>
     </ScrollView>
   );
@@ -246,6 +369,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
+  scanButton: {
+    marginTop: 14,
+    backgroundColor: '#7c3aed',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#a78bfa',
+  },
+  scanButtonText: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
+  scanButtonSub: { color: '#ddd6fe', fontSize: 12, marginTop: 4, fontWeight: '500' },
+  webNote: {
+    marginTop: 14,
+    backgroundColor: '#1a1b36',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#475569',
+    padding: 14,
+  },
+  webNoteTitle: { color: '#c4b5fd', fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  webNoteText: { color: '#94a3b8', fontSize: 13, lineHeight: 19 },
   secondary: {
     marginTop: 12,
     paddingVertical: 12,
@@ -288,4 +433,41 @@ const styles = StyleSheet.create({
   },
   declineText: { color: '#fca5a5', fontSize: 16, fontWeight: '600' },
   testPath: { color: '#64748b', fontSize: 12, lineHeight: 18, marginTop: 20 },
+  scannerRoot: { flex: 1, backgroundColor: '#0f1024' },
+  scannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  scannerTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700' },
+  scannerClose: { color: '#93c5fd', fontSize: 16, fontWeight: '600' },
+  scannerHint: {
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 16,
+  },
+  camera: { flex: 1, marginHorizontal: 16, marginBottom: 24, borderRadius: 16, overflow: 'hidden' },
+  cameraFallback: {
+    flex: 1,
+    margin: 16,
+    borderRadius: 16,
+    backgroundColor: '#1a1b36',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraFallbackText: { color: '#94a3b8' },
+  scannerFrame: {
+    position: 'absolute',
+    left: '18%',
+    right: '18%',
+    top: '32%',
+    bottom: '28%',
+    borderWidth: 2,
+    borderColor: 'rgba(167, 139, 250, 0.85)',
+    borderRadius: 16,
+  },
 });

@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 6 Sep 2026 (Firestore share participants: no photoUri)
+**Last updated:** 6 Sep 2026 (Accept invite Scan QR)
 
 ---
 
@@ -55,12 +55,13 @@
 - [x] Events with friends MVP (per-event share invites + intersecting view)
 - [x] Delete event with confirm (Add Event edit + Timeline expanded Delete; web uses window.confirm; removes local + Firestore for uid when sync on)
 - [x] Add Event save feedback on web (window.alert like Settings clear-cache; Save disabled while saving; on-screen Saved notice; goBack once)
-- [x] Firestore share participants hardened — participantForCloud only allows uid/displayName/email/initial/colour/status timestamps; never write photoUri/local image refs (fixes Property participants contains an invalid nested entity)
-- [x] Friend source on shared events — invitee UI shows `From friend - email` (or `From friend - if unknown); `sharedFromEmail` / invite `fromEmail` / `createdByEmail` persisted on accept/share
+- [x] Firestore share participants hardened - participantForCloud only allows uid/displayName/email/initial/colour/status timestamps; never write photoUri/local image refs (fixes Property participants contains an invalid nested entity)
+- [x] Friend source on shared events - invitee UI shows `From friend - email` (or `From friend - if unknown); `sharedFromEmail` / invite `fromEmail` / `createdByEmail` persisted on accept/share
 - [x] Add Event edit Source area shows shared / From friend (same label as Timeline) for `source===shared` / isShared / sharedFromEmail
 - [x] Shared ownership: creator Delete (own copy; may end share for them); invitee **Leave event** (removes users/{uid}/events copy only; sets participants[uid].status left/declined + recentLeft notice; does not delete sharedEvents/creator event)
 - [x] Creator notice: Share screen banner when someone left/declined (`recentLeft`, prefer email); Decline invite uses same notify path
 - [x] Shared edit suggestions MVP: invitee Suggest a note (core fields read-only); persist \editSuggestions\ on \sharedEvents/{shareId}\; creator Approve/Decline on Share screen; approve appends attributed note to description + syncs creator copy; invitee copies refresh via \syncLocalEventFromShared\; ecentSuggestion\ banner / pending count
+- [x] Accept invite **Scan QR** (`AcceptInviteScreen` + `expo-camera` CameraView on native; parses raw code / `timelineapp://share/CODE` / https share links; web keeps paste-only note). Share QR enlarged for coffee-table scan.
 - [ ] Share whole timeline with another Timeline user (still later)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
@@ -76,18 +77,18 @@
 
 ---
 
-## Food (thin Timeline add-on — not a calorie app)
+## Food (thin Timeline add-on - not a calorie app)
 
 Product map:
 - Layers: **Cupboard** / **Plan** / **Eaten**
 - Photo-heavy optional add-on; calories out of scope for now
 
-- [x] **Show Food in the + menu** Settings toggle — default **OFF**; uid-scoped AsyncStorage + Firestore `settings/foodPrefs`
-- [x] **Add Food** form (`AddFoodScreen`): photo + items (text) + date + planned/eaten → Timeline event `source: 'food'` (`foodStatus`, `foodItems`, optional `imageUri`)
-- [x] Web photo quota: compress/resize on pick (`expo-image-manipulator`, max width ~1280, JPEG ~0.7; canvas fallback for blob:/data:); heavy `data:` payloads stored under `@timeline_img_{eventId}` with short refs in events list; QuotaExceededError → clear message. **Firebase Storage still the real long-term fix.**
+- [x] **Show Food in the + menu** Settings toggle - default **OFF**; uid-scoped AsyncStorage + Firestore `settings/foodPrefs`
+- [x] **Add Food** form (`AddFoodScreen`): photo + items (text) + date + planned/eaten -> Timeline event `source: 'food'` (`foodStatus`, `foodItems`, optional `imageUri`)
+- [x] Web photo quota: compress/resize on pick (`expo-image-manipulator`, max width ~1280, JPEG ~0.7; canvas fallback for blob:/data:); heavy `data:` payloads stored under `@timeline_img_{eventId}` with short refs in events list; QuotaExceededError -> clear message. **Firebase Storage still the real long-term fix.**
 - [x] + menus (Timeline / Month / Week) show Food only when toggle is on
-- [ ] **Cupboard** (bought list / inventory UI) — later
-- [ ] Calories / structured nutrition — not in this pass
+- [ ] **Cupboard** (bought list / inventory UI) - later
+- [ ] Calories / structured nutrition - not in this pass
 
 ---
 
@@ -120,12 +121,12 @@ Product map:
 ### Life & people
 
 - [ ] Life events (birthdays, house moves, wedding, â¦)
-- [x] User add friends — per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
+- [x] User add friends - per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
 - [ ] Broader friend graph / whole-timeline link (later)
-- [ ] **Friend usernames (privacy)** — some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
-- [ ] **Friend avatars on sharedEvents** — do not write local photoUri (data:/blob:/asref:) to participants; use Firebase Storage download URLs later. Until then friends view falls back to initial. (participantForCloud)
-- [ ] **Polish Events with friends timeline display** — curved coloured friend lines, avatars on lines; current intersecting view is MVP/first cut, refine later (do not block on this). Discuss more friends-view features with Sarah before polish.
-- [ ] **TEMP: Design button on Events with friends** — top-right corner opens `assets/friends-design-target.jpg` modal preview. Remove when friends view polish matches the sketch.
+- [ ] **Friend usernames (privacy)** - some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
+- [ ] **Friend avatars on sharedEvents** - do not write local photoUri (data:/blob:/asref:) to participants; use Firebase Storage download URLs later. Until then friends view falls back to initial. (participantForCloud)
+- [ ] **Polish Events with friends timeline display** - curved coloured friend lines, avatars on lines; current intersecting view is MVP/first cut, refine later (do not block on this). Discuss more friends-view features with Sarah before polish.
+- [ ] **TEMP: Design button on Events with friends** - top-right corner opens `assets/friends-design-target.jpg` modal preview. Remove when friends view polish matches the sketch.
 - [x] User specify date of birth (Settings, local for now)
 
 ### Account & setup
@@ -145,6 +146,8 @@ Product map:
 
 ## Next / Nice to have
 
+- [ ] **Future: IRL / public event QR** - scan a venue/poster/public-page QR -> draft a Timeline event from page/link metadata (title, URL, date if present). Friend-invite Scan QR (share code / `timelineapp://share/CODE`) stays separate; codes/SMS remain for remote invites.
+
 - [ ] Google Sign-In (re-enable fully if needed)
 - [ ] Better date picker (calendar UI)
 - [ ] Filter timeline by category
@@ -152,7 +155,7 @@ Product map:
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
 - [ ] Custom Firebase password-reset email template (needs Blaze plan)
 - [ ] Android development / Play Store build (share sheet for text and images, and widgets, need this)
-- [ ] Firebase Storage for event photos (imageUri/coverImageUri currently local-only / web AsyncStorage-split; compress+separate keys is a stopgap — Storage is the real fix)
+- [ ] Firebase Storage for event photos (imageUri/coverImageUri currently local-only / web AsyncStorage-split; compress+separate keys is a stopgap - Storage is the real fix)
 
 ---
 
@@ -165,9 +168,9 @@ Product map:
 
 ## Notes
 
-- **CLEANUP (manual):** If account B still shows A's events, delete B's docs under `users/{B_uid}/events` in Firebase Console (Firestore) again. Then full-reload Expo Go and sign into B — must be empty. Sign into A — events still there. Do not rely on Admin SDK unless already set up.
+- **CLEANUP (manual):** If account B still shows A's events, delete B's docs under `users/{B_uid}/events` in Firebase Console (Firestore) again. Then full-reload Expo Go and sign into B - must be empty. Sign into A - events still there. Do not rely on Admin SDK unless already set up.
 
-- **AsyncStorage key audit (5 Sep 2026) — first-slice isolation**
+- **AsyncStorage key audit (5 Sep 2026) - first-slice isolation**
 
   | Key pattern | Scope | Notes |
   |---|---|---|
@@ -183,17 +186,17 @@ Product map:
   | `@profile_photo_{uid}` / `@profile_photo_guest` | uid / guest | Profile photo URI (newly scoped 5 Sep). Legacy `@profile_photo` last_uid-gated. |
   | `@timeline_last_uid` | device-global | Last successful login uid (migration gate). Not cleared by cache clear. |
   | `@timeline_device_id` | device-global | Install UUID for sessions. Intentionally shared across accounts. |
-  | Firebase Auth persistence (RN AsyncStorage) | auth SDK | Keep intact — do not wipe. |
+  | Firebase Auth persistence (RN AsyncStorage) | auth SDK | Keep intact - do not wipe. |
 
-  **Settings → Clear this account's local cache:** empties only current uid's events, wordNumbers, date spans, and profile photo. Does **not** clear other uids' keys, guest keys of other sessions, Firestore, `@timeline_last_uid`, or `@timeline_device_id`. Auth scopes re-bumped after clear; navigator remounts on uid change so in-memory lists reset.
+  **Settings -> Clear this account's local cache:** empties only current uid's events, wordNumbers, date spans, and profile photo. Does **not** clear other uids' keys, guest keys of other sessions, Firestore, `@timeline_last_uid`, or `@timeline_device_id`. Auth scopes re-bumped after clear; navigator remounts on uid change so in-memory lists reset.
 
-  **Sync re-enabled (5 Sep 2026):** `EVENTS_FIRESTORE_SYNC_ENABLED=true`, `WORD_NUMBERS_FIRESTORE_SYNC_ENABLED=true`. Clear-this-account local cache confirmed (B cleared, A untouched). Account B should start from **empty cloud** after clear (previously 0 events under B) — create new events on B only; they must not reappear on A.
+  **Sync re-enabled (5 Sep 2026):** `EVENTS_FIRESTORE_SYNC_ENABLED=true`, `WORD_NUMBERS_FIRESTORE_SYNC_ENABLED=true`. Clear-this-account local cache confirmed (B cleared, A untouched). Account B should start from **empty cloud** after clear (previously 0 events under B) - create new events on B only; they must not reappear on A.
 
-- **Events / wordNumbers Firestore sync RE-ENABLED (5 Sep 2026):** Flags true in `eventService.js` / `wordToIntService.js`. Kept uid scoping, `ownerUid` checks, `beginAuthScope`, and clear-local-cache. App shell waits for the first cloud pull before painting Home/Timeline; Year/Month/Week/Timeline and Word-to-Int show a syncing state and await `getEvents` / `getWordNumbers` (no empty-then-fill flash). Local-only photo URIs (`file://`, `content://`, etc.) are stripped on upload (merge write) — **still no Firebase Storage** for photos; `imageUri` / `coverImageUri` remain device-local. Do not invent Storage in this pass.
+- **Events / wordNumbers Firestore sync RE-ENABLED (5 Sep 2026):** Flags true in `eventService.js` / `wordToIntService.js`. Kept uid scoping, `ownerUid` checks, `beginAuthScope`, and clear-local-cache. App shell waits for the first cloud pull before painting Home/Timeline; Year/Month/Week/Timeline and Word-to-Int show a syncing state and await `getEvents` / `getWordNumbers` (no empty-then-fill flash). Local-only photo URIs (`file://`, `content://`, etc.) are stripped on upload (merge write) - **still no Firebase Storage** for photos; `imageUri` / `coverImageUri` remain device-local. Do not invent Storage in this pass.
 
 - **Isolation note:** Phone A keeps its local + cloud events. Browser B after clear should sync empty (or only B’s own cloud docs). Creating an event on B must persist via Firestore for B only.
 
-- **Legacy bleed fix (4 Sep 2026):** `eventBelongsToUid` requires `ownerUid === uid` (missing ≠ belong). Legacy `@timeline_events` migrates only when `@timeline_last_uid` matches, every event already has `ownerUid === uid`, or this uid's cloud is non-empty — never into an empty-cloud other account. Same last_uid gate for word-to-int / profile / theme legacy keys. On login, `App.js` sets `@timeline_last_uid` after sync.
+- **Legacy bleed fix (4 Sep 2026):** `eventBelongsToUid` requires `ownerUid === uid` (missing ≠ belong). Legacy `@timeline_events` migrates only when `@timeline_last_uid` matches, every event already has `ownerUid === uid`, or this uid's cloud is non-empty - never into an empty-cloud other account. Same last_uid gate for word-to-int / profile / theme legacy keys. On login, `App.js` sets `@timeline_last_uid` after sync.
 
 
 - Event storage: Firestore `users/{uid}/events/{eventId}` when signed in; AsyncStorage `@timeline_events_{uid}` offline cache (guest: `@timeline_events_guest`). Legacy global `@timeline_events` migrates only to the rightful uid (see above), with `ownerUid` stamped.
@@ -213,11 +216,11 @@ Product map:
 - [x] EAS / share-intent `app.json` restored (owner `sarahpoet6014`, projectId `0f4f935b-9897-4ac5-b760-39d00794adfc`, splash/icon images, iOS infoPlist, Android adaptiveIcon + CAMERA/media permissions + versionCode, expo-share-intent text+image filters, expo-image-picker plugin). Upgraded to Expo SDK **57** (expo ~57.0.0, React Native 0.86.3, expo-share-intent ^8.0.0). Config plugins and intent filters kept; OS share-into-app still needs a real Android/iOS development build (not Expo Go). Restart Metro and reopen in Expo Go SDK 57 on the phone after this upgrade.
 
 
-## Events with friends (MVP) — Firestore rules to paste
+## Events with friends (MVP) - Firestore rules to paste
 
 Collections:
-- `sharedEvents/{shareId}` — event snapshot + `participantUids` + `participants` map
-- `eventInvites/{inviteId}` — invite code is the document id; `status`: pending|accepted|declined|expired
+- `sharedEvents/{shareId}` - event snapshot + `participantUids` + `participants` map
+- `eventInvites/{inviteId}` - invite code is the document id; `status`: pending|accepted|declined|expired
 
 Suggested rules (practical; keep existing `isOwner` / `isAdmin` for `users/{uid}/...`):
 
@@ -251,19 +254,22 @@ match /eventInvites/{id} {
     && request.auth.uid == resource.data.fromUid;
 }
 
-// Existing — accept writes the invitee's own event copy:
+// Existing - accept writes the invitee's own event copy:
 match /users/{userId}/events/{eventId} {
   allow read, write: if isOwner(userId) || isAdmin();
 }
 ```
 
 **Test path (two accounts):**
-1. Account A: create/open an event → **Share with a friend** → copy code.
-2. Log out → Account B: Home → **Enter invite code** → paste → Accept.
-3. Both: Home → **Events with friends** — shared node on centre spine with friend colour meeting it.
+1. Account A: create/open an event -> **Share with a friend** -> copy code.
+2. Log out -> Account B: Home -> **Enter invite code** -> paste -> Accept.
+3. Both: Home -> **Events with friends** - shared node on centre spine with friend colour meeting it.
+
+
+**Coffee-table QR test:** A: Share with a friend (large QR on screen). B: Enter invite code -> **Scan QR** -> Accept.
 
 **Edit suggestions test path:**
-1. A: share event → B: accept invite.
-2. B: open shared event → core fields read-only → **Suggest a note** → Submit.
-3. A: Share with a friend → see pending suggestion / banner → **Approve** (note appears on description for A; B sees it after reopening) or **Decline**.
+1. A: share event -> B: accept invite.
+2. B: open shared event -> core fields read-only -> **Suggest a note** -> Submit.
+3. A: Share with a friend -> see pending suggestion / banner -> **Approve** (note appears on description for A; B sees it after reopening) or **Decline**.
 
