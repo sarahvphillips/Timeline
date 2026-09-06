@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
+  BackHandler,
 } from 'react-native';
 import {
   saveEvent,
@@ -68,6 +70,32 @@ export default function AddEventScreen({ navigation, route }) {
   const [saveNotice, setSaveNotice] = useState('');
   const [suggestionNote, setSuggestionNote] = useState('');
   const [suggesting, setSuggesting] = useState(false);
+  const scrollRef = useRef(null);
+  const keyboardVisibleRef = useRef(false);
+
+  // Android hardware back: dismiss keyboard first instead of leaving without saving.
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvt, () => {
+      keyboardVisibleRef.current = true;
+    });
+    const hideSub = Keyboard.addListener(hideEvt, () => {
+      keyboardVisibleRef.current = false;
+    });
+    const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (keyboardVisibleRef.current) {
+        Keyboard.dismiss();
+        return true;
+      }
+      return false;
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      backSub.remove();
+    };
+  }, []);
   const [syncedExisting, setSyncedExisting] = useState(existing);
 
   useEffect(() => {
@@ -350,9 +378,15 @@ export default function AddEventScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <Text style={styles.sectionTitle}>
           {source === 'hobby'
             ? isEditing
@@ -431,21 +465,22 @@ export default function AddEventScreen({ navigation, route }) {
               ? 'Title / Subject *'
               : 'Title *'}
         </Text>
-        <TextInput
-          style={[styles.input, coreReadOnly && styles.inputReadOnly]}
-          placeholder={
-            source === 'hobby' && hobbyType === 'poetry'
-              ? 'e.g. Rain over Rainham'
-              : source === 'hobby' && hobbyType === 'singing'
-                ? 'e.g. Practice ? soft ballad'
-                : 'What happened?'
-          }
-          placeholderTextColor="#64748b"
-          value={title}
-          onChangeText={setTitle}
-          editable={!coreReadOnly}
-          autoFocus={!isEditing && !coreReadOnly}
-        />
+                    <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="e.g. Also discussed next meeting date…"
+              placeholderTextColor="#64748b"
+              value={suggestionNote}
+              onChangeText={setSuggestionNote}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              editable={!suggesting && !deleting}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollRef.current?.scrollToEnd?.({ animated: true });
+                }, 120);
+              }}
+            />
 
         {source === 'email' && (
           <>
@@ -719,7 +754,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 160,
   },
   sectionTitle: {
     color: '#f8fafc',
