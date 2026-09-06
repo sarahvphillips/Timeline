@@ -3,12 +3,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents, getMonthSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
+import { getShowFoodInMenu } from '../services/profileService';
 
 export default function MonthOverviewScreen({ navigation, route }) {
   const startYear = route.params?.year || new Date().getFullYear();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showFoodInMenu, setShowFoodInMenu] = useState(false);
 
   const load = useCallback(async () => {
     // Await cloud pull before painting month spine from local cache.
@@ -24,6 +26,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       load();
+      getShowFoodInMenu().then(setShowFoodInMenu).catch(() => setShowFoodInMenu(false));
     }, [load])
   );
 
@@ -135,6 +138,9 @@ export default function MonthOverviewScreen({ navigation, route }) {
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
+              ...(showFoodInMenu
+                ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]
+                : []),
             ].map((opt) => (
               <TouchableOpacity
                 key={opt.label}

@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  Switch,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
@@ -21,6 +22,8 @@ import {
   saveLabels,
   getPoemCategories,
   savePoemCategories,
+  getShowFoodInMenu,
+  saveShowFoodInMenu,
 } from '../services/profileService';
 import { clearThisAccountLocalCache } from '../services/localCache';
 import { auth } from '../services/firebase';
@@ -72,19 +75,23 @@ export default function SettingsScreen({ navigation }) {
   const [thisDeviceId, setThisDeviceId] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [showFoodInMenu, setShowFoodInMenu] = useState(false);
+  const [savingFoodPref, setSavingFoodPref] = useState(false);
 
   const about = appAboutInfo();
 
   const load = useCallback(async () => {
-    const [profile, labs, cats] = await Promise.all([
+    const [profile, labs, cats, foodOn] = await Promise.all([
       getProfile(),
       getLabels(),
       getPoemCategories(),
+      getShowFoodInMenu(),
     ]);
     setDisplayName(profile.displayName);
     setDateOfBirth(profile.dateOfBirth);
     setLabels(labs);
     setPoemCats(cats);
+    setShowFoodInMenu(!!foodOn);
   }, []);
 
   const loadSessions = useCallback(async () => {
@@ -148,6 +155,19 @@ export default function SettingsScreen({ navigation }) {
         { text: 'Clear', style: 'destructive', onPress: () => resolve(true) },
       ]);
     });
+  };
+
+  const handleToggleFoodInMenu = async (value) => {
+    setShowFoodInMenu(value);
+    setSavingFoodPref(true);
+    try {
+      await saveShowFoodInMenu(value);
+    } catch (e) {
+      setShowFoodInMenu(!value);
+      notify('Error', 'Could not save Food menu preference.');
+    } finally {
+      setSavingFoodPref(false);
+    }
   };
 
   const showComingLater = (feature) => {
@@ -400,7 +420,30 @@ export default function SettingsScreen({ navigation }) {
         <Text style={[styles.section, { color: colors.muted }]}>Timeline</Text>
         {renderSoonRow("Custom event categories", "Custom event categories")}
         {renderSoonRow("Default add type", "Choosing a default add type")}
-        {renderSoonRow("Food tracking", "Food tracking")}
+        <View
+          style={[
+            styles.menuRow,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card },
+          ]}
+        >
+          <View style={styles.menuRowText}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={[styles.menuRowLabel, { color: colors.text }]}>
+                Show Food in the + menu
+              </Text>
+              <Text style={[styles.hint, { color: colors.faint, marginBottom: 0, marginTop: 4 }]}>
+                Off by default. When on, + adds a simple Food form (photo, items, planned/eaten). Not a calorie app. Cupboard comes later.
+              </Text>
+            </View>
+            <Switch
+              value={showFoodInMenu}
+              onValueChange={handleToggleFoodInMenu}
+              disabled={savingFoodPref}
+              trackColor={{ false: colors.cardBorder, true: colors.blue }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
         {renderSoonRow("Widgets", "Home screen widgets")}
 
         <Text style={[styles.section, { color: colors.muted }]}>Sharing & mail</Text>

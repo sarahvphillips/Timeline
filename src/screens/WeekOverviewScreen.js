@@ -20,6 +20,7 @@ import {
 } from '../services/eventService';
 import { getEventFriendSourceLabel } from '../services/shareService';
 import { auth } from '../services/firebase';
+import { getShowFoodInMenu } from '../services/profileService';
 
 function formatWeekRange(week) {
   const start = week.days[0];
@@ -43,6 +44,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showFoodInMenu, setShowFoodInMenu] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,6 +59,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       load();
+      getShowFoodInMenu().then(setShowFoodInMenu).catch(() => setShowFoodInMenu(false));
     }, [load])
   );
 
@@ -66,7 +69,8 @@ export default function WeekOverviewScreen({ navigation, route }) {
   };
 
   const openEvent = (item) => {
-    if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
+    if (item.source === 'food') navigation.navigate('AddFood', { event: item });
+    else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
     else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
     else navigation.navigate('AddEvent', { event: item });
   };
@@ -201,6 +205,9 @@ export default function WeekOverviewScreen({ navigation, route }) {
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
+              ...(showFoodInMenu
+                ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]
+                : []),
             ].map((opt) => (
               <TouchableOpacity
                 key={opt.label}

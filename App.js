@@ -20,6 +20,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import TimelineScreen from './src/screens/TimelineScreen';
 import AddEventScreen from './src/screens/AddEventScreen';
 import AddPoemScreen from './src/screens/AddPoemScreen';
+import AddFoodScreen from './src/screens/AddFoodScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
 import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
@@ -217,6 +218,14 @@ function AppShell() {
                 component={AddQrScreen}
                 options={({ route }) => ({
                   title: route.params?.event ? 'Edit QR link' : 'Add QR link',
+                })}
+              />
+
+              <Stack.Screen
+                name="AddFood"
+                component={AddFoodScreen}
+                options={({ route }) => ({
+                  title: route.params?.event ? 'Edit Food' : 'Add Food',
                 })}
               />
 

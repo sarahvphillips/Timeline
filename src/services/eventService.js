@@ -93,7 +93,7 @@ export async function clearLocalEventsForUid(uid) {
  *   description: string,
  *   date: string (ISO),
  *   category: string,
- *   source: 'manual' | 'email' | 'hobby' | 'shared' | ...,
+ *   source: 'manual' | 'email' | 'hobby' | 'food' | 'shared' | ...,
  *   isShared?: boolean,
  *   shareId?: string,
  *   sharedFrom?: string,       // inviter uid
@@ -101,6 +101,8 @@ export async function clearLocalEventsForUid(uid) {
  *   nextAction: 'none' | 'ask_grok_reply' | 'follow_up' | 'done',
  *   emailFrom?: string,
  *   hobbyType?: 'poetry' | 'singing' | 'music' | 'reading' | 'other',
+ *   foodStatus?: 'planned' | 'eaten',  // food source only
+ *   foodItems?: string,       // free-text items for food entries
  *   audioNote?: string,   // filename or note for singing/music files
  *   readingProgress?: string, // e.g. "Chapter 3, page 42"
  *   collectionName?: string,  // album or poetry book name

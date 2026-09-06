@@ -33,6 +33,7 @@ import {
 import HomeFab from '../components/HomeFab';
 import { getEventFriendSourceLabel } from '../services/shareService';
 import { auth } from '../services/firebase';
+import { getShowFoodInMenu } from '../services/profileService';
 
 const GROK_URL = 'https://grok.x.ai';
 
@@ -47,6 +48,7 @@ export default function TimelineScreen({ navigation, route }) {
   const [toastMessage, setToastMessage] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(!!route.params?.openMenu);
+  const [showFoodInMenu, setShowFoodInMenu] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
   const showToast = (message) => {
@@ -80,6 +82,7 @@ export default function TimelineScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       loadEvents();
+      getShowFoodInMenu().then(setShowFoodInMenu).catch(() => setShowFoodInMenu(false));
     }, [loadEvents])
   );
 
@@ -187,6 +190,13 @@ export default function TimelineScreen({ navigation, route }) {
 
         {expanded && (
           <View style={styles.expanded}>
+            {item.source === 'food' ? (
+              <Text style={styles.hobbyMeta}>
+                {item.foodStatus === 'planned' ? 'Planned' : 'Eaten'}
+                {item.foodItems ? ` — ${item.foodItems}` : ''}
+              </Text>
+            ) : null}
+
             {item.source === 'hobby' && item.hobbyType ? (
               <Text style={styles.hobbyMeta}>
                 {getHobbyTypeIcon(item.hobbyType)} {getHobbyTypeLabel(item.hobbyType)}
@@ -249,7 +259,8 @@ export default function TimelineScreen({ navigation, route }) {
 
             <TouchableOpacity
               onPress={() => {
-                if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
+                if (item.source === 'food') navigation.navigate('AddFood', { event: item });
+                else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
                 else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
                 else navigation.navigate('AddEvent', { event: item });
               }}
@@ -339,6 +350,9 @@ export default function TimelineScreen({ navigation, route }) {
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
+              ...(showFoodInMenu
+                ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]
+                : []),
               { label: 'Word to Int', action: () => navigation.navigate('WordToInt') },
               { label: 'Days between dates', action: () => navigation.navigate('DateSpan') },
             ].map((opt) => (

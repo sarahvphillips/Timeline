@@ -16,6 +16,9 @@ function labelsKey(uid) {
 function poemCatsKey(uid) {
   return uid ? `@timeline_poem_categories_${uid}` : '@timeline_poem_categories_guest';
 }
+function foodPrefsKey(uid) {
+  return uid ? `@timeline_food_prefs_${uid}` : '@timeline_food_prefs_guest';
+}
 function profilePhotoKey(uid) {
   return uid ? `@profile_photo_${uid}` : '@profile_photo_guest';
 }
@@ -207,6 +210,59 @@ export async function savePoemCategories(list) {
   return next;
 }
 
+/** Default OFF — Food stays out of the + menu until the user opts in. */
+export async function getShowFoodInMenu() {
+  const uid = getUid();
+  try {
+    const raw = await AsyncStorage.getItem(foodPrefsKey(uid));
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return !!parsed.showFoodInMenu;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveShowFoodInMenu(enabled) {
+  const uid = getUid();
+  const next = {
+    showFoodInMenu: !!enabled,
+    updatedAt: new Date().toISOString(),
+  };
+  await AsyncStorage.setItem(foodPrefsKey(uid), JSON.stringify(next));
+  if (uid) {
+    try {
+      await pushSettingsDoc('foodPrefs', next);
+    } catch (e) {
+      console.warn('Could not sync food prefs to the cloud. Saved on this device.', e);
+    }
+  }
+  return next.showFoodInMenu;
+}
+
+async function syncFoodPrefsFromCloud(uid, localShow) {
+  const snap = await getDoc(settingsDoc(uid, 'foodPrefs'));
+  if (!snap.exists()) {
+    if (localShow) {
+      await setDoc(
+        settingsDoc(uid, 'foodPrefs'),
+        stripUndefined({
+          showFoodInMenu: true,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+    }
+    return !!localShow;
+  }
+  const data = snap.data() || {};
+  const cloud = {
+    showFoodInMenu: !!data.showFoodInMenu,
+    updatedAt: toIso(data.updatedAt) || new Date().toISOString(),
+  };
+  await AsyncStorage.setItem(foodPrefsKey(uid), JSON.stringify(cloud));
+  return cloud.showFoodInMenu;
+}
+
 async function syncProfileFromCloud(uid, local) {
   const snap = await getDoc(settingsDoc(uid, 'profile'));
   if (!snap.exists()) {
@@ -342,6 +398,7 @@ export async function syncSettingsFromCloud(uid) {
       labels: await getLabels(),
       poemCategories: await getPoemCategories(),
       theme: await loadThemePrefs(),
+      showFoodInMenu: await getShowFoodInMenu(),
     };
   }
 
@@ -351,6 +408,7 @@ export async function syncSettingsFromCloud(uid) {
   let labels = await getLabels();
   let poemCategories = await getPoemCategories();
   let theme = await loadThemePrefs();
+  let showFoodInMenu = await getShowFoodInMenu();
 
   // Read raw profile to preserve updatedAt for upload-if-empty
   try {
@@ -394,5 +452,11 @@ export async function syncSettingsFromCloud(uid) {
     console.warn('Could not sync theme from the cloud. Using local.', e);
   }
 
-  return { profile, labels, poemCategories, theme };
+  try {
+    showFoodInMenu = await syncFoodPrefsFromCloud(uid, showFoodInMenu);
+  } catch (e) {
+    console.warn('Could not sync food prefs from the cloud. Using local.', e);
+  }
+
+  return { profile, labels, poemCategories, theme, showFoodInMenu };
 }

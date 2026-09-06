@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 5 Sep 2026 (Settings Soon shell + About + signed-in devices; Food product map noted)
+**Last updated:** 6 Sep 2026 (Food toggle + Add Food form; Cupboard still later)
 
 ---
 
@@ -71,17 +71,17 @@
 
 ---
 
-## Food tracking (scope TBD — do not implement yet)
+## Food (thin Timeline add-on — not a calorie app)
 
-Product map (noted 5 Sep 2026):
+Product map:
 - Layers: **Cupboard** / **Plan** / **Eaten**
-- **Show Food in + menu** toggle — default **off**
-- Next optional step when picked up: toggle + simple Food form only (no full Cupboard/Plan yet)
+- Photo-heavy optional add-on; calories out of scope for now
 
-- [ ] **Food tracking**  
-  1. Simple meal log on the Timeline  
-  2. Structured food entry (meal type, items, optional calories)  
-  3. Both (Timeline + Food section/filter)
+- [x] **Show Food in the + menu** Settings toggle — default **OFF**; uid-scoped AsyncStorage + Firestore `settings/foodPrefs`
+- [x] **Add Food** form (`AddFoodScreen`): photo + items (text) + date + planned/eaten → Timeline event `source: 'food'` (`foodStatus`, `foodItems`, optional `imageUri`)
+- [x] + menus (Timeline / Month / Week) show Food only when toggle is on
+- [ ] **Cupboard** (bought list / inventory UI) — later
+- [ ] Calories / structured nutrition — not in this pass
 
 ---
 
@@ -171,6 +171,7 @@ Product map (noted 5 Sep 2026):
   | `@timeline_labels_{uid}` / guest | uid / guest | Custom labels. |
   | `@timeline_poem_categories_{uid}` / guest | uid / guest | Poem categories. |
   | `@timeline_theme_mode_{uid}` / `@timeline_theme_palette_{uid}` (+ guest) | uid / guest | Appearance prefs. |
+  | `@timeline_food_prefs_{uid}` / guest | uid / guest | Show Food in + menu (default off). |
   | `@profile_photo_{uid}` / `@profile_photo_guest` | uid / guest | Profile photo URI (newly scoped 5 Sep). Legacy `@profile_photo` last_uid-gated. |
   | `@timeline_last_uid` | device-global | Last successful login uid (migration gate). Not cleared by cache clear. |
   | `@timeline_device_id` | device-global | Install UUID for sessions. Intentionally shared across accounts. |
