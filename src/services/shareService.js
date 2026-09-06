@@ -14,6 +14,9 @@ import {
 import { auth, db } from './firebase';
 import { saveEvent, getEvents, deleteEvent } from './eventService';
 import { getProfile } from './profileService';
+import { buildShareLink, parseInviteCodeFromScan } from '../utils/inviteCode';
+export { buildShareLink, parseInviteCodeFromScan };
+
 
 export const FRIEND_COLOURS = ['#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#a78bfa', '#fb7185'];
 
@@ -114,34 +117,6 @@ export function makeInviteCode(length = 6) {
     code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   }
   return code;
-}
-
-export function buildShareLink(code) {
-  return `timelineapp://share/${String(code || '').toUpperCase()}`;
-}
-
-/** Extract invite code from raw QR / pasted link text. Matches Share QR (timelineapp://share/CODE). */
-export function parseInviteCodeFromScan(raw) {
-  const text = String(raw || '').trim();
-  if (!text) return '';
-
-  // timelineapp://share/CODE or timelineapp:///share/CODE
-  const scheme = text.match(/timelineapp:\/\/(?:\/)?share\/([A-Za-z0-9]+)/i);
-  if (scheme && scheme[1]) return scheme[1].toUpperCase();
-
-  // https?://.../share/CODE (path)
-  const httpsPath = text.match(/https?:\/\/[^\s]+\/share\/([A-Za-z0-9]+)/i);
-  if (httpsPath && httpsPath[1]) return httpsPath[1].toUpperCase();
-
-  // query/hash: code=CODE or invite=CODE
-  const query = text.match(/[?&#](?:code|invite|inviteCode)=([A-Za-z0-9]+)/i);
-  if (query && query[1]) return query[1].toUpperCase();
-
-  // bare code (same alphabet as makeInviteCode)
-  const bare = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (/^[A-Z0-9]{4,12}$/.test(bare)) return bare;
-
-  return '';
 }
 
 

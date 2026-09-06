@@ -17,8 +17,8 @@ import {
   getSharedEvent,
   acceptInviteByCode,
   rejectInviteByCode,
-  parseInviteCodeFromScan,
 } from '../services/shareService';
+import { parseInviteCodeFromScan } from '../utils/inviteCode';
 
 let CameraView = null;
 let useCameraPermissions = null;
