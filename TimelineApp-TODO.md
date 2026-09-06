@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 6 Sep 2026 (Web photo localStorage quota fix)
+**Last updated:** 6 Sep 2026 (Firestore share participants: no photoUri)
 
 ---
 
@@ -55,6 +55,7 @@
 - [x] Events with friends MVP (per-event share invites + intersecting view)
 - [x] Delete event with confirm (Add Event edit + Timeline expanded Delete; web uses window.confirm; removes local + Firestore for uid when sync on)
 - [x] Add Event save feedback on web (window.alert like Settings clear-cache; Save disabled while saving; on-screen Saved notice; goBack once)
+- [x] Firestore share participants hardened — participantForCloud only allows uid/displayName/email/initial/colour/status timestamps; never write photoUri/local image refs (fixes Property participants contains an invalid nested entity)
 - [x] Friend source on shared events — invitee UI shows `From friend - email` (or `From friend - if unknown); `sharedFromEmail` / invite `fromEmail` / `createdByEmail` persisted on accept/share
 - [x] Add Event edit Source area shows shared / From friend (same label as Timeline) for `source===shared` / isShared / sharedFromEmail
 - [x] Shared ownership: creator Delete (own copy; may end share for them); invitee **Leave event** (removes users/{uid}/events copy only; sets participants[uid].status left/declined + recentLeft notice; does not delete sharedEvents/creator event)
@@ -122,6 +123,7 @@ Product map:
 - [x] User add friends — per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
 - [ ] Broader friend graph / whole-timeline link (later)
 - [ ] **Friend usernames (privacy)** — some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
+- [ ] **Friend avatars on sharedEvents** — do not write local photoUri (data:/blob:/asref:) to participants; use Firebase Storage download URLs later. Until then friends view falls back to initial. (participantForCloud)
 - [ ] **Polish Events with friends timeline display** — curved coloured friend lines, avatars on lines; current intersecting view is MVP/first cut, refine later (do not block on this). Discuss more friends-view features with Sarah before polish.
 - [ ] **TEMP: Design button on Events with friends** — top-right corner opens `assets/friends-design-target.jpg` modal preview. Remove when friends view polish matches the sketch.
 - [x] User specify date of birth (Settings, local for now)

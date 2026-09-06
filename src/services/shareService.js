@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { saveEvent, getEvents, deleteEvent } from './eventService';
-import { getProfile, getProfilePhotoUri } from './profileService';
+import { getProfile } from './profileService';
 
 export const FRIEND_COLOURS = ['#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#a78bfa', '#fb7185'];
 
@@ -23,8 +23,18 @@ function getUid() {
   return auth.currentUser?.uid || null;
 }
 
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object') return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 function stripUndefined(value) {
   if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) {
     return value.map(stripUndefined).filter((item) => item !== undefined);
@@ -34,6 +44,8 @@ function stripUndefined(value) {
     if (typeof value._methodName === 'string' || typeof value.isEqual === 'function') {
       return value;
     }
+    // Reject Blob/File/Map/custom class instances — invalid nested entities for Firestore
+    if (!isPlainObject(value)) return undefined;
     const out = {};
     Object.keys(value).forEach((key) => {
       const next = stripUndefined(value[key]);
@@ -41,7 +53,46 @@ function stripUndefined(value) {
     });
     return out;
   }
-  return value;
+  // functions, symbols, etc. are not valid Firestore values
+  return undefined;
+}
+
+/** Allowed plain fields under sharedEvents.participants.{uid} / invite participant patches. */
+const PARTICIPANT_CLOUD_KEYS = [
+  'uid',
+  'displayName',
+  'email',
+  'initial',
+  'colour',
+  'status',
+  'joinedAt',
+  'leftAt',
+  'acceptedAt',
+  'declinedAt',
+];
+
+/**
+ * Firestore-safe participant map entry.
+ * Never includes photoUri or any local image ref (data:/blob:/asref:/File) — those are UI/local only.
+ * TODO: friend avatars need Firebase Storage download URLs later.
+ */
+export function participantForCloud(me = {}) {
+  if (!me || typeof me !== 'object') return {};
+  const out = {};
+  PARTICIPANT_CLOUD_KEYS.forEach((key) => {
+    if (!(key in me) || me[key] === undefined || me[key] === null) return;
+    const v = me[key];
+    if (typeof v === 'string') {
+      const trimmed = v.trim();
+      if (trimmed) out[key] = trimmed;
+      return;
+    }
+    if (typeof v === 'number' || typeof v === 'boolean') {
+      out[key] = v;
+    }
+    // skip objects / arrays / odd refs
+  });
+  return out;
 }
 
 function toIso(value) {
@@ -73,26 +124,21 @@ export function qrImageUrl(data, size = 220) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 }
 
-async function loadLocalPhotoUri() {
-  return getProfilePhotoUri();
-}
-
 async function currentParticipantProfile(colour) {
   const uid = getUid();
   const user = auth.currentUser;
   const profile = await getProfile().catch(() => ({ displayName: '' }));
-  const photoUri = await loadLocalPhotoUri();
   const displayName =
     (profile && profile.displayName) ||
     (user && user.displayName) ||
     (user && user.email ? user.email.split('@')[0] : '') ||
     'Friend';
   const initial = (displayName || user?.email || 'F').charAt(0).toUpperCase();
+  // Local/UI helper only — never put photoUri here for cloud writes (use participantForCloud).
   return stripUndefined({
     uid,
     displayName,
     email: user?.email || undefined,
-    photoUri: photoUri || undefined,
     initial,
     colour: colour || FRIEND_COLOURS[0],
   });
@@ -167,9 +213,10 @@ export async function createEventShare(event) {
       sharedPayload = existingShare;
       // Ensure creator still listed
       if (!(existingShare.participantUids || []).includes(uid)) {
+        const cloudMe = participantForCloud(me);
         await updateDoc(doc(db, 'sharedEvents', shareId), {
           participantUids: arrayUnion(uid),
-          [`participants.${uid}`]: stripUndefined(me) || me,
+          [`participants.${uid}`]: cloudMe,
           updatedAt: now.toISOString(),
         });
         sharedPayload = await getSharedEvent(shareId);
@@ -192,7 +239,7 @@ export async function createEventShare(event) {
       sourceEventId: event.id,
       participantUids: [uid],
       participants: {
-        [uid]: me,
+        [uid]: participantForCloud(me),
       },
       status: 'active',
       colour: '#8b5cf6',
@@ -297,7 +344,7 @@ export async function acceptInviteByCode(rawCode) {
   const nowIso = new Date().toISOString();
 
   const shareRef = doc(db, 'sharedEvents', shared.id);
-  const participantPatch = stripUndefined({ ...me, status: 'accepted', joinedAt: nowIso }) || { ...me, status: 'accepted', joinedAt: nowIso };
+  const participantPatch = participantForCloud({ ...me, status: 'accepted', joinedAt: nowIso });
   await updateDoc(shareRef, {
     participantUids: arrayUnion(uid),
     [`participants.${uid}`]: participantPatch,
@@ -517,7 +564,7 @@ export async function leaveSharedEvent(event, { action = 'left' } = {}) {
     const shareRef = doc(db, 'sharedEvents', shareId);
     const existingShare = await getSharedEvent(shareId);
     const prev = (existingShare?.participants && existingShare.participants[uid]) || {};
-    const participantUpdate = stripUndefined({
+    const participantUpdate = participantForCloud({
       ...prev,
       ...me,
       uid,
@@ -612,7 +659,7 @@ export async function rejectInviteByCode(rawCode) {
       await updateDoc(
         shareRef,
         stripUndefined({
-          [`participants.${uid}`]: stripUndefined({
+          [`participants.${uid}`]: participantForCloud({
             ...me,
             uid,
             status: 'declined',
