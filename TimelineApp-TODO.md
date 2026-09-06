@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 6 Sep 2026 (Shared edit suggestions MVP)
+**Last updated:** 6 Sep 2026 (Web photo localStorage quota fix)
 
 ---
 
@@ -83,6 +83,7 @@ Product map:
 
 - [x] **Show Food in the + menu** Settings toggle — default **OFF**; uid-scoped AsyncStorage + Firestore `settings/foodPrefs`
 - [x] **Add Food** form (`AddFoodScreen`): photo + items (text) + date + planned/eaten → Timeline event `source: 'food'` (`foodStatus`, `foodItems`, optional `imageUri`)
+- [x] Web photo quota: compress/resize on pick (`expo-image-manipulator`, max width ~1280, JPEG ~0.7; canvas fallback for blob:/data:); heavy `data:` payloads stored under `@timeline_img_{eventId}` with short refs in events list; QuotaExceededError → clear message. **Firebase Storage still the real long-term fix.**
 - [x] + menus (Timeline / Month / Week) show Food only when toggle is on
 - [ ] **Cupboard** (bought list / inventory UI) — later
 - [ ] Calories / structured nutrition — not in this pass
@@ -149,7 +150,7 @@ Product map:
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
 - [ ] Custom Firebase password-reset email template (needs Blaze plan)
 - [ ] Android development / Play Store build (share sheet for text and images, and widgets, need this)
-- [ ] Firebase Storage for event photos (imageUri/coverImageUri currently local-only paths)
+- [ ] Firebase Storage for event photos (imageUri/coverImageUri currently local-only / web AsyncStorage-split; compress+separate keys is a stopgap — Storage is the real fix)
 
 ---
 
@@ -176,6 +177,7 @@ Product map:
   | `@timeline_poem_categories_{uid}` / guest | uid / guest | Poem categories. |
   | `@timeline_theme_mode_{uid}` / `@timeline_theme_palette_{uid}` (+ guest) | uid / guest | Appearance prefs. |
   | `@timeline_food_prefs_{uid}` / guest | uid / guest | Show Food in + menu (default off). |
+  | `@timeline_img_{eventId}` / `_cover` | per event | Heavy web photo payloads (data URIs) split out of events JSON to avoid localStorage quota. |
   | `@profile_photo_{uid}` / `@profile_photo_guest` | uid / guest | Profile photo URI (newly scoped 5 Sep). Legacy `@profile_photo` last_uid-gated. |
   | `@timeline_last_uid` | device-global | Last successful login uid (migration gate). Not cleared by cache clear. |
   | `@timeline_device_id` | device-global | Install UUID for sessions. Intentionally shared across accounts. |

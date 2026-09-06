@@ -15,6 +15,114 @@ function eventsStorageKey(uid) {
   return uid ? `@timeline_events_${uid}` : GUEST_EVENTS_KEY;
 }
 
+
+const IMG_REF_PREFIX = 'asref:';
+const QUOTA_USER_MESSAGE =
+  'Photo too large for browser storage — try a smaller image or use the phone app';
+
+function imageStorageKey(eventId, field) {
+  if (field === 'coverImageUri') return `@timeline_img_${eventId}_cover`;
+  return `@timeline_img_${eventId}`;
+}
+
+function isQuotaError(e) {
+  if (!e) return false;
+  const name = e.name || '';
+  const msg = String(e.message || e || '');
+  return (
+    name === 'QuotaExceededError' ||
+    name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    /quotaexceeded/i.test(msg) ||
+    /exceeded the quota/i.test(msg) ||
+    (/quota/i.test(msg) && /storage|setItem|localStorage/i.test(msg))
+  );
+}
+
+/** data:/blob:/huge strings blow web localStorage when nested in the events JSON. */
+function isHeavyImagePayload(uri) {
+  if (!uri || typeof uri !== 'string') return false;
+  if (uri.startsWith(IMG_REF_PREFIX)) return false;
+  if (uri.startsWith('data:') || uri.startsWith('blob:')) return true;
+  return uri.length > 2048;
+}
+
+async function removeImageKeysForEvents(events) {
+  const keys = new Set();
+  if (!Array.isArray(events)) return;
+  for (const ev of events) {
+    if (!ev) continue;
+    if (ev.id) {
+      keys.add(imageStorageKey(ev.id, 'imageUri'));
+      keys.add(imageStorageKey(ev.id, 'coverImageUri'));
+    }
+    for (const field of ['imageUri', 'coverImageUri']) {
+      const u = ev[field];
+      if (typeof u === 'string' && u.startsWith(IMG_REF_PREFIX)) {
+        keys.add(u.slice(IMG_REF_PREFIX.length));
+      }
+    }
+  }
+  const list = [...keys];
+  if (list.length === 0) return;
+  try {
+    await AsyncStorage.multiRemove(list);
+  } catch (e) {
+    console.warn('removeImageKeysForEvents failed', e);
+  }
+}
+
+/**
+ * Move heavy image payloads out of the events list into @timeline_img_* keys.
+ * Keeps a short asref: pointer in the event so the list JSON stays under quota.
+ */
+async function externalizeEventImages(events) {
+  if (!Array.isArray(events)) return [];
+  const out = [];
+  const ops = [];
+  for (const ev of events) {
+    if (!ev) continue;
+    if (!ev.id) {
+      out.push(ev);
+      continue;
+    }
+    const copy = { ...ev };
+    for (const field of ['imageUri', 'coverImageUri']) {
+      const uri = copy[field];
+      if (!isHeavyImagePayload(uri)) continue;
+      const key = imageStorageKey(ev.id, field);
+      ops.push(AsyncStorage.setItem(key, uri));
+      copy[field] = IMG_REF_PREFIX + key;
+    }
+    out.push(copy);
+  }
+  if (ops.length) await Promise.all(ops);
+  return out;
+}
+
+/** Resolve asref: pointers back to real URIs for UI / in-memory use. */
+async function hydrateEventImages(events) {
+  if (!Array.isArray(events)) return [];
+  const out = [];
+  for (const ev of events) {
+    if (!ev) continue;
+    const copy = { ...ev };
+    for (const field of ['imageUri', 'coverImageUri']) {
+      const uri = copy[field];
+      if (typeof uri !== 'string' || !uri.startsWith(IMG_REF_PREFIX)) continue;
+      const key = uri.slice(IMG_REF_PREFIX.length);
+      try {
+        const data = await AsyncStorage.getItem(key);
+        if (data) copy[field] = data;
+      } catch (e) {
+        console.warn('hydrateEventImages failed', key, e);
+      }
+    }
+    out.push(copy);
+  }
+  return out;
+}
+
+
 /**
  * One-time migration of legacy global @timeline_events into a per-uid key.
  * Adopts only events with ownerUid === uid, or (if @timeline_last_uid === uid)
@@ -82,6 +190,18 @@ async function migrateLegacyEventsOnce(uid) {
 /** Clear the per-uid local events cache (e.g. after confirming cloud is empty). */
 export async function clearLocalEventsForUid(uid) {
   if (!uid) return;
+  try {
+    const raw = await AsyncStorage.getItem(eventsStorageKey(uid));
+    let events = [];
+    try {
+      events = raw ? JSON.parse(raw) : [];
+    } catch (_) {
+      events = [];
+    }
+    await removeImageKeysForEvents(Array.isArray(events) ? events : []);
+  } catch (e) {
+    console.warn('clearLocalEventsForUid: image cleanup skipped', e);
+  }
   await AsyncStorage.setItem(eventsStorageKey(uid), JSON.stringify([]));
 }
 
@@ -231,7 +351,18 @@ function sortEvents(events) {
 }
 
 async function writeCache(events, uid = getUid()) {
-  await AsyncStorage.setItem(eventsStorageKey(uid), JSON.stringify(events));
+  try {
+    const slim = await externalizeEventImages(events);
+    await AsyncStorage.setItem(eventsStorageKey(uid), JSON.stringify(slim));
+  } catch (e) {
+    if (isQuotaError(e)) {
+      const err = new Error(QUOTA_USER_MESSAGE);
+      err.code = 'QUOTA_EXCEEDED';
+      err.cause = e;
+      throw err;
+    }
+    throw e;
+  }
 }
 
 function eventBelongsToUid(ev, uid) {
@@ -266,7 +397,9 @@ export async function readLocalEvents(uid = getUid()) {
     const raw = await AsyncStorage.getItem(eventsStorageKey(uid));
     if (!raw) return [];
     const events = JSON.parse(raw);
-    return sortEvents(Array.isArray(events) ? events : []);
+    const list = Array.isArray(events) ? events : [];
+    const hydrated = await hydrateEventImages(list);
+    return sortEvents(hydrated);
   } catch (e) {
     console.warn('Failed to load events', e);
     return [];
@@ -385,7 +518,14 @@ export async function syncEventsFromCloud(uid) {
       }
     });
     cloudEvents.forEach((ev) => {
-      if (ev?.id) byId[ev.id] = ev;
+      if (!ev?.id) return;
+      const prev = byId[ev.id];
+      // Cloud strips local-only photo URIs (no Firebase Storage yet) — keep device photos.
+      byId[ev.id] = {
+        ...ev,
+        imageUri: ev.imageUri || (prev && prev.imageUri) || undefined,
+        coverImageUri: ev.coverImageUri || (prev && prev.coverImageUri) || undefined,
+      };
     });
 
     if (localOnly.length > 0) {
@@ -489,7 +629,9 @@ export async function saveEvent(event) {
 export async function deleteEvent(id) {
   const uid = getUid();
   const events = await readLocalEvents(uid);
+  const removed = events.filter((e) => e.id === id);
   const filtered = events.filter((e) => e.id !== id);
+  await removeImageKeysForEvents(removed);
   await writeCache(filtered, uid);
 
   if (uid && EVENTS_FIRESTORE_SYNC_ENABLED) {

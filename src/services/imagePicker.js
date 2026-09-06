@@ -1,8 +1,11 @@
 import { Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif', 'bmp'];
+const MAX_IMAGE_WIDTH = 1280;
+const JPEG_QUALITY = 0.7;
 
 function extFromName(name) {
   const m = String(name || '').match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
@@ -15,6 +18,11 @@ function extFromName(name) {
 function makeStoredName(filename, uri) {
   const ext = extFromName(filename) || extFromName(uri) || 'jpg';
   return `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+}
+
+function jpgStoredName(filename, uri) {
+  const base = makeStoredName(filename, uri).replace(/\.[a-zA-Z0-9]+$/, '');
+  return `${base}.jpg`;
 }
 
 export function isCameraAvailable() {
@@ -31,25 +39,165 @@ export function isCameraAvailable() {
 }
 
 /**
+ * Web canvas resize/JPEG compress for blob:/data: (and manipulator fallbacks).
+ * Returns a data:image/jpeg;base64,... URI suitable for AsyncStorage.
+ */
+async function compressViaCanvas(uri) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') {
+    throw new Error('canvas compress only on web');
+  }
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => {
+      try {
+        let w = img.naturalWidth || img.width;
+        let h = img.naturalHeight || img.height;
+        if (!w || !h) {
+          reject(new Error('image has no dimensions'));
+          return;
+        }
+        if (w > MAX_IMAGE_WIDTH) {
+          h = Math.round((h * MAX_IMAGE_WIDTH) / w);
+          w = MAX_IMAGE_WIDTH;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('canvas 2d unavailable'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error('canvas image load failed'));
+    // data: needs no CORS; blob: from same page is fine
+    img.src = uri;
+  });
+}
+
+/**
+ * Resize max width ~1280 and JPEG ~0.7 before the URI lands in event state.
+ * Native: returns a file:// (or cache) URI. Web: prefers data: JPEG.
+ * Never throws — returns original uri on failure so pick still works.
+ */
+export async function compressImageUri(uri) {
+  if (!uri) return uri;
+  try {
+    // Avoid upscaling small images — only resize when wider than MAX_IMAGE_WIDTH.
+    let actions = [{ resize: { width: MAX_IMAGE_WIDTH } }];
+    try {
+      const { Image } = require('react-native');
+      const size = await new Promise((resolve, reject) => {
+        Image.getSize(
+          uri,
+          (w, h) => resolve({ w, h }),
+          (err) => reject(err || new Error('getSize failed'))
+        );
+      });
+      if (size && size.w && size.w <= MAX_IMAGE_WIDTH) {
+        actions = [];
+      }
+    } catch (_) {
+      // Keep resize action if size unknown (phone photos are usually large).
+    }
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      actions,
+      {
+        compress: JPEG_QUALITY,
+        format: ImageManipulator.SaveFormat.JPEG,
+        // On web, base64 lets us build a durable data: URI (blob: dies on reload).
+        base64: Platform.OS === 'web',
+      }
+    );
+    if (Platform.OS === 'web') {
+      if (result?.base64) {
+        return `data:image/jpeg;base64,${result.base64}`;
+      }
+      if (result?.uri) {
+        if (result.uri.indexOf('data:') === 0) return result.uri;
+        try {
+          return await compressViaCanvas(result.uri);
+        } catch (e) {
+          console.warn('compressImageUri: canvas after manipulator failed', e);
+          return result.uri;
+        }
+      }
+    }
+    return (result && result.uri) || uri;
+  } catch (e) {
+    console.warn('compressImageUri: manipulator failed', e);
+    if (Platform.OS === 'web') {
+      try {
+        return await compressViaCanvas(uri);
+      } catch (e2) {
+        console.warn('compressImageUri: canvas fallback failed', e2);
+      }
+    }
+    return uri;
+  }
+}
+
+/**
  * Copy a picked/shared image into the app document directory so the URI survives.
  * Do not use File.copy / copyAsync on Android — they throw
  * Missing READ permission on content:// URIs.
  * Write base64 when we have it; otherwise keep the picker URI.
+ * Always compress/resize first so web localStorage quota is not blown by full photos.
  */
 export async function persistPickedImage(uri, filename, base64, mimeType) {
   if (!uri) return null;
   const originalName = (filename && String(filename).trim()) || makeStoredName(filename, uri);
-  const storedName = makeStoredName(originalName, uri);
+  const storedName = jpgStoredName(originalName, uri);
 
+  let workingUri = uri;
+  let workingBase64 = base64;
+
+  // Web: prefer an immediate data: URI when picker gave base64, then compress.
   if (Platform.OS === 'web') {
-    if (base64 && String(uri).indexOf('data:') !== 0) {
+    if (workingBase64 && String(workingUri).indexOf('data:') !== 0) {
       const mime = mimeType || 'image/jpeg';
-      return { uri: 'data:' + mime + ';base64,' + base64, filename: originalName };
+      workingUri = `data:${mime};base64,${workingBase64}`;
     }
-    return { uri, filename: originalName };
+    const compressed = await compressImageUri(workingUri);
+    let finalUri = compressed || workingUri;
+    if (finalUri && finalUri.indexOf('blob:') === 0) {
+      try {
+        finalUri = await compressViaCanvas(finalUri);
+      } catch (e) {
+        console.warn('persistPickedImage: blob→data failed', e);
+      }
+    }
+    return { uri: finalUri, filename: originalName.replace(/\.[a-zA-Z0-9]+$/i, '') + '.jpg' };
   }
 
-  if (base64) {
+  // Native: compress (file:// / content://) then persist under documents when needed.
+  try {
+    const compressed = await compressImageUri(workingUri);
+    if (compressed && compressed !== workingUri) {
+      // Manipulator wrote a JPEG cache file — durable enough for Expo Go.
+      if (String(compressed).indexOf('data:') === 0) {
+        const m = String(compressed).match(/^data:[^;]+;base64,(.+)$/);
+        if (m) {
+          workingBase64 = m[1];
+          workingUri = compressed;
+        } else {
+          return { uri: compressed, filename: storedName };
+        }
+      } else {
+        return { uri: compressed, filename: storedName };
+      }
+    }
+  } catch (e) {
+    console.warn('persistPickedImage: compress skipped', e);
+  }
+
+  if (workingBase64) {
     try {
       const FileSystem = require('expo-file-system/legacy');
       const dirUri = FileSystem.documentDirectory + 'timeline-images/';
@@ -58,16 +206,16 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
         await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
       }
       const dest = dirUri + storedName;
-      await FileSystem.writeAsStringAsync(dest, base64, {
+      await FileSystem.writeAsStringAsync(dest, workingBase64, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      return { uri: dest, filename: originalName };
+      return { uri: dest, filename: originalName.replace(/\.[a-zA-Z0-9]+$/i, '') + '.jpg' };
     } catch (e) {
       console.warn('persistPickedImage: base64 write failed', e);
     }
   }
 
-  return { uri, filename: originalName };
+  return { uri: workingUri, filename: originalName };
 }
 
 async function persistAsset(asset) {
@@ -91,7 +239,7 @@ export async function pickFromGallery() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
-      quality: 0.85,
+      quality: JPEG_QUALITY,
       // base64 avoids Android File.copy READ permission errors
       base64: true,
     });
@@ -125,7 +273,7 @@ export async function pickFromCamera() {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
-      quality: 0.85,
+      quality: JPEG_QUALITY,
       base64: true,
     });
     if (result.canceled || !result.assets || !result.assets[0]) return null;
