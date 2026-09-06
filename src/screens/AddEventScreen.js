@@ -465,22 +465,21 @@ export default function AddEventScreen({ navigation, route }) {
               ? 'Title / Subject *'
               : 'Title *'}
         </Text>
-                    <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="e.g. Also discussed next meeting date…"
-              placeholderTextColor="#64748b"
-              value={suggestionNote}
-              onChangeText={setSuggestionNote}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              editable={!suggesting && !deleting}
-              onFocus={() => {
-                setTimeout(() => {
-                  scrollRef.current?.scrollToEnd?.({ animated: true });
-                }, 120);
-              }}
-            />
+        <TextInput
+          style={[styles.input, coreReadOnly && styles.inputReadOnly]}
+          placeholder={
+            source === 'hobby' && hobbyType === 'poetry'
+              ? 'e.g. Rain over Rainham'
+              : source === 'hobby' && hobbyType === 'singing'
+                ? 'e.g. Practice — soft ballad'
+                : 'What happened?'
+          }
+          placeholderTextColor="#64748b"
+          value={title}
+          onChangeText={setTitle}
+          editable={!coreReadOnly}
+          autoFocus={!isEditing && !coreReadOnly}
+        />
 
         {source === 'email' && (
           <>
@@ -658,7 +657,7 @@ export default function AddEventScreen({ navigation, route }) {
               This is a shared event from a friend. Core fields are read-only — suggest a note for them to approve.
             </Text>
             <Text style={styles.label}>Suggest a note</Text>
-            <TextInput
+                        <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="e.g. Also discussed next meeting date…"
               placeholderTextColor="#64748b"
@@ -668,6 +667,11 @@ export default function AddEventScreen({ navigation, route }) {
               numberOfLines={4}
               textAlignVertical="top"
               editable={!suggesting && !deleting}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollRef.current?.scrollToEnd?.({ animated: true });
+                }, 120);
+              }}
             />
             <TouchableOpacity
               style={[styles.saveButton, (suggesting || deleting) && styles.saveDisabled]}
