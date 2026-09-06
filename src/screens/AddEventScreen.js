@@ -19,7 +19,11 @@ import {
   buildGrokReplyPrompt,
 } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
-import { getEventFriendSourceLabel } from '../services/shareService';
+import {
+  getEventFriendSourceLabel,
+  isSharedEventInvitee,
+  leaveSharedEvent,
+} from '../services/shareService';
 import { auth } from '../services/firebase';
 
 export default function AddEventScreen({ navigation, route }) {
@@ -185,7 +189,10 @@ export default function AddEventScreen({ navigation, route }) {
     const ok = await confirmAction(
       'Delete event',
       'Delete "' + (title.trim() || existing.title || 'this event') + '"? This removes it from this device'
-        + (auth.currentUser ? ' and from your cloud copy.' : '.'),
+        + (auth.currentUser ? ' and from your cloud copy.' : '.')
+        + (existing?.isShared || existing?.shareId
+          ? ' As the creator, deleting your copy may end the share for you; friends who already accepted keep their copies until they leave.'
+          : ''),
       'Delete',
     );
     if (!ok) return;
@@ -205,6 +212,30 @@ export default function AddEventScreen({ navigation, route }) {
     }
   };
 
+  const handleLeave = async () => {
+    if (!existing?.id || saving || deleting) return;
+    const ok = await confirmAction(
+      'Leave event',
+      'Leave "' + (title.trim() || existing.title || 'this shared event') + '"? This removes it from your timeline only. Your friend keeps their event.',
+      'Leave',
+    );
+    if (!ok) return;
+    setDeleting(true);
+    setSaveNotice('');
+    try {
+      const result = await leaveSharedEvent(existing);
+      setSaveNotice('Left shared event.');
+      notify('Left event', result?.notice || 'Removed from your timeline. The creator was notified.');
+      navigation.goBack();
+    } catch (e) {
+      const fail = e?.message || 'Could not leave. Please try again.';
+      setSaveNotice(fail);
+      notify('Could not leave', fail);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const descriptionPlaceholder = () => {
     if (source === 'email') return 'Paste a short part of the email or your notes?';
     if (source === 'hobby') {
@@ -217,11 +248,29 @@ export default function AddEventScreen({ navigation, route }) {
     return 'Optional details?';
   };
 
-  const friendSourceLabel = getEventFriendSourceLabel(
-    existing || { source, sharedFromEmail: existing?.sharedFromEmail, sharedFrom: existing?.sharedFrom, isShared: existing?.isShared, shareId: existing?.shareId, fromEmail: existing?.fromEmail },
-    auth.currentUser?.uid,
-  );
-  const isFromFriend = source === 'shared' || (friendSourceLabel && friendSourceLabel.startsWith('From friend'));
+  const myUid = auth.currentUser?.uid;
+  const eventForLabel = {
+    ...(existing || {}),
+    source: existing?.source || source,
+    sharedFromEmail: existing?.sharedFromEmail,
+    sharedFrom: existing?.sharedFrom,
+    isShared: existing?.isShared,
+    shareId: existing?.shareId,
+    fromEmail: existing?.fromEmail,
+  };
+  const friendSourceLabel = getEventFriendSourceLabel(eventForLabel, myUid);
+  // Same shared / From friend label as Timeline list (creator: Shared event; invitee: From friend)
+  const showSharedSource = !!friendSourceLabel
+    || source === 'shared'
+    || !!existing?.isShared
+    || !!existing?.shareId
+    || !!existing?.sharedFromEmail
+    || !!(existing?.sharedFrom && myUid && existing.sharedFrom !== myUid);
+  const isInvitee = isSharedEventInvitee(existing || eventForLabel, myUid);
+  const sharedChipLabel = (friendSourceLabel && friendSourceLabel.startsWith('From friend'))
+    ? 'From friend'
+    : (friendSourceLabel === 'Shared event' ? 'Shared event' : 'From friend');
+  const sharedChipSelected = source === 'shared' || showSharedSource;
 
   const sourceChips = [
     { id: 'manual', label: 'Manual' },
@@ -231,8 +280,8 @@ export default function AddEventScreen({ navigation, route }) {
   if (source === 'share' || source === 'image') {
     sourceChips.push({ id: source, label: 'Shared photo' });
   }
-  if (isFromFriend || source === 'shared') {
-    sourceChips.push({ id: 'shared', label: 'From friend' });
+  if (showSharedSource) {
+    sourceChips.push({ id: 'shared', label: sharedChipLabel });
   }
 
   const isPoetry = source === 'hobby' && hobbyType === 'poetry';
@@ -263,21 +312,26 @@ export default function AddEventScreen({ navigation, route }) {
           {sourceChips.map((s) => (
             <TouchableOpacity
               key={s.id}
-              style={[styles.sourceChip, source === s.id && styles.sourceSelected]}
+              style={[styles.sourceChip, (s.id === 'shared' ? sharedChipSelected : (!showSharedSource && source === s.id)) && styles.sourceSelected]}
               onPress={() => {
+                if (s.id === 'shared' && isInvitee) {
+                  setSource('shared');
+                  return;
+                }
+                if (s.id === 'shared') return;
                 setSource(s.id);
                 if (s.id === 'hobby') setCategory('hobby');
               }}
             >
-              <Text style={[styles.sourceText, source === s.id && styles.sourceTextSelected]}>
+              <Text style={[styles.sourceText, (s.id === 'shared' ? sharedChipSelected : (!showSharedSource && source === s.id)) && styles.sourceTextSelected]}>
                 {s.label}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        {isFromFriend || source === 'shared' ? (
+        {showSharedSource ? (
           <Text style={styles.friendSource}>
-            {friendSourceLabel || 'From friend'}
+            {friendSourceLabel || (isInvitee ? 'From friend' : 'Shared event')}
           </Text>
         ) : null}
 
@@ -540,13 +594,23 @@ export default function AddEventScreen({ navigation, route }) {
         )}
 
         {isEditing && existing?.id ? (
-          <TouchableOpacity
-            style={[styles.deleteButton, (saving || deleting) && styles.saveDisabled]}
-            onPress={handleDelete}
-            disabled={saving || deleting}
-          >
-            <Text style={styles.deleteText}>{deleting ? 'Deleting…' : 'Delete event'}</Text>
-          </TouchableOpacity>
+          isInvitee ? (
+            <TouchableOpacity
+              style={[styles.deleteButton, (saving || deleting) && styles.saveDisabled]}
+              onPress={handleLeave}
+              disabled={saving || deleting}
+            >
+              <Text style={styles.deleteText}>{deleting ? 'Leaving...' : 'Leave event'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.deleteButton, (saving || deleting) && styles.saveDisabled]}
+              onPress={handleDelete}
+              disabled={saving || deleting}
+            >
+              <Text style={styles.deleteText}>{deleting ? 'Deleting...' : 'Delete event'}</Text>
+            </TouchableOpacity>
+          )
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>

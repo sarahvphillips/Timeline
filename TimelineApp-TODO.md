@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 6 Sep 2026 (Food toggle + Add Food form; Cupboard still later)
+**Last updated:** 6 Sep 2026 (Shared leave/ownership + Food save hotfix)
 
 ---
 
@@ -56,6 +56,9 @@
 - [x] Delete event with confirm (Add Event edit + Timeline expanded Delete; web uses window.confirm; removes local + Firestore for uid when sync on)
 - [x] Add Event save feedback on web (window.alert like Settings clear-cache; Save disabled while saving; on-screen Saved notice; goBack once)
 - [x] Friend source on shared events — invitee UI shows `From friend - email` (or `From friend - if unknown); `sharedFromEmail` / invite `fromEmail` / `createdByEmail` persisted on accept/share
+- [x] Add Event edit Source area shows shared / From friend (same label as Timeline) for `source===shared` / isShared / sharedFromEmail
+- [x] Shared ownership: creator Delete (own copy; may end share for them); invitee **Leave event** (removes users/{uid}/events copy only; sets participants[uid].status left/declined + recentLeft notice; does not delete sharedEvents/creator event)
+- [x] Creator notice: Share screen banner when someone left/declined (`recentLeft`, prefer email); Decline invite uses same notify path
 - [ ] Share whole timeline with another Timeline user (still later)
 - [ ] Add another account (alert: log out and sign in with a different email)
 

@@ -16,7 +16,11 @@ import {
   qrImageUrl,
   copyTextToClipboard,
   shareInviteViaOs,
+  getSharedEvent,
+  formatRecentLeftNotice,
+  clearRecentLeftNotice,
 } from '../services/shareService';
+import { auth } from '../services/firebase';
 
 export default function ShareEventScreen({ navigation, route }) {
   const event = route.params?.event || null;
@@ -25,6 +29,8 @@ export default function ShareEventScreen({ navigation, route }) {
   const [code, setCode] = useState(route.params?.code || '');
   const [link, setLink] = useState(route.params?.link || '');
   const [error, setError] = useState(null);
+  const [leftNotice, setLeftNotice] = useState('');
+  const [shareId, setShareId] = useState(event?.shareId || null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,6 +38,16 @@ export default function ShareEventScreen({ navigation, route }) {
       if (route.params?.code && route.params?.link) {
         setCode(route.params.code);
         setLink(route.params.link);
+        if (event?.shareId) {
+          setShareId(event.shareId);
+          try {
+            const shared = await getSharedEvent(event.shareId);
+            const notice = formatRecentLeftNotice(shared);
+            if (notice && (!shared?.createdByUid || shared.createdByUid === auth.currentUser?.uid)) {
+              setLeftNotice(notice);
+            }
+          } catch (_) {}
+        }
         setLoading(false);
         return;
       }
@@ -49,6 +65,12 @@ export default function ShareEventScreen({ navigation, route }) {
         if (cancelled) return;
         setCode(result.code);
         setLink(result.link);
+        if (result.shareId) setShareId(result.shareId);
+        const shared = result.shared || (result.shareId ? await getSharedEvent(result.shareId) : null);
+        const notice = formatRecentLeftNotice(shared);
+        if (notice && (!shared.createdByUid || shared.createdByUid === auth.currentUser?.uid)) {
+          setLeftNotice(notice);
+        }
       } catch (e) {
         if (cancelled) return;
         setError(e?.message || 'Could not create invite.');
@@ -122,6 +144,22 @@ export default function ShareEventScreen({ navigation, route }) {
       </Text>
 
       <Text style={styles.eventTitle}>{event?.title || 'Event'}</Text>
+
+      {leftNotice ? (
+        <View style={styles.leftBanner}>
+          <Text style={styles.leftBannerText}>{leftNotice}</Text>
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                if (shareId) await clearRecentLeftNotice(shareId);
+              } catch (_) {}
+              setLeftNotice('');
+            }}
+          >
+            <Text style={styles.leftDismiss}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <View style={styles.codeBox}>
         <Text style={styles.codeLabel}>Invite code</Text>
@@ -225,4 +263,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 16,
   },
+  leftBanner: {
+    backgroundColor: '#422006',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  leftBannerText: { color: '#fde68a', fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  leftDismiss: { color: '#93c5fd', fontSize: 13, fontWeight: '600' },
 });

@@ -31,7 +31,11 @@ import {
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
-import { getEventFriendSourceLabel } from '../services/shareService';
+import {
+  getEventFriendSourceLabel,
+  isSharedEventInvitee,
+  leaveSharedEvent,
+} from '../services/shareService';
 import { auth } from '../services/firebase';
 import { getShowFoodInMenu } from '../services/profileService';
 
@@ -97,9 +101,16 @@ export default function TimelineScreen({ navigation, route }) {
       : 'All events';
 
   const handleDelete = async (event) => {
-    const title = 'Delete event';
-    const message = `Delete "${event.title}"? This removes it from this device` +
-      (auth.currentUser ? ' and from your cloud copy.' : '.');
+    const myUid = auth.currentUser?.uid;
+    const invitee = isSharedEventInvitee(event, myUid);
+    const title = invitee ? 'Leave event' : 'Delete event';
+    const message = invitee
+      ? `Leave "${event.title}"? This removes it from your timeline only. Your friend keeps their event.`
+      : (`Delete "${event.title}"? This removes it from this device` +
+        (auth.currentUser ? ' and from your cloud copy.' : '.') +
+        (event?.isShared || event?.shareId
+          ? ' As the creator, deleting your copy may end the share for you; friends keep their copies until they leave.'
+          : ''));
     let ok = false;
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
       ok = window.confirm(title + '\n\n' + message);
@@ -107,20 +118,26 @@ export default function TimelineScreen({ navigation, route }) {
       ok = await new Promise((resolve) => {
         Alert.alert(title, message, [
           { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+          { text: invitee ? 'Leave' : 'Delete', style: 'destructive', onPress: () => resolve(true) },
         ]);
       });
     }
     if (!ok) return;
     try {
-      const updated = await deleteEvent(event.id);
-      setAllEvents(updated);
-    } catch (e) {
-      const fail = e?.message || 'Could not delete.';
-      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
-        window.alert('Could not delete\n\n' + fail);
+      if (invitee) {
+        await leaveSharedEvent(event);
+        const updated = await getEvents();
+        setAllEvents(updated);
       } else {
-        Alert.alert('Could not delete', fail);
+        const updated = await deleteEvent(event.id);
+        setAllEvents(updated);
+      }
+    } catch (e) {
+      const fail = e?.message || (invitee ? 'Could not leave.' : 'Could not delete.');
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+        window.alert((invitee ? 'Could not leave' : 'Could not delete') + '\n\n' + fail);
+      } else {
+        Alert.alert(invitee ? 'Could not leave' : 'Could not delete', fail);
       }
     }
   };
@@ -268,7 +285,9 @@ export default function TimelineScreen({ navigation, route }) {
               <Text style={styles.editLink}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleDelete(item)}>
-              <Text style={styles.deleteLink}>Delete</Text>
+              <Text style={styles.deleteLink}>
+                {isSharedEventInvitee(item, auth.currentUser?.uid) ? 'Leave event' : 'Delete'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('ShareEvent', { event: item })}>
               <Text style={styles.shareLink}>Share with a friend</Text>

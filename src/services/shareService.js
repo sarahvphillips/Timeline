@@ -1,4 +1,4 @@
-﻿import { Alert, Share, Platform } from 'react-native';
+import { Alert, Share, Platform } from 'react-native';
 import {
   doc,
   setDoc,
@@ -9,9 +9,10 @@ import {
   query,
   where,
   arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { saveEvent, getEvents } from './eventService';
+import { saveEvent, getEvents, deleteEvent } from './eventService';
 import { getProfile, getProfilePhotoUri } from './profileService';
 
 export const FRIEND_COLOURS = ['#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#a78bfa', '#fb7185'];
@@ -293,13 +294,14 @@ export async function acceptInviteByCode(rawCode) {
 
   const colourIndex = (shared.participantUids || []).length % FRIEND_COLOURS.length;
   const me = await currentParticipantProfile(FRIEND_COLOURS[colourIndex]);
+  const nowIso = new Date().toISOString();
 
   const shareRef = doc(db, 'sharedEvents', shared.id);
-  const participantPatch = stripUndefined(me) || me;
+  const participantPatch = stripUndefined({ ...me, status: 'accepted', joinedAt: nowIso }) || { ...me, status: 'accepted', joinedAt: nowIso };
   await updateDoc(shareRef, {
     participantUids: arrayUnion(uid),
     [`participants.${uid}`]: participantPatch,
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowIso,
   });
 
   await updateDoc(doc(db, 'eventInvites', code), {
@@ -464,6 +466,206 @@ export function listOtherParticipants(shared, myUid) {
       colour: profile.colour || FRIEND_COLOURS[(index + 1) % FRIEND_COLOURS.length],
     };
   });
+}
+
+
+/**
+ * True when this local event is a friend/invitee copy (not the creator's canonical event).
+ * Creator: isShared/shareId but source stays personal; sharedFrom is self or unset.
+ * Invitee: source === 'shared' and/or sharedFrom points at someone else.
+ */
+export function isSharedEventInvitee(event, myUid) {
+  if (!event || !myUid) return false;
+  if (event.source === 'shared') return true;
+  if (event.sharedFrom && event.sharedFrom !== myUid) return true;
+  return false;
+}
+
+function leaveNoticeLabel(profile) {
+  const email = typeof profile?.email === 'string' && profile.email.includes('@') ? profile.email.trim() : '';
+  const name = (profile?.displayName || '').trim();
+  return email || name || 'A friend';
+}
+
+/**
+ * Invitee leaves a shared event: remove personal copy only; mark participant left;
+ * notify creator via sharedEvents.recentLeft (no push). Does NOT delete sharedEvents
+ * or the creator's event.
+ * Creator delete still uses deleteEvent on their own copy (may end the share for them;
+ * sharedEvents doc can remain for other participants until they leave).
+ */
+export async function leaveSharedEvent(event, { action = 'left' } = {}) {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to leave a shared event.');
+  if (!event?.id) throw new Error('Missing event.');
+  if (!isSharedEventInvitee(event, uid)) {
+    throw new Error('Only invitees leave a shared event. Creators can delete their own event.');
+  }
+
+  const shareId = event.shareId || null;
+  const nowIso = new Date().toISOString();
+  const me = await currentParticipantProfile().catch(() => ({
+    uid,
+    displayName: auth.currentUser?.displayName || '',
+    email: auth.currentUser?.email || undefined,
+  }));
+  const who = leaveNoticeLabel(me);
+  const verb = action === 'declined' || action === 'rejected' ? 'declined' : 'left';
+  const notice = `${who} ${verb} this shared event`;
+
+  if (shareId) {
+    const shareRef = doc(db, 'sharedEvents', shareId);
+    const existingShare = await getSharedEvent(shareId);
+    const prev = (existingShare?.participants && existingShare.participants[uid]) || {};
+    const participantUpdate = stripUndefined({
+      ...prev,
+      ...me,
+      uid,
+      status: verb === 'declined' ? 'declined' : 'left',
+      leftAt: nowIso,
+    });
+    const patch = {
+      participantUids: arrayRemove(uid),
+      [`participants.${uid}`]: participantUpdate,
+      recentLeft: stripUndefined({
+        uid,
+        email: me.email || undefined,
+        displayName: me.displayName || undefined,
+        leftAt: nowIso,
+        action: verb,
+        notice,
+      }),
+      updatedAt: nowIso,
+    };
+    try {
+      await updateDoc(shareRef, stripUndefined(patch) || patch);
+    } catch (e) {
+      console.warn('Could not update sharedEvents on leave', e);
+      throw new Error(e?.message || 'Could not update the shared event. Try again.');
+    }
+
+    try {
+      const q = query(collection(db, 'eventInvites'), where('shareId', '==', shareId));
+      const snap = await getDocs(q);
+      await Promise.all(
+        snap.docs.map(async (d) => {
+          const data = d.data() || {};
+          if (data.acceptedByUid && data.acceptedByUid !== uid) return;
+          if (data.status === 'declined' || data.status === 'expired') return;
+          if (data.status === 'accepted' && data.acceptedByUid !== uid) return;
+          await updateDoc(doc(db, 'eventInvites', d.id), {
+            status: 'declined',
+            declinedByUid: uid,
+            declinedAt: nowIso,
+          });
+        }),
+      );
+    } catch (e) {
+      console.warn('Could not update invites on leave', e);
+    }
+  }
+
+  await deleteEvent(event.id);
+  return { shareId, notice, action: verb };
+}
+
+/**
+ * Reject/decline an invite by code. Notifies creator via recentLeft.
+ * If already a participant with a local copy, uses the leave path.
+ */
+export async function rejectInviteByCode(rawCode) {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to decline an invite.');
+
+  const code = String(rawCode || '').trim().toUpperCase();
+  const invite = await getInviteByCode(code);
+  if (!invite) throw new Error('Invite not found.');
+  if (invite.status === 'declined') return { alreadyDeclined: true, invite };
+
+  const nowIso = new Date().toISOString();
+  const me = await currentParticipantProfile().catch(() => ({
+    uid,
+    displayName: auth.currentUser?.displayName || '',
+    email: auth.currentUser?.email || undefined,
+  }));
+  const who = leaveNoticeLabel(me);
+  const notice = `${who} declined this shared event`;
+
+  if (invite.shareId) {
+    const shared = await getSharedEvent(invite.shareId);
+    if (shared && (shared.participantUids || []).includes(uid)) {
+      const events = await getEvents();
+      const localEvent = events.find((e) => e.shareId === invite.shareId) || null;
+      if (localEvent) {
+        await updateDoc(doc(db, 'eventInvites', code), {
+          status: 'declined',
+          declinedByUid: uid,
+          declinedAt: nowIso,
+        });
+        const result = await leaveSharedEvent(localEvent, { action: 'declined' });
+        return { invite, shared, ...result };
+      }
+    }
+
+    const shareRef = doc(db, 'sharedEvents', invite.shareId);
+    try {
+      await updateDoc(
+        shareRef,
+        stripUndefined({
+          [`participants.${uid}`]: stripUndefined({
+            ...me,
+            uid,
+            status: 'declined',
+            leftAt: nowIso,
+          }),
+          recentLeft: {
+            uid,
+            email: me.email || undefined,
+            displayName: me.displayName || undefined,
+            leftAt: nowIso,
+            action: 'declined',
+            notice,
+          },
+          updatedAt: nowIso,
+        }),
+      );
+    } catch (e) {
+      console.warn('Could not notify creator on decline', e);
+    }
+  }
+
+  await updateDoc(doc(db, 'eventInvites', code), {
+    status: 'declined',
+    declinedByUid: uid,
+    declinedAt: nowIso,
+  });
+
+  return { invite, notice, action: 'declined' };
+}
+
+/** Clear creator-facing leave/decline banner after they have seen it. */
+export async function clearRecentLeftNotice(shareId) {
+  const uid = getUid();
+  if (!uid || !shareId) return;
+  const shared = await getSharedEvent(shareId);
+  if (!shared) return;
+  if (shared.createdByUid && shared.createdByUid !== uid) return;
+  await updateDoc(doc(db, 'sharedEvents', shareId), {
+    recentLeft: null,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export function formatRecentLeftNotice(shared) {
+  const rl = shared?.recentLeft;
+  if (!rl) return null;
+  if (typeof rl.notice === 'string' && rl.notice.trim()) return rl.notice.trim();
+  const who =
+    (typeof rl.email === 'string' && rl.email.includes('@') && rl.email.trim()) ||
+    (rl.displayName && String(rl.displayName).trim()) ||
+    'A friend';
+  const verb = rl.action === 'declined' || rl.action === 'rejected' ? 'declined' : 'left';
+  return `${who} ${verb} this shared event`;
 }
 
 export function warnShare(message, error) {

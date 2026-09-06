@@ -8,11 +8,13 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import {
   getInviteByCode,
   getSharedEvent,
   acceptInviteByCode,
+  rejectInviteByCode,
 } from '../services/shareService';
 
 export default function AcceptInviteScreen({ navigation, route }) {
@@ -21,6 +23,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
   useEffect(() => {
     if (initialCode) {
@@ -92,6 +95,59 @@ export default function AcceptInviteScreen({ navigation, route }) {
     }
   };
 
+
+  const notify = (title, message) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+      window.alert(title + (message ? '\n\n' + message : ''));
+      return;
+    }
+    Alert.alert(title, message);
+  };
+
+  const confirmAction = (title, message, confirmLabel = 'OK') => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      return Promise.resolve(window.confirm(title + (message ? '\n\n' + message : '')));
+    }
+    return new Promise((resolve) => {
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: confirmLabel, style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
+  };
+
+  const handleReject = async () => {
+    const normalised = String(code || '').trim().toUpperCase();
+    if (!normalised) {
+      notify('Enter a code', 'Paste the invite code from your friend.');
+      return;
+    }
+    const ok = await confirmAction(
+      'Decline invite',
+      'Decline this shared event invite? Your friend will see that you declined.',
+      'Decline',
+    );
+    if (!ok) return;
+    setRejecting(true);
+    try {
+      const result = await rejectInviteByCode(normalised);
+      notify(
+        result?.alreadyDeclined ? 'Already declined' : 'Invite declined',
+        result?.notice || 'The creator was notified.',
+      );
+      setPreview((prev) =>
+        prev?.invite
+          ? { ...prev, invite: { ...prev.invite, status: 'declined' } }
+          : prev,
+      );
+    } catch (e) {
+      notify('Could not decline', e?.message || 'Try again.');
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Enter invite code</Text>
@@ -140,15 +196,23 @@ export default function AcceptInviteScreen({ navigation, route }) {
       ) : null}
 
       <TouchableOpacity
-        style={[styles.button, accepting && styles.disabled]}
+        style={[styles.button, (accepting || rejecting) && styles.disabled]}
         onPress={handleAccept}
-        disabled={accepting}
+        disabled={accepting || rejecting}
       >
         {accepting ? (
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>Accept invite</Text>
         )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.decline, (accepting || rejecting) && styles.disabled]}
+        onPress={handleReject}
+        disabled={accepting || rejecting}
+      >
+        <Text style={styles.declineText}>{rejecting ? 'Declining...' : 'Decline invite'}</Text>
       </TouchableOpacity>
 
       <Text style={styles.testPath}>
@@ -213,5 +277,15 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  decline: {
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+    backgroundColor: '#450a0a',
+  },
+  declineText: { color: '#fca5a5', fontSize: 16, fontWeight: '600' },
   testPath: { color: '#64748b', fontSize: 12, lineHeight: 18, marginTop: 20 },
 });
