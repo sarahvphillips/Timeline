@@ -27,6 +27,15 @@ import {
   leaveSharedEvent,
   submitEditSuggestion,
   syncLocalEventFromShared,
+  getSharedEvent,
+  formatRecentLeftNotice,
+  clearRecentLeftNotice,
+  formatRecentSuggestionNotice,
+  clearRecentSuggestionNotice,
+  pendingEditSuggestions,
+  countPendingSuggestions,
+  approveEditSuggestion,
+  declineEditSuggestion,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
 
@@ -70,6 +79,11 @@ export default function AddEventScreen({ navigation, route }) {
   const [saveNotice, setSaveNotice] = useState('');
   const [suggestionNote, setSuggestionNote] = useState('');
   const [suggesting, setSuggesting] = useState(false);
+  const [leftNotice, setLeftNotice] = useState('');
+  const [suggestionNotice, setSuggestionNotice] = useState('');
+  const [pendingSuggestions, setPendingSuggestions] = useState([]);
+  const [creatorShareId, setCreatorShareId] = useState(existing?.shareId || null);
+  const [resolvingId, setResolvingId] = useState(null);
   const scrollRef = useRef(null);
   const keyboardVisibleRef = useRef(false);
 
@@ -113,9 +127,24 @@ export default function AddEventScreen({ navigation, route }) {
 
   useEffect(() => {
     let cancelled = false;
+    const applyCreatorNotices = (shared) => {
+      if (!shared) return;
+      const uid = auth.currentUser?.uid;
+      const isCreator = !shared.createdByUid || shared.createdByUid === uid;
+      if (!isCreator) return;
+      setCreatorShareId(shared.id || existing?.shareId || null);
+      const left = formatRecentLeftNotice(shared);
+      setLeftNotice(left || '');
+      const sug = formatRecentSuggestionNotice(shared);
+      setSuggestionNotice(sug || '');
+      setPendingSuggestions(pendingEditSuggestions(shared));
+    };
     const run = async () => {
       if (!existing?.shareId) {
         setSyncedExisting(existing);
+        setLeftNotice('');
+        setSuggestionNotice('');
+        setPendingSuggestions([]);
         return;
       }
       try {
@@ -127,6 +156,13 @@ export default function AddEventScreen({ navigation, route }) {
           if (typeof refreshed.title === 'string') setTitle(refreshed.title);
           if (refreshed.date) setDate(String(refreshed.date).slice(0, 10));
           if (refreshed.category) setCategory(refreshed.category);
+        } else {
+          setSyncedExisting(existing);
+        }
+        const uid = auth.currentUser?.uid;
+        if (uid && !isSharedEventInvitee(existing, uid)) {
+          const shared = await getSharedEvent(existing.shareId);
+          if (!cancelled) applyCreatorNotices(shared);
         }
       } catch (e) {
         console.warn('Could not sync shared event copy', e);
@@ -218,6 +254,7 @@ export default function AddEventScreen({ navigation, route }) {
         isShared: existing?.isShared,
         sharedFrom: existing?.sharedFrom,
         sharedFromEmail: existing?.sharedFromEmail,
+        inviteCode: existing?.inviteCode,
       };
       await saveEvent(saved);
 
@@ -320,6 +357,70 @@ export default function AddEventScreen({ navigation, route }) {
       notify('Could not suggest', fail);
     } finally {
       setSuggesting(false);
+    }
+  };
+
+  const refreshCreatorNotices = async (shareId) => {
+    const sid = shareId || creatorShareId || existing?.shareId;
+    if (!sid) return;
+    try {
+      const shared = await getSharedEvent(sid);
+      if (!shared) return;
+      const left = formatRecentLeftNotice(shared);
+      setLeftNotice(left || '');
+      const sug = formatRecentSuggestionNotice(shared);
+      setSuggestionNotice(sug || '');
+      setPendingSuggestions(pendingEditSuggestions(shared));
+    } catch (_) {}
+  };
+
+  const handleApproveSuggestion = async (suggestionId) => {
+    const sid = creatorShareId || existing?.shareId;
+    if (!sid || resolvingId) return;
+    const ok = await confirmAction(
+      'Approve suggestion',
+      'Append this note to the shared event description?',
+      'Approve',
+    );
+    if (!ok) return;
+    setResolvingId(suggestionId);
+    try {
+      await approveEditSuggestion(sid, suggestionId);
+      notify('Approved', 'Note added to the shared event.');
+      const refreshed = await syncLocalEventFromShared({
+        ...(syncedExisting || existing),
+        shareId: sid,
+      });
+      if (refreshed && typeof refreshed.description === 'string') {
+        setDescription(refreshed.description);
+        setSyncedExisting(refreshed);
+      }
+      await refreshCreatorNotices(sid);
+    } catch (e) {
+      notify('Could not approve', e?.message || 'Could not approve.');
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const handleDeclineSuggestion = async (suggestionId) => {
+    const sid = creatorShareId || existing?.shareId;
+    if (!sid || resolvingId) return;
+    const ok = await confirmAction(
+      'Decline suggestion',
+      'Decline this suggested note?',
+      'Decline',
+    );
+    if (!ok) return;
+    setResolvingId(suggestionId);
+    try {
+      await declineEditSuggestion(sid, suggestionId);
+      notify('Declined', 'Suggestion was declined.');
+      await refreshCreatorNotices(sid);
+    } catch (e) {
+      notify('Could not decline', e?.message || 'Could not decline.');
+    } finally {
+      setResolvingId(null);
     }
   };
 
@@ -428,6 +529,86 @@ export default function AddEventScreen({ navigation, route }) {
           <Text style={styles.friendSource}>
             {friendSourceLabel || (isInvitee ? 'From friend' : 'Shared event')}
           </Text>
+        ) : null}
+
+        {!isInvitee && isEditing && (leftNotice || suggestionNotice || pendingSuggestions.length) ? (
+          <View style={styles.creatorNotices}>
+            {leftNotice ? (
+              <View style={styles.leftBanner}>
+                <Text style={styles.leftBannerText}>{leftNotice}</Text>
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      const sid = creatorShareId || existing?.shareId;
+                      if (sid) await clearRecentLeftNotice(sid);
+                    } catch (_) {}
+                    setLeftNotice('');
+                  }}
+                >
+                  <Text style={styles.noticeDismiss}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {suggestionNotice || pendingSuggestions.length ? (
+              <View style={styles.sugBanner}>
+                <Text style={styles.sugBannerText}>
+                  {suggestionNotice ||
+                    (pendingSuggestions.length === 1
+                      ? '1 pending note suggestion'
+                      : pendingSuggestions.length + ' pending note suggestions')}
+                </Text>
+                {suggestionNotice ? (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      try {
+                        const sid = creatorShareId || existing?.shareId;
+                        if (sid) await clearRecentSuggestionNotice(sid);
+                      } catch (_) {}
+                      setSuggestionNotice('');
+                    }}
+                  >
+                    <Text style={styles.noticeDismiss}>Dismiss banner</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
+            {pendingSuggestions.length ? (
+              <View style={styles.sugList}>
+                <Text style={styles.sugListTitle}>
+                  Pending suggestions ({pendingSuggestions.length})
+                </Text>
+                {pendingSuggestions.map((sug) => (
+                  <View key={sug.id} style={styles.sugCard}>
+                    <Text style={styles.sugFrom}>
+                      From{' '}
+                      {(sug.fromEmail && String(sug.fromEmail)) ||
+                        sug.fromDisplayName ||
+                        'friend'}
+                    </Text>
+                    <Text style={styles.sugNote}>{sug.note}</Text>
+                    <View style={styles.sugActions}>
+                      <TouchableOpacity
+                        style={[styles.sugApprove, resolvingId && styles.sugDisabled]}
+                        onPress={() => handleApproveSuggestion(sug.id)}
+                        disabled={!!resolvingId}
+                      >
+                        <Text style={styles.sugApproveText}>
+                          {resolvingId === sug.id ? '…' : 'Approve'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.sugDecline, resolvingId && styles.sugDisabled]}
+                        onPress={() => handleDeclineSuggestion(sug.id)}
+                        disabled={!!resolvingId}
+                      >
+                        <Text style={styles.sugDeclineText}>Decline</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
         ) : null}
 
         {source === 'hobby' && (
@@ -920,5 +1101,67 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 14,
     textAlign: 'center',
+  },
+  creatorNotices: { marginTop: 16, marginBottom: 4 },
+  leftBanner: {
+    backgroundColor: '#422006',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  leftBannerText: { color: '#fde68a', fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  sugBanner: {
+    backgroundColor: '#1e3a5f',
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  sugBannerText: { color: '#bfdbfe', fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  noticeDismiss: { color: '#93c5fd', fontSize: 13, fontWeight: '600' },
+  sugList: { marginBottom: 8 },
+  sugListTitle: { color: '#c4b5fd', fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  sugCard: {
+    backgroundColor: '#1a1b36',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 12,
+    marginBottom: 10,
+  },
+  sugFrom: { color: '#94a3b8', fontSize: 12, marginBottom: 6 },
+  sugNote: { color: '#f8fafc', fontSize: 14, lineHeight: 20, marginBottom: 12 },
+  sugActions: { flexDirection: 'row', gap: 10 },
+  sugApprove: {
+    flex: 1,
+    backgroundColor: '#166534',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sugApproveText: { color: '#bbf7d0', fontWeight: '700' },
+  sugDecline: {
+    flex: 1,
+    backgroundColor: '#450a0a',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+  },
+  sugDeclineText: { color: '#fca5a5', fontWeight: '700' },
+  sugDisabled: { opacity: 0.6 },
+  inviteeHint: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  inputReadOnly: {
+    opacity: 0.75,
   },
 });

@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 6 Sep 2026 (Accept invite Scan QR)
+**Last updated:** 6 Sep 2026 (creator notices + leave invite cleanup)
 
 ---
 
@@ -61,6 +61,7 @@
 - [x] Shared ownership: creator Delete (own copy; may end share for them); invitee **Leave event** (removes users/{uid}/events copy only; sets participants[uid].status left/declined + recentLeft notice; does not delete sharedEvents/creator event)
 - [x] Creator notice: Share screen banner when someone left/declined (`recentLeft`, prefer email); Decline invite uses same notify path
 - [x] Shared edit suggestions MVP: invitee Suggest a note (core fields read-only); persist \editSuggestions\ on \sharedEvents/{shareId}\; creator Approve/Decline on Share screen; approve appends attributed note to description + syncs creator copy; invitee copies refresh via \syncLocalEventFromShared\; ecentSuggestion\ banner / pending count
+- [x] Creator notices on Edit Event (AddEventScreen): load sharedEvents when creator opens Edit; banner for friend left + pending suggest-notes with Approve/Decline; Timeline light "Friend left" / "Note suggested" flags; leave invite cleanup by inviteCode (no collection query / no LogBox warn); Events with friends filters out shares with no other active participant
 - [x] Accept invite **Scan QR** (`AcceptInviteScreen` + `expo-camera` CameraView on native; parses raw code / `timelineapp://share/CODE` / https share links; web keeps paste-only note). Share QR enlarged for coffee-table scan.
 - [ ] Share whole timeline with another Timeline user (still later)
 - [ ] Add another account (alert: log out and sign in with a different email)
@@ -218,6 +219,20 @@ Product map:
 
 ## Events with friends (MVP) - Firestore rules to paste
 
+### Publish these rules (Firebase Console — no CLI)
+
+Sarah must paste/publish in **Firebase Console → Firestore → Rules** (project `timelineapp-3bc05`). Full file is also at repo root `firestore.rules`.
+
+**eventInvites update must allow:**
+- `fromUid` always
+- pending → accepted by `acceptedByUid`
+- pending → declined by `declinedByUid`
+- accepted → declined by `acceptedByUid` (leave cleanup)
+
+App leave path no longer queries `eventInvites` by `shareId`; it updates the single invite doc when local `inviteCode` is set. Creator sees friend-left / suggest-note banners on **Edit Event** (and light flags on Timeline); Events with friends hides shares with no other active participant.
+
+
+
 Collections:
 - `sharedEvents/{shareId}` - event snapshot + `participantUids` + `participants` map
 - `eventInvites/{inviteId}` - invite code is the document id; `status`: pending|accepted|declined|expired
@@ -245,11 +260,28 @@ match /eventInvites/{id} {
   allow read: if request.auth != null;
   allow create: if request.auth != null
     && request.auth.uid == request.resource.data.fromUid;
+  // fromUid always; pending→accepted by acceptedByUid;
+  // pending→declined by declinedByUid; accepted→declined by acceptedByUid (leave cleanup)
   allow update: if request.auth != null
-    && (request.auth.uid == resource.data.fromUid
-        || (resource.data.status == 'pending'
-            && request.resource.data.status == 'accepted'
-            && request.resource.data.acceptedByUid == request.auth.uid));
+    && (
+      request.auth.uid == resource.data.fromUid
+      || (
+        resource.data.status == 'pending'
+        && request.resource.data.status == 'accepted'
+        && request.resource.data.acceptedByUid == request.auth.uid
+      )
+      || (
+        resource.data.status == 'pending'
+        && request.resource.data.status == 'declined'
+        && request.resource.data.declinedByUid == request.auth.uid
+      )
+      || (
+        resource.data.status == 'accepted'
+        && request.resource.data.status == 'declined'
+        && resource.data.acceptedByUid == request.auth.uid
+        && request.resource.data.declinedByUid == request.auth.uid
+      )
+    );
   allow delete: if request.auth != null
     && request.auth.uid == resource.data.fromUid;
 }

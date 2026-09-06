@@ -35,6 +35,9 @@ import {
   getEventFriendSourceLabel,
   isSharedEventInvitee,
   leaveSharedEvent,
+  getSharedEvent,
+  formatRecentLeftNotice,
+  countPendingSuggestions,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
 import { getShowFoodInMenu } from '../services/profileService';
@@ -53,6 +56,7 @@ export default function TimelineScreen({ navigation, route }) {
   const [expandedId, setExpandedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(!!route.params?.openMenu);
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
+  const [shareNotices, setShareNotices] = useState({});
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
   const showToast = (message) => {
@@ -77,6 +81,30 @@ export default function TimelineScreen({ navigation, route }) {
     try {
       const data = await getEvents();
       setAllEvents(data);
+      const myUid = auth.currentUser?.uid;
+      const notices = {};
+      if (myUid) {
+        const creatorShareIds = [
+          ...new Set(
+            data
+              .filter((e) => e.shareId && !isSharedEventInvitee(e, myUid))
+              .map((e) => e.shareId),
+          ),
+        ].slice(0, 24);
+        await Promise.all(
+          creatorShareIds.map(async (sid) => {
+            try {
+              const shared = await getSharedEvent(sid);
+              if (!shared) return;
+              if (shared.createdByUid && shared.createdByUid !== myUid) return;
+              const left = !!formatRecentLeftNotice(shared);
+              const sug = countPendingSuggestions(shared) > 0;
+              if (left || sug) notices[sid] = { left, sug };
+            } catch (_) {}
+          }),
+        );
+      }
+      setShareNotices(notices);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -204,6 +232,16 @@ export default function TimelineScreen({ navigation, route }) {
         <Text style={styles.title} numberOfLines={expanded ? 4 : 2}>
           {item.title}
         </Text>
+        {item.shareId && shareNotices[item.shareId] ? (
+          <View style={styles.noticeFlagRow}>
+            {shareNotices[item.shareId].left ? (
+              <Text style={styles.noticeFlag}>Friend left</Text>
+            ) : null}
+            {shareNotices[item.shareId].sug ? (
+              <Text style={[styles.noticeFlag, styles.noticeFlagSug]}>Note suggested</Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {expanded && (
           <View style={styles.expanded}>
@@ -490,6 +528,24 @@ const styles = StyleSheet.create({
   eventImage: { width: '100%', height: 180, maxWidth: '100%', backgroundColor: '#0f1024', borderRadius: 10, marginBottom: 8 },
   shareLink: { color: '#c4b5fd', fontSize: 14, fontWeight: '600', marginTop: 8 },
   sharedBadge: { color: '#34d399', fontSize: 12, marginTop: 8, fontWeight: '600' },
+  noticeFlagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  noticeFlag: {
+    color: '#fde68a',
+    fontSize: 11,
+    fontWeight: '700',
+    backgroundColor: '#422006',
+    borderColor: '#f59e0b',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  noticeFlagSug: {
+    color: '#bfdbfe',
+    backgroundColor: '#1e3a5f',
+    borderColor: '#3b82f6',
+  },
   editLink: { color: '#60a5fa', marginTop: 8, fontSize: 13 },
   deleteLink: { color: '#f87171', marginTop: 8, fontSize: 13, fontWeight: '600' },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },

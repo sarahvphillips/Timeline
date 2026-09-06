@@ -370,18 +370,25 @@ async function ensureLocalSharedEvent(shared, uid, invite = null) {
   );
   if (existing) {
     const isInvitee = shared.createdByUid && shared.createdByUid !== uid;
+    const inviteCodeHint = invite && (invite.code || invite.id);
     const needsMeta =
       !existing.shareId ||
       (isInvitee && existing.source !== 'shared') ||
       !existing.sharedFrom ||
-      (friendEmail && !existing.sharedFromEmail);
+      (friendEmail && !existing.sharedFromEmail) ||
+      (inviteCodeHint && !existing.inviteCode);
     if (needsMeta) {
+      const inviteCode =
+        existing.inviteCode ||
+        (invite && (invite.code || invite.id)) ||
+        undefined;
       const patched = {
         ...existing,
         shareId: shared.id,
         isShared: true,
         sharedFrom: existing.sharedFrom || shared.createdByUid,
         sharedFromEmail: existing.sharedFromEmail || friendEmail,
+        inviteCode: inviteCode || existing.inviteCode,
       };
       if (isInvitee) {
         patched.source = 'shared';
@@ -405,6 +412,7 @@ async function ensureLocalSharedEvent(shared, uid, invite = null) {
     isShared: true,
     sharedFrom: shared.createdByUid,
     sharedFromEmail: friendEmail,
+    inviteCode: (invite && (invite.code || invite.id)) || undefined,
   });
   await saveEvent(payload);
   const after = await getEvents();
@@ -457,7 +465,20 @@ export async function getMySharedEvents() {
     );
   } catch (_) {}
 
-  return Object.values(byId).sort((a, b) => new Date(b.date) - new Date(a.date));
+  return Object.values(byId)
+    .filter((shared) => hasActiveOtherParticipants(shared, uid))
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+/** True if share still has at least one other active friend (not left/declined). */
+export function hasActiveOtherParticipants(shared, myUid) {
+  const uids = shared?.participantUids || [];
+  return uids.some((otherUid) => {
+    if (!otherUid || otherUid === myUid) return false;
+    const status = shared?.participants?.[otherUid]?.status;
+    if (status === 'left' || status === 'declined') return false;
+    return true;
+  });
 }
 
 export async function copyTextToClipboard(text) {
@@ -591,24 +612,21 @@ export async function leaveSharedEvent(event, { action = 'left' } = {}) {
       throw new Error(e?.message || 'Could not update the shared event. Try again.');
     }
 
-    try {
-      const q = query(collection(db, 'eventInvites'), where('shareId', '==', shareId));
-      const snap = await getDocs(q);
-      await Promise.all(
-        snap.docs.map(async (d) => {
-          const data = d.data() || {};
-          if (data.acceptedByUid && data.acceptedByUid !== uid) return;
-          if (data.status === 'declined' || data.status === 'expired') return;
-          if (data.status === 'accepted' && data.acceptedByUid !== uid) return;
-          await updateDoc(doc(db, 'eventInvites', d.id), {
-            status: 'declined',
-            declinedByUid: uid,
-            declinedAt: nowIso,
-          });
-        }),
-      );
-    } catch (e) {
-      console.warn('Could not update invites on leave', e);
+    // Do not query eventInvites by shareId (rules/query fragile). Update the
+    // single invite doc by id when we stored inviteCode on the local event.
+    const inviteCode = event.inviteCode
+      ? String(event.inviteCode).trim().toUpperCase()
+      : null;
+    if (inviteCode) {
+      try {
+        await updateDoc(doc(db, 'eventInvites', inviteCode), {
+          status: 'declined',
+          declinedByUid: uid,
+          declinedAt: nowIso,
+        });
+      } catch (_) {
+        // Silent — leave already succeeded; LogBox must not show a warn.
+      }
     }
   }
 

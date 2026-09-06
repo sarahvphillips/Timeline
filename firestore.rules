@@ -1,0 +1,78 @@
+﻿rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'sarah.v.phillips@googlemail.com';
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+
+      match /events/{eventId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /wordNumbers/{entryId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /settings/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /sharedEvents/{id} {
+      // Signed-in read so invitees can preview before accept (MVP).
+      // Tighten later to creator/participant OR pending-invite holder.
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.createdByUid
+        && request.auth.uid in request.resource.data.participantUids;
+      allow update: if isSignedIn()
+        && (request.auth.uid == resource.data.createdByUid
+            || request.auth.uid in resource.data.participantUids
+            || (request.auth.uid in request.resource.data.participantUids
+                && !(request.auth.uid in resource.data.participantUids)));
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.createdByUid;
+    }
+
+    match /eventInvites/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.fromUid;
+      // fromUid always; pending→accepted by acceptedByUid;
+      // pending→declined by declinedByUid; accepted→declined by acceptedByUid (leave cleanup)
+      allow update: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.fromUid
+          || (
+            resource.data.status == 'pending'
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedByUid == request.auth.uid
+          )
+          || (
+            resource.data.status == 'pending'
+            && request.resource.data.status == 'declined'
+            && request.resource.data.declinedByUid == request.auth.uid
+          )
+          || (
+            resource.data.status == 'accepted'
+            && request.resource.data.status == 'declined'
+            && resource.data.acceptedByUid == request.auth.uid
+            && request.resource.data.declinedByUid == request.auth.uid
+          )
+        );
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.fromUid;
+    }
+  }
+}
