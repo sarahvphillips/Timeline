@@ -108,7 +108,8 @@ export default function AddFoodScreen({ navigation, route }) {
       notify(isEditing ? 'Updated' : 'Saved', notice);
       navigation.goBack();
     } catch (e) {
-      const fail = 'Could not save. Please try again.';
+      console.warn('AddFood save failed', e);
+      const fail = e?.message || String(e) || 'Could not save. Please try again.';
       setSaveNotice(fail);
       notify('Error', fail);
     } finally {

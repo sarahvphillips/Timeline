@@ -416,20 +416,21 @@ export async function syncEventsFromCloud(uid) {
 
 export async function saveEvent(event) {
   const uid = getUid();
-  let events;
-  if (uid) {
-    if (EVENTS_FIRESTORE_SYNC_ENABLED) {
-      events = await syncEventsFromCloud(uid).catch(async () => {
-        const local = await readLocalEvents(uid);
-        return local.filter((ev) => eventBelongsToUid(ev, uid));
-      });
-    } else {
-      await migrateLegacyEventsOnce(uid);
+  // Local-first: never block/fail a save on cloud sync.
+  let events = [];
+  try {
+    if (uid) {
+      try {
+        await migrateLegacyEventsOnce(uid);
+      } catch (_) {}
       const local = await readLocalEvents(uid);
       events = local.filter((ev) => eventVisibleForUid(ev, uid));
+    } else {
+      events = await readLocalEvents(null);
     }
-  } else {
-    events = await readLocalEvents(null);
+  } catch (e) {
+    console.warn('saveEvent: failed to read local cache, starting empty', e);
+    events = [];
   }
   const now = new Date().toISOString();
   let saved = null;
