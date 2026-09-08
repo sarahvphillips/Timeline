@@ -857,8 +857,8 @@ export function getYearBubbleSummaries(events) {
   for (let y = current - 3; y <= current + 1; y += 1) {
     if (!years.includes(y)) years.push(y);
   }
-  // Newest first to match vertical timeline mock (2026 → 2025 → 2024).
-  years.sort((a, b) => b - a);
+  // Chronological ascending: oldest/past at top, furthest-future at bottom.
+  years.sort((a, b) => a - b);
 
   return years.map((year) => {
     const list = byYear[year] || [];
@@ -897,6 +897,7 @@ export function getYearBubbleSummaries(events) {
 }
 
 export function getMonthSummaries(events, year) {
+  // Months stay index-ascending (Jan→Dec): earlier months higher, later/future lower.
   const months = Array.from({ length: 12 }, (_, i) => ({
     month: i,
     letter: MONTH_LETTERS[i],
