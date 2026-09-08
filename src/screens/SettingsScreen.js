@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+﻿import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -340,6 +340,19 @@ export default function SettingsScreen({ navigation }) {
             onChangeText={setNewLabel}
             placeholder="New label"
             placeholderTextColor={colors.faint}
+            returnKeyType="done"
+            blurOnSubmit={true}
+            onSubmitEditing={() => addToList(newLabel, labels, setLabels, saveLabels, setNewLabel)}
+            {...(Platform.OS === 'web'
+              ? {
+                  onKeyPress: (e) => {
+                    if (e.nativeEvent.key === 'Enter') {
+                      e.preventDefault?.();
+                      addToList(newLabel, labels, setLabels, saveLabels, setNewLabel);
+                    }
+                  },
+                }
+              : null)}
           />
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.blue }]}
@@ -349,7 +362,7 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.section, { color: colors.muted }]}>Poem categories</Text>
+        <Text style={[styles.section, { color: colors.muted }]}>Poem types</Text>
         <View style={styles.row}>
           {poemCats.map((cat) => (
             <TouchableOpacity
@@ -366,8 +379,21 @@ export default function SettingsScreen({ navigation }) {
             style={[styles.input, styles.flex, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
             value={newPoemCat}
             onChangeText={setNewPoemCat}
-            placeholder="New poem category"
+            placeholder="New poem type"
             placeholderTextColor={colors.faint}
+            returnKeyType="done"
+            blurOnSubmit={true}
+            onSubmitEditing={() => addToList(newPoemCat, poemCats, setPoemCats, savePoemCategories, setNewPoemCat)}
+            {...(Platform.OS === 'web'
+              ? {
+                  onKeyPress: (e) => {
+                    if (e.nativeEvent.key === 'Enter') {
+                      e.preventDefault?.();
+                      addToList(newPoemCat, poemCats, setPoemCats, savePoemCategories, setNewPoemCat);
+                    }
+                  },
+                }
+              : null)}
           />
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.blue }]}
