@@ -732,6 +732,170 @@ export function getYearSummaries(events) {
   }));
 }
 
+/** Fixed bubble colours matching year-overview mock (purple poem, blue event, teal email/QR). */
+export const YEAR_BUBBLE_KIND_COLORS = {
+  email: '#14b8a6',
+  qr: '#14b8a6',
+  poem: '#8b5cf6',
+  food: '#f59e0b',
+  family: '#a855f7',
+  event: '#3b82f6',
+};
+
+const YEAR_BUBBLE_KIND_ORDER = [
+  'poem',
+  'event',
+  'email',
+  'qr',
+  'family',
+  'food',
+];
+
+/**
+ * Classify one event into a year-overview bubble kind.
+ * Priority: email → QR → poem → food → family → category (personal → Event).
+ */
+export function classifyYearBubbleKind(event) {
+  const source = String(event?.source || '').toLowerCase();
+  const hobbyType = String(event?.hobbyType || '').toLowerCase();
+  const category = String(event?.category || '').toLowerCase();
+  const title = String(event?.title || '');
+  const hasQr =
+    source === 'qr' ||
+    !!event?.qrLink ||
+    /\bqr\b/i.test(title) ||
+    /invite.*scan|scan.*invite/i.test(String(event?.description || ''));
+
+  if (source === 'email') {
+    return {
+      kind: 'email',
+      label: 'Email',
+      color: YEAR_BUBBLE_KIND_COLORS.email,
+      filter: { source: 'email' },
+    };
+  }
+  if (hasQr) {
+    return {
+      kind: 'qr',
+      label: 'QR',
+      color: YEAR_BUBBLE_KIND_COLORS.qr,
+      filter: { source: 'qr' },
+    };
+  }
+  if (hobbyType === 'poetry' || (source === 'hobby' && hobbyType === 'poetry')) {
+    return {
+      kind: 'poem',
+      label: 'Poem',
+      color: YEAR_BUBBLE_KIND_COLORS.poem,
+      filter: { hobbyType: 'poetry' },
+    };
+  }
+  if (source === 'food') {
+    return {
+      kind: 'food',
+      label: 'Food',
+      color: YEAR_BUBBLE_KIND_COLORS.food,
+      filter: { source: 'food' },
+    };
+  }
+  if (category === 'family') {
+    return {
+      kind: 'family',
+      label: 'Family',
+      color: YEAR_BUBBLE_KIND_COLORS.family,
+      filter: { category: 'family' },
+    };
+  }
+
+  // Remaining: group by CATEGORIES (personal shown as "Event" to match mock).
+  if (category === 'personal' || (!category && (source === 'manual' || !source))) {
+    return {
+      kind: 'event',
+      label: 'Event',
+      color: YEAR_BUBBLE_KIND_COLORS.event,
+      filter: { category: category || 'personal', source: source || 'manual' },
+    };
+  }
+
+  if (source === 'hobby' && hobbyType) {
+    const hobbyLabel = getHobbyTypeLabel(hobbyType) || 'Hobby';
+    return {
+      kind: `hobby:${hobbyType}`,
+      label: hobbyLabel,
+      color: getCategoryColor('hobby'),
+      filter: { source: 'hobby', hobbyType },
+    };
+  }
+
+  const cat = CATEGORIES.find((c) => c.id === category);
+  if (cat) {
+    return {
+      kind: `category:${cat.id}`,
+      label: cat.label,
+      color: cat.color,
+      filter: { category: cat.id },
+    };
+  }
+
+  return {
+    kind: 'event',
+    label: 'Event',
+    color: YEAR_BUBBLE_KIND_COLORS.event,
+    filter: { category: category || 'other' },
+  };
+}
+
+/**
+ * Per-year bubble summaries for YearOverviewScreen.
+ * Empty years still appear (spine labels) with bubbles: [].
+ * Only kinds with count > 0 are included in bubbles.
+ */
+export function getYearBubbleSummaries(events) {
+  const byYear = getEventsByYear(events || []);
+  const years = Object.keys(byYear).map(Number);
+  const current = new Date().getFullYear();
+  for (let y = current - 3; y <= current + 1; y += 1) {
+    if (!years.includes(y)) years.push(y);
+  }
+  // Newest first to match vertical timeline mock (2026 → 2025 → 2024).
+  years.sort((a, b) => b - a);
+
+  return years.map((year) => {
+    const list = byYear[year] || [];
+    const buckets = {};
+    list.forEach((event) => {
+      const meta = classifyYearBubbleKind(event);
+      if (!buckets[meta.kind]) {
+        buckets[meta.kind] = {
+          kind: meta.kind,
+          label: meta.label,
+          color: meta.color,
+          filter: meta.filter,
+          count: 0,
+        };
+      }
+      buckets[meta.kind].count += 1;
+    });
+
+    const bubbles = Object.values(buckets)
+      .filter((b) => b.count > 0)
+      .sort((a, b) => {
+        const ai = YEAR_BUBBLE_KIND_ORDER.indexOf(a.kind);
+        const bi = YEAR_BUBBLE_KIND_ORDER.indexOf(b.kind);
+        const ao = ai === -1 ? 100 : ai;
+        const bo = bi === -1 ? 100 : bi;
+        if (ao !== bo) return ao - bo;
+        return b.count - a.count || a.label.localeCompare(b.label);
+      });
+
+    return {
+      year,
+      count: list.length,
+      bubbles,
+    };
+  });
+}
+
 export function getMonthSummaries(events, year) {
   const months = Array.from({ length: 12 }, (_, i) => ({
     month: i,

@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 6 Sep 2026 (creator notices + leave invite cleanup)
+**Last updated:** 8 Sep 2026 (year-overview kind bubbles)
 
 ---
 
@@ -25,6 +25,7 @@
 - [x] Add poem â own screen (`AddPoemScreen`)
 - [x] Home â simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
 - [x] Year overview timeline (centre line, count bubbles, tap year â months)
+- [x] Year overview kind-bubbles (8 Sep 2026): purple spine; per-year coloured Poem/Event/Email/QR/Family/Food/category bubbles on dotted spokes (alternating L/R); `getYearBubbleSummaries` + tap bubble → MonthOverview with kind filter params (filter UI deferred)
 - [x] Month view (centre spine, JâD, count bubbles, empty months as ticks, + menu)
 - [x] Month items â centre line (Option B): items alternate left/right, tap to expand
 - [x] Timeline cards â compact, expandable
