@@ -8,6 +8,7 @@ import {
 } from '../services/deviceSession';
 import { useTheme } from '../themeContext';
 import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileService';
+import DesignTargetButton from '../components/DesignTargetButton';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -122,7 +123,13 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     });
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.bg }]}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      {/* TEMP design target — remove when home hub matches sketch. */}
+      <DesignTargetButton
+        imageSource={require('../../assets/design-home-hub.png')}
+        title="Home hub design (temp)"
+      />
+      <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={styles.profile}>
         <TouchableOpacity style={[styles.avatar, { backgroundColor: colors.card, borderColor: colors.blue }]} onPress={handlePhoto} activeOpacity={0.8}>
           {photoUri ? (
@@ -220,7 +227,8 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           title="Profile photo"
         />
       ) : null}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

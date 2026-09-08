@@ -21,6 +21,7 @@ import {
   buildGrokReplyPrompt,
 } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
+import DesignTargetButton from '../components/DesignTargetButton';
 import {
   getEventFriendSourceLabel,
   isSharedEventInvitee,
@@ -482,6 +483,11 @@ export default function AddEventScreen({ navigation, route }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
+      {/* TEMP design target — remove when event detail matches sketch. */}
+      <DesignTargetButton
+        imageSource={require('../../assets/design-event-detail-poetry-night.png')}
+        title="Event detail design (temp)"
+      />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.content}

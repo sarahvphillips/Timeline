@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents, getYearBubbleSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
+import DesignTargetButton from '../components/DesignTargetButton';
 
 const BUBBLE_SIZE = 78;
 const VERT_GAP = 62;
@@ -261,6 +262,11 @@ export default function YearOverviewScreen({ navigation }) {
           />
         ))}
       </ScrollView>
+      {/* TEMP design target — remove when year overview matches sketch. */}
+      <DesignTargetButton
+        imageSource={require('../../assets/design-year-bubbles.png')}
+        title="Year bubbles design (temp)"
+      />
       <HomeFab navigation={navigation} besidePlus={false} />
     </View>
   );

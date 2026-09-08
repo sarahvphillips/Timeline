@@ -1,7 +1,7 @@
-# Timeline App â Todo List
+- [x] TEMP Design mock preview buttons (8 Sep 2026): reusable DesignTargetButton + ssets/design-*.png on Home, YearOverview, Settings, Timeline (events-year), AddEvent (poetry-night detail), EventsWithFriends — remove when screens match sketches\n# Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 8 Sep 2026 (Settings Purchases security / friend invite Soon rows)
+**Last updated:** 8 Sep 2026 (temp Design mock previews)
 
 ---
 

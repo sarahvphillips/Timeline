@@ -31,6 +31,7 @@ import {
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
+import DesignTargetButton from '../components/DesignTargetButton';
 import {
   getEventFriendSourceLabel,
   isSharedEventInvitee,
@@ -392,6 +393,11 @@ export default function TimelineScreen({ navigation, route }) {
         </View>
       )}
 
+      {/* TEMP design target — remove when timeline / events-year matches sketch. */}
+      <DesignTargetButton
+        imageSource={require('../../assets/design-events-year.png')}
+        title="Events year design (temp)"
+      />
       <HomeFab navigation={navigation} />
       <TouchableOpacity style={styles.fab} onPress={() => setMenuOpen(true)}>
         <Text style={styles.fabText}>+</Text>

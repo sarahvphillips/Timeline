@@ -510,6 +510,11 @@ export default function SettingsScreen({ navigation }) {
         )}
 
       </ScrollView>
+      {/* TEMP design target — remove when settings matches sketch. */}
+      <DesignTargetButton
+        imageSource={require('../../assets/design-settings.png')}
+        title="Settings design (temp)"
+      />
       <HomeFab navigation={navigation} besidePlus={false} />
     </View>
   );
