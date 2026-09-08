@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 8 Sep 2026 (year-overview kind bubbles)
+**Last updated:** 8 Sep 2026 (Settings Purchases security / friend invite Soon rows)
 
 ---
 
@@ -26,6 +26,8 @@
 - [x] Home â simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
 - [x] Year overview timeline (centre line, count bubbles, tap year â months)
 - [x] Year overview kind-bubbles (8 Sep 2026): purple spine; per-year coloured Poem/Event/Email/QR/Family/Food/category bubbles on dotted spokes (alternating L/R); `getYearBubbleSummaries` + tap bubble → MonthOverview with kind filter params (filter UI deferred)
+- [x] Settings UI rename (8 Sep 2026): **Poem categories** → **Poem types** / placeholder **New poem type**. Labels unchanged. Data keys (`poemCategories`, `@timeline_poem_categories_*`) kept so existing lists still load.
+- [x] Settings: Enter/Return in Labels and Poem types add fields adds the item (same as Add button) (8 Sep 2026)
 - [x] Month view (centre spine, JâD, count bubbles, empty months as ticks, + menu)
 - [x] Month items â centre line (Option B): items alternate left/right, tap to expand
 - [x] Timeline cards â compact, expandable
@@ -51,8 +53,10 @@
 
 ## Built as placeholders (rows exist, not connected yet)
 
-- [x] Settings screen (light/dark + colour palettes; profile display name + DOB; custom labels; poem categories - all local AsyncStorage for now; HomeFab on timeline/year/month/settings)
+- [x] Settings screen (light/dark + colour palettes; profile display name + DOB; custom labels; poem types (UI label; storage key poemCategories unchanged) - all local AsyncStorage for now; HomeFab on timeline/year/month/settings)
 - [x] Settings menu shell (5 Sep 2026): working prefs at top; Account (real **Signed-in devices** from `users/{uid}/sessions` + Soon rows); Timeline / Sharing & mail / Privacy Soon rows (web `window.alert` / native Alert); wired **About** (app name, version 1.0.0 from expo-constants/app.json, Expo SDK 57, #kern2622); local cache clear kept near bottom
+- [x] Settings Soon: **Friend invite limits** + **Friend referrals** (8 Sep 2026) — free tier caps invites/friends per shared event; paid unlocks more; refer-a-friend → one month free invite headroom (details TBD).
+- [x] Settings Soon: **Purchases security** (8 Sep 2026) — placeholder under Privacy; 2FA-style checks before in-app purchases. Purchases UX likely Home hub for browse/buy + Settings for security/payment methods + in-context buy actions.
 - [x] Events with friends MVP (per-event share invites + intersecting view)
 - [x] Delete event with confirm (Add Event edit + Timeline expanded Delete; web uses window.confirm; removes local + Firestore for uid when sync on)
 - [x] Add Event save feedback on web (window.alert like Settings clear-cache; Save disabled while saving; on-screen Saved notice; goBack once)
@@ -101,7 +105,7 @@ Product map:
 - [x] User add image (camera, gallery, or files; Google Photos appears via the Android system gallery - no separate OAuth)
 - [ ] Full audio file attach for singing/music
 - [ ] Labels shown on expanded timeline card
-- [x] Customisable poem categories (Settings, local for now)
+- [x] Customisable poem types (Settings UI says Type; AsyncStorage/Firestore key poemCategories unchanged)
 - [x] Label / tag system basics (Settings can edit labels list locally; showing on expanded cards still open)
 - [ ] User add tv or films watched (description + score /10)
 - [ ] User add Spotify activity
@@ -181,7 +185,7 @@ Product map:
   | `@date_span_list_{uid}` / `@date_span_list_guest` | uid / guest | Date spans (newly scoped 5 Sep). Legacy `@date_span_list` migrates only when `@timeline_last_uid` matches. |
   | `@timeline_profile_{uid}` / guest | uid / guest | Display name + DOB. |
   | `@timeline_labels_{uid}` / guest | uid / guest | Custom labels. |
-  | `@timeline_poem_categories_{uid}` / guest | uid / guest | Poem categories. |
+  | `@timeline_poem_categories_{uid}` / guest | uid / guest | Poem types (UI); key name unchanged. |
   | `@timeline_theme_mode_{uid}` / `@timeline_theme_palette_{uid}` (+ guest) | uid / guest | Appearance prefs. |
   | `@timeline_food_prefs_{uid}` / guest | uid / guest | Show Food in + menu (default off). |
   | `@timeline_img_{eventId}` / `_cover` | per event | Heavy web photo payloads (data URIs) split out of events JSON to avoid localStorage quota. |

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -480,6 +480,9 @@ export default function SettingsScreen({ navigation }) {
         <Text style={[styles.section, { color: colors.muted }]}>Privacy</Text>
         {renderSoonRow("Who can see shared events", "Privacy controls for shared events")}
         {renderSoonRow("Export data", "Exporting your data")}
+        {renderSoonRow("Purchases security", "2-factor auth and similar checks before in-app purchases")}
+        {renderSoonRow("Friend invite limits", "Free tier caps how many invites and friends per shared event; paid unlocks more")}
+        {renderSoonRow("Friend referrals", "Refer a friend for one month of free invite headroom (details TBD)")}
 
         <Text style={[styles.section, { color: colors.muted }]}>About</Text>
         <View style={[styles.aboutCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
