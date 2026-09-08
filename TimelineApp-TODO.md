@@ -1,4 +1,4 @@
-- [x] TEMP Design mock preview buttons (8 Sep 2026): reusable DesignTargetButton + ssets/design-*.png on Home, YearOverview, Settings, Timeline (events-year), AddEvent (poetry-night detail), EventsWithFriends — remove when screens match sketches\n# Timeline App â Todo List
+# Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
 **Last updated:** 8 Sep 2026 (temp Design mock previews)
@@ -26,6 +26,7 @@
 - [x] Home â simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
 - [x] Year overview timeline (centre line, count bubbles, tap year â months)
 - [x] Year overview kind-bubbles (8 Sep 2026): purple spine; per-year coloured Poem/Event/Email/QR/Family/Food/category bubbles on dotted spokes (alternating L/R); `getYearBubbleSummaries` + tap bubble → MonthOverview with kind filter params (filter UI deferred)
+- [x] TEMP Design mock preview buttons (8 Sep 2026): reusable `DesignTargetButton` + `assets/design-*.png` on Home, YearOverview, Settings, Timeline (events-year), AddEvent (poetry-night detail), EventsWithFriends — remove when screens match sketches
 - [x] Settings UI rename (8 Sep 2026): **Poem categories** → **Poem types** / placeholder **New poem type**. Labels unchanged. Data keys (`poemCategories`, `@timeline_poem_categories_*`) kept so existing lists still load.
 - [x] Settings: Enter/Return in Labels and Poem types add fields adds the item (same as Add button) (8 Sep 2026)
 - [x] Month view (centre spine, JâD, count bubbles, empty months as ticks, + menu)
