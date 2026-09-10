@@ -121,7 +121,12 @@ Product map:
 ### Daily life & tracking
 
 - [ ] Time playing games (Steam / PlayStation / Android)
-- [ ] User add purchases
+- [x] User add purchases (preview mock 10 Sep 2026): manual / email / Amazon / Uber Eats / website / **notification screenshot** (easy path — no bank login) / bank screenshot. **Uber Eats Gmail import**. Driver details perk.
+- [x] **Banking section** (preview 10 Sep 2026): own hub, not mixed with poems/life. Event kinds: Direct debit, Standing order, Rent, Credit card, Large spend, Incoming. Monthly repeat, pin to timeline, 6-month spend bars from purchases + these events.
+- [ ] **Open Banking** (after screenshot/notification flow is solid). Optional connect for Lloyds and other UK banks so payments can import without photos. Not all users will want this; screenshots stay. Needs FCA-regulated provider (TrueLayer / Plaid / Moneyhub etc.), consent, and a perk/credits discussion. Could feed the Banking hub (upcoming DDs, rent, cards) as well as purchases.
+- [ ] **Purchases: Delivery tracking perk** (credits or subscription — not all users want this). Driver name / reg / photo / phone from a delivery screenshot. Later: doorbell clip of arrival, phone screen recording, phone camera of drop-off. Off by default. Preview toggle on Add purchase.
+- [x] **Clip points without editing the original** (preview 10 Sep 2026): pick video, show size + length, user sets start/end. **Checksum the trimmed copy** (what the user verifies). Also store the original file checksum. Preview downloads a new WebM copy (does not overwrite gallery). Expo later: save clip to gallery (`MediaLibrary`). Re-encode in browser; native can stream-copy.
+- [x] **App checksums** (preview): Home section + `/checksums`. Events get a checksum on create; each edit adds a new checksum row (edit-list). Videos checksummed too.
 - [ ] User add household chores
 - [ ] User add google locations visited
 
