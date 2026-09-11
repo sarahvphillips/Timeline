@@ -88,6 +88,16 @@ function staffDoc() {
   return doc(db, 'app', 'staff');
 }
 
+function userStaffDoc(uid) {
+  return doc(db, 'users', uid, 'settings', 'staff');
+}
+
+function isDenied(err) {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '');
+  return code.includes('permission-denied') || msg.includes('insufficient permissions');
+}
+
 function stamp() {
   return new Date().toISOString();
 }
@@ -114,34 +124,70 @@ function payloadForCloud(state) {
   };
 }
 
+let memCache = null;
+let memAt = 0;
+const MEM_MS = 8000;
+
 export async function loadAdmin(signedInEmail) {
   const email = normalizeEmail(signedInEmail) || normalizeEmail(auth.currentUser?.email);
+  const uid = auth.currentUser?.uid;
+  if (memCache && Date.now() - memAt < MEM_MS) {
+    return { ...memCache, signedInEmail: email || memCache.signedInEmail };
+  }
+
   let local = defaultState(email);
   try {
     const raw = await AsyncStorage.getItem(STORE_KEY);
     if (raw) local = mergeState(JSON.parse(raw), email);
   } catch (_) {}
+
+  const adopt = async (data) => {
+    const merged = mergeState(data, email);
+    await AsyncStorage.setItem(STORE_KEY, JSON.stringify(payloadForCloud(merged)));
+    memCache = merged;
+    memAt = Date.now();
+    return merged;
+  };
+
+  if (uid) {
+    try {
+      const snap = await getDoc(userStaffDoc(uid));
+      if (snap.exists()) return adopt(snap.data());
+    } catch (e) {
+      if (!isDenied(e)) console.warn('Admin settings load failed; using device copy.', e);
+    }
+  }
+
   try {
     const snap = await getDoc(staffDoc());
-    if (snap.exists()) {
-      const merged = mergeState(snap.data(), email);
-      await AsyncStorage.setItem(STORE_KEY, JSON.stringify(payloadForCloud(merged)));
-      return merged;
-    }
+    if (snap.exists()) return adopt(snap.data());
   } catch (e) {
-    console.warn('Admin cloud load failed; using device copy.', e);
+    if (!isDenied(e)) console.warn('Admin shared load failed; using device copy.', e);
   }
-  return { ...local, signedInEmail: email || local.signedInEmail };
+
+  const out = { ...local, signedInEmail: email || local.signedInEmail };
+  memCache = out;
+  memAt = Date.now();
+  return out;
 }
 
 export async function saveAdmin(state) {
   const next = mergeState(state, state.signedInEmail);
-  await AsyncStorage.setItem(STORE_KEY, JSON.stringify(payloadForCloud(next)));
-  if (isOwnerEmail(next.signedInEmail) && auth.currentUser) {
+  const payload = payloadForCloud(next);
+  await AsyncStorage.setItem(STORE_KEY, JSON.stringify(payload));
+  memCache = next;
+  memAt = Date.now();
+  const uid = auth.currentUser?.uid;
+  if (isOwnerEmail(next.signedInEmail) && uid) {
     try {
-      await setDoc(staffDoc(), payloadForCloud(next), { merge: true });
+      await setDoc(userStaffDoc(uid), payload, { merge: true });
     } catch (e) {
-      console.warn('Admin cloud save failed; kept on this device.', e);
+      if (!isDenied(e)) console.warn('Admin settings save failed; kept on this device.', e);
+    }
+    try {
+      await setDoc(staffDoc(), payload, { merge: true });
+    } catch (e) {
+      if (!isDenied(e)) console.warn('Admin shared save failed; kept on this device.', e);
     }
   }
   return next;
