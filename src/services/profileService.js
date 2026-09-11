@@ -19,6 +19,9 @@ function poemCatsKey(uid) {
 function foodPrefsKey(uid) {
   return uid ? `@timeline_food_prefs_${uid}` : '@timeline_food_prefs_guest';
 }
+function washPrefsKey(uid) {
+  return uid ? `@timeline_wash_prefs_${uid}` : '@timeline_wash_prefs_guest';
+}
 function profilePhotoKey(uid) {
   return uid ? `@profile_photo_${uid}` : '@profile_photo_guest';
 }
@@ -263,6 +266,60 @@ async function syncFoodPrefsFromCloud(uid, localShow) {
   return cloud.showFoodInMenu;
 }
 
+/** Default ON — Wash loads on Home and in + until the user turns it off. */
+export async function getShowWashInMenu() {
+  const uid = getUid();
+  try {
+    const raw = await AsyncStorage.getItem(washPrefsKey(uid));
+    if (!raw) return true;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.showWashInMenu === 'boolean') return parsed.showWashInMenu;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+export async function saveShowWashInMenu(enabled) {
+  const uid = getUid();
+  const next = {
+    showWashInMenu: !!enabled,
+    updatedAt: new Date().toISOString(),
+  };
+  await AsyncStorage.setItem(washPrefsKey(uid), JSON.stringify(next));
+  if (uid) {
+    try {
+      await pushSettingsDoc('washPrefs', next);
+    } catch (e) {
+      console.warn('Could not sync wash prefs to the cloud. Saved on this device.', e);
+    }
+  }
+  return next.showWashInMenu;
+}
+
+async function syncWashPrefsFromCloud(uid, localShow) {
+  const snap = await getDoc(settingsDoc(uid, 'washPrefs'));
+  if (!snap.exists()) {
+    if (localShow === false) {
+      await setDoc(
+        settingsDoc(uid, 'washPrefs'),
+        stripUndefined({
+          showWashInMenu: false,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+    }
+    return localShow !== false;
+  }
+  const data = snap.data() || {};
+  const cloud = {
+    showWashInMenu: data.showWashInMenu !== false,
+    updatedAt: toIso(data.updatedAt) || new Date().toISOString(),
+  };
+  await AsyncStorage.setItem(washPrefsKey(uid), JSON.stringify(cloud));
+  return cloud.showWashInMenu;
+}
+
 async function syncProfileFromCloud(uid, local) {
   const snap = await getDoc(settingsDoc(uid, 'profile'));
   if (!snap.exists()) {
@@ -399,6 +456,7 @@ export async function syncSettingsFromCloud(uid) {
       poemCategories: await getPoemCategories(),
       theme: await loadThemePrefs(),
       showFoodInMenu: await getShowFoodInMenu(),
+      showWashInMenu: await getShowWashInMenu(),
     };
   }
 
@@ -409,6 +467,7 @@ export async function syncSettingsFromCloud(uid) {
   let poemCategories = await getPoemCategories();
   let theme = await loadThemePrefs();
   let showFoodInMenu = await getShowFoodInMenu();
+  let showWashInMenu = await getShowWashInMenu();
 
   // Read raw profile to preserve updatedAt for upload-if-empty
   try {
@@ -458,5 +517,11 @@ export async function syncSettingsFromCloud(uid) {
     console.warn('Could not sync food prefs from the cloud. Using local.', e);
   }
 
-  return { profile, labels, poemCategories, theme, showFoodInMenu };
+  try {
+    showWashInMenu = await syncWashPrefsFromCloud(uid, showWashInMenu);
+  } catch (e) {
+    console.warn('Could not sync wash prefs from the cloud. Using local.', e);
+  }
+
+  return { profile, labels, poemCategories, theme, showFoodInMenu, showWashInMenu };
 }

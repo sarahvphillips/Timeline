@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents, getMonthSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
-import { getShowFoodInMenu } from '../services/profileService';
+import DesignTargetButton from '../components/DesignTargetButton';
+import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
 export default function MonthOverviewScreen({ navigation, route }) {
   const startYear = route.params?.year || new Date().getFullYear();
@@ -11,6 +12,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
+  const [showWashInMenu, setShowWashInMenu] = useState(true);
 
   const load = useCallback(async () => {
     // Await cloud pull before painting month spine from local cache.
@@ -27,6 +29,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
     useCallback(() => {
       load();
       getShowFoodInMenu().then(setShowFoodInMenu).catch(() => setShowFoodInMenu(false));
+      getShowWashInMenu().then(setShowWashInMenu).catch(() => setShowWashInMenu(true));
     }, [load])
   );
 
@@ -124,6 +127,10 @@ export default function MonthOverviewScreen({ navigation, route }) {
       </ScrollView>
 
       <HomeFab navigation={navigation} />
+      <DesignTargetButton
+        imageSource={require('../../assets/design-month-poems.jpg')}
+        title="Month poems-chip design (temp)"
+      />
       <TouchableOpacity style={styles.fab} onPress={() => setMenuOpen(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
@@ -140,6 +147,9 @@ export default function MonthOverviewScreen({ navigation, route }) {
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu
                 ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]
+                : []),
+              ...(showWashInMenu
+                ? [{ label: 'Wash load', action: () => navigation.navigate('AddWashLoad') }]
                 : []),
             ].map((opt) => (
               <TouchableOpacity

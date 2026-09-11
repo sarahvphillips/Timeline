@@ -29,6 +29,8 @@ import {
   filterEventsByYearMonth,
   getMonthName,
   EVENTS_FIRESTORE_SYNC_ENABLED,
+  washStatusLabel,
+  washTumbleLabel,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
@@ -41,7 +43,7 @@ import {
   countPendingSuggestions,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
-import { getShowFoodInMenu } from '../services/profileService';
+import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
 const GROK_URL = 'https://grok.x.ai';
 
@@ -57,6 +59,7 @@ export default function TimelineScreen({ navigation, route }) {
   const [expandedId, setExpandedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(!!route.params?.openMenu);
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
+  const [showWashInMenu, setShowWashInMenu] = useState(true);
   const [shareNotices, setShareNotices] = useState({});
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
@@ -116,6 +119,7 @@ export default function TimelineScreen({ navigation, route }) {
     useCallback(() => {
       loadEvents();
       getShowFoodInMenu().then(setShowFoodInMenu).catch(() => setShowFoodInMenu(false));
+      getShowWashInMenu().then(setShowWashInMenu).catch(() => setShowWashInMenu(true));
     }, [loadEvents])
   );
 
@@ -246,10 +250,20 @@ export default function TimelineScreen({ navigation, route }) {
 
         {expanded && (
           <View style={styles.expanded}>
+            {item.location ? (
+              <Text style={styles.hobbyMeta}>Location · {item.location}</Text>
+            ) : null}
             {item.source === 'food' ? (
               <Text style={styles.hobbyMeta}>
                 {item.foodStatus === 'planned' ? 'Planned' : 'Eaten'}
                 {item.foodItems ? ` — ${item.foodItems}` : ''}
+              </Text>
+            ) : null}
+            {item.source === 'laundry' ? (
+              <Text style={styles.hobbyMeta}>
+                Household · {washStatusLabel(item.washStatus) || 'Wash'}
+                {item.washTumble ? ` · ${washTumbleLabel(item.washTumble)}` : ''}
+                {item.washSang ? ` · sang${item.washSangAt ? ' ' + item.washSangAt : ''}` : ''}
               </Text>
             ) : null}
 
@@ -281,6 +295,17 @@ export default function TimelineScreen({ navigation, route }) {
             ) : null}
             {item.imageUri ? (
               <Image source={{ uri: item.imageUri }} style={styles.eventImage} resizeMode="cover" />
+            ) : null}
+            {item.videoUri ? (
+              <Text style={styles.meta}>Video saved on this device</Text>
+            ) : null}
+            {item.source === 'laundry' && Array.isArray(item.washCodes) && item.washCodes.length ? (
+              <Text style={styles.meta}>
+                {item.washCodes
+                  .map((c) => [c.code, c.time].filter(Boolean).join(' '))
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
             ) : null}
             {item.photoNote ? (
               <Text style={styles.meta}>{item.imageUri ? item.photoNote : 'Photo: ' + item.photoNote}</Text>
@@ -316,6 +341,7 @@ export default function TimelineScreen({ navigation, route }) {
             <TouchableOpacity
               onPress={() => {
                 if (item.source === 'food') navigation.navigate('AddFood', { event: item });
+                else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
                 else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
                 else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
                 else navigation.navigate('AddEvent', { event: item });
@@ -415,6 +441,9 @@ export default function TimelineScreen({ navigation, route }) {
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu
                 ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]
+                : []),
+              ...(showWashInMenu
+                ? [{ label: 'Wash load', action: () => navigation.navigate('AddWashLoad') }]
                 : []),
               { label: 'Word to Int', action: () => navigation.navigate('WordToInt') },
               { label: 'Days between dates', action: () => navigation.navigate('DateSpan') },

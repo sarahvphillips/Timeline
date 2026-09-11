@@ -357,3 +357,112 @@ export function promptImageSourceNative(opts) {
   Alert.alert(title, 'On Android, Google Photos appears in the system gallery.', buttons);
   return true;
 }
+
+export function isVideoPicked(assetOrUri) {
+  const mime = String(assetOrUri?.mimeType || assetOrUri?.type || '').toLowerCase();
+  if (mime.startsWith('video/')) return true;
+  const uri = typeof assetOrUri === 'string' ? assetOrUri : assetOrUri?.uri || '';
+  return /\.(mp4|mov|m4v|webm|3gp)(\?|#|$)/i.test(String(uri));
+}
+
+async function persistWashAsset(asset) {
+  if (!asset || !asset.uri) return null;
+  if (isVideoPicked(asset)) {
+    return {
+      uri: asset.uri,
+      filename: asset.fileName || asset.filename || 'wash.mp4',
+      kind: 'video',
+    };
+  }
+  const picked = await persistAsset(asset);
+  if (!picked) return null;
+  return { ...picked, kind: 'image' };
+}
+
+export async function pickWashFromGallery() {
+  try {
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Photos permission',
+          'Permission to access photos and videos is needed for a wash load.'
+        );
+        return null;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsEditing: false,
+      quality: JPEG_QUALITY,
+      base64: true,
+    });
+    if (result.canceled || !result.assets || !result.assets[0]) return null;
+    return persistWashAsset(result.assets[0]);
+  } catch (e) {
+    Alert.alert('Could not open gallery', e && e.message ? e.message : 'Please try again.');
+    return null;
+  }
+}
+
+export async function pickWashFromCamera(video) {
+  try {
+    if (!isCameraAvailable()) {
+      Alert.alert(
+        'Camera unavailable',
+        'This device cannot record. Choose from gallery or files instead.'
+      );
+      return null;
+    }
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Camera permission', 'Permission to use the camera is needed.');
+        return null;
+      }
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: video ? ['videos'] : ['images'],
+      allowsEditing: false,
+      quality: JPEG_QUALITY,
+      base64: !video,
+    });
+    if (result.canceled || !result.assets || !result.assets[0]) return null;
+    return persistWashAsset(result.assets[0]);
+  } catch (e) {
+    Alert.alert(
+      'Could not open camera',
+      e && e.message ? e.message : 'Camera is not available here. Try gallery or files.'
+    );
+    return null;
+  }
+}
+
+export async function pickWashFromFile() {
+  try {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['image/*', 'video/*'],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets || !result.assets[0]) return null;
+    const asset = result.assets[0];
+    return persistWashAsset({
+      uri: asset.uri,
+      fileName: asset.name,
+      mimeType: asset.mimeType,
+      base64: asset.base64,
+    });
+  } catch (e) {
+    Alert.alert('Could not open files', e && e.message ? e.message : 'Please try again.');
+    return null;
+  }
+}
+
+export async function pickWashFromSource(source) {
+  if (source === 'camera') return pickWashFromCamera(false);
+  if (source === 'video') return pickWashFromCamera(true);
+  if (source === 'gallery') return pickWashFromGallery();
+  if (source === 'file') return pickWashFromFile();
+  return null;
+}

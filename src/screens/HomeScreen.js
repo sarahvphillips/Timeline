@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, Platform } from 'react-native';
 import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSourceSheet';
 import {
@@ -6,9 +6,12 @@ import {
   listSessions,
   otherRecentSessions,
 } from '../services/deviceSession';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../themeContext';
 import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileService';
 import DesignTargetButton from '../components/DesignTargetButton';
+import { getEvents, getLatestWash, washStatusLabel } from '../services/eventService';
+import { getShowWashInMenu } from '../services/profileService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -33,6 +36,29 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [thisDeviceId, setThisDeviceId] = useState(null);
   const [sessions, setSessions] = useState([]);
+  const [showWash, setShowWash] = useState(true);
+  const [latestWash, setLatestWash] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getShowWashInMenu()
+        .then((on) => {
+          if (!cancelled) setShowWash(on !== false);
+        })
+        .catch(() => {
+          if (!cancelled) setShowWash(true);
+        });
+      getEvents()
+        .then((list) => {
+          if (!cancelled) setLatestWash(getLatestWash(list));
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -204,6 +230,35 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Days between dates</Text>
       </TouchableOpacity>
 
+      {showWash ? (
+        <>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.blue }]}
+            onPress={() => navigation.navigate('AddWashLoad')}
+          >
+            <Text style={styles.buttonText}>Wash loads</Text>
+          </TouchableOpacity>
+          {latestWash ? (
+            <TouchableOpacity
+              style={[styles.latestWash, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+              onPress={() => navigation.navigate('AddWashLoad', { event: latestWash })}
+            >
+              <Text style={[styles.latestLabel, { color: colors.muted }]}>Latest wash</Text>
+              <Text style={[styles.latestTitle, { color: colors.text }]} numberOfLines={2}>
+                {latestWash.title}
+              </Text>
+              <Text style={[styles.latestMeta, { color: colors.faint }]}>
+                {washStatusLabel(latestWash.washStatus) || 'Wash'}
+                {latestWash.date ? ` · ${String(latestWash.date).slice(0, 10)}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
+      ) : null}
+
+
+      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
+
 
       <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
         <Text style={[styles.ghostText, { color: colors.faint }]}>Settings</Text>
@@ -352,4 +407,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  latestWash: {
+    width: '100%',
+    maxWidth: 320,
+    marginTop: -4,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  latestLabel: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  latestTitle: { fontSize: 15, fontWeight: '600' },
+  latestMeta: { fontSize: 12, marginTop: 4 },
 });

@@ -22,6 +22,7 @@ const QUOTA_USER_MESSAGE =
 
 function imageStorageKey(eventId, field) {
   if (field === 'coverImageUri') return `@timeline_img_${eventId}_cover`;
+  if (field === 'videoUri') return `@timeline_img_${eventId}_video`;
   return `@timeline_img_${eventId}`;
 }
 
@@ -54,8 +55,9 @@ async function removeImageKeysForEvents(events) {
     if (ev.id) {
       keys.add(imageStorageKey(ev.id, 'imageUri'));
       keys.add(imageStorageKey(ev.id, 'coverImageUri'));
+      keys.add(imageStorageKey(ev.id, 'videoUri'));
     }
-    for (const field of ['imageUri', 'coverImageUri']) {
+    for (const field of ['imageUri', 'coverImageUri', 'videoUri']) {
       const u = ev[field];
       if (typeof u === 'string' && u.startsWith(IMG_REF_PREFIX)) {
         keys.add(u.slice(IMG_REF_PREFIX.length));
@@ -86,7 +88,7 @@ async function externalizeEventImages(events) {
       continue;
     }
     const copy = { ...ev };
-    for (const field of ['imageUri', 'coverImageUri']) {
+    for (const field of ['imageUri', 'coverImageUri', 'videoUri']) {
       const uri = copy[field];
       if (!isHeavyImagePayload(uri)) continue;
       const key = imageStorageKey(ev.id, field);
@@ -106,7 +108,7 @@ async function hydrateEventImages(events) {
   for (const ev of events) {
     if (!ev) continue;
     const copy = { ...ev };
-    for (const field of ['imageUri', 'coverImageUri']) {
+    for (const field of ['imageUri', 'coverImageUri', 'videoUri']) {
       const uri = copy[field];
       if (typeof uri !== 'string' || !uri.startsWith(IMG_REF_PREFIX)) continue;
       const key = uri.slice(IMG_REF_PREFIX.length);
@@ -213,7 +215,7 @@ export async function clearLocalEventsForUid(uid) {
  *   description: string,
  *   date: string (ISO),
  *   category: string,
- *   source: 'manual' | 'email' | 'hobby' | 'food' | 'shared' | ...,
+ *   source: 'manual' | 'email' | 'hobby' | 'food' | 'laundry' | 'shared' | ...,
  *   isShared?: boolean,
  *   shareId?: string,
  *   sharedFrom?: string,       // inviter uid
@@ -223,6 +225,16 @@ export async function clearLocalEventsForUid(uid) {
  *   hobbyType?: 'poetry' | 'singing' | 'music' | 'reading' | 'other',
  *   foodStatus?: 'planned' | 'eaten',  // food source only
  *   foodItems?: string,       // free-text items for food entries
+ *   washStatus?: 'loaded' | 'running' | 'done' | 'drying' | 'put_away',
+ *   washItems?: string,
+ *   washNote?: string,
+ *   washSetting?: string,
+ *   washTumble?: 'yes' | 'hang' | 'some' | 'later',
+ *   washSang?: boolean,
+ *   washSangAt?: string,
+ *   washSongNote?: string,
+ *   washCodes?: { code: string, time: string, note?: string }[],
+ *   videoUri?: string,        // local-only video (never Firestore)
  *   audioNote?: string,   // filename or note for singing/music files
  *   readingProgress?: string, // e.g. "Chapter 3, page 42"
  *   collectionName?: string,  // album or poetry book name
@@ -317,11 +329,16 @@ function isLocalOnlyImageUri(uri) {
  */
 function eventPayloadForCloud(event, uid) {
   const payload = { ...event, ownerUid: uid };
-  ['imageUri', 'coverImageUri'].forEach((key) => {
+  ['imageUri', 'coverImageUri', 'videoUri'].forEach((key) => {
     if (isLocalOnlyImageUri(payload[key])) {
       delete payload[key];
     }
   });
+  if (payload.source === 'laundry') {
+    delete payload.imageUri;
+    delete payload.coverImageUri;
+    delete payload.videoUri;
+  }
   return stripUndefined(payload);
 }
 
@@ -525,6 +542,7 @@ export async function syncEventsFromCloud(uid) {
         ...ev,
         imageUri: ev.imageUri || (prev && prev.imageUri) || undefined,
         coverImageUri: ev.coverImageUri || (prev && prev.coverImageUri) || undefined,
+        videoUri: ev.videoUri || (prev && prev.videoUri) || undefined,
       };
     });
 
@@ -655,6 +673,7 @@ export const CATEGORIES = [
   { id: 'health', label: 'Health', color: '#22c55e' },
   { id: 'travel', label: 'Travel', color: '#f59e0b' },
   { id: 'hobby', label: 'Hobby', color: '#8b5cf6' },
+  { id: 'household', label: 'Household', color: '#38bdf8' },
   { id: 'days_between', label: 'Days Between', color: '#06b6d4' },
   { id: 'other', label: 'Other', color: '#64748b' },
 ];
@@ -738,6 +757,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   qr: '#14b8a6',
   poem: '#8b5cf6',
   food: '#f59e0b',
+  household: '#38bdf8',
   family: '#a855f7',
   event: '#3b82f6',
 };
@@ -749,6 +769,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'qr',
   'family',
   'food',
+  'household',
 ];
 
 /**
@@ -796,6 +817,14 @@ export function classifyYearBubbleKind(event) {
       label: 'Food',
       color: YEAR_BUBBLE_KIND_COLORS.food,
       filter: { source: 'food' },
+    };
+  }
+  if (source === 'laundry' || category === 'household') {
+    return {
+      kind: 'household',
+      label: 'Household',
+      color: YEAR_BUBBLE_KIND_COLORS.household,
+      filter: { category: 'household' },
     };
   }
   if (category === 'family') {
@@ -1041,4 +1070,53 @@ export function buildGrokReplyPrompt(event) {
   parts.push('');
   parts.push('Write a clear, polite draft reply I can copy and send.');
   return parts.join('\n');
+}
+
+export const WASH_STATUSES = [
+  { id: 'loaded', label: 'Loaded' },
+  { id: 'running', label: 'Running' },
+  { id: 'done', label: 'Done' },
+  { id: 'drying', label: 'Drying' },
+  { id: 'put_away', label: 'Put away' },
+];
+
+export const WASH_TUMBLE = [
+  { id: 'yes', label: 'Tumble dry' },
+  { id: 'hang', label: 'Hang' },
+  { id: 'some', label: 'Some of each' },
+  { id: 'later', label: 'Later' },
+];
+
+export function isLaundryEvent(event) {
+  return String(event?.source || '').toLowerCase() === 'laundry';
+}
+
+export function washStatusLabel(id) {
+  const row = WASH_STATUSES.find((s) => s.id === id);
+  return row ? row.label : '';
+}
+
+export function washTumbleLabel(id) {
+  const row = WASH_TUMBLE.find((s) => s.id === id);
+  return row ? row.label : '';
+}
+
+export function getLatestWash(events) {
+  const list = (events || []).filter(isLaundryEvent);
+  list.sort((a, b) => {
+    const ta = new Date(a.updatedAt || a.date || 0).getTime();
+    const tb = new Date(b.updatedAt || b.date || 0).getTime();
+    return tb - ta;
+  });
+  return list[0] || null;
+}
+
+export function buildWashTitle(washStatus, washItems, washSetting) {
+  const status = washStatusLabel(washStatus) || 'Wash';
+  const items = String(washItems || '').trim().replace(/\s+/g, ' ');
+  const setting = String(washSetting || '').trim();
+  const bit = items || setting;
+  if (!bit) return `Wash · ${status}`;
+  const short = bit.length > 42 ? bit.slice(0, 39).trim() + '…' : bit;
+  return `Wash: ${short} · ${status}`;
 }

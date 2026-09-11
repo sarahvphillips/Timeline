@@ -21,6 +21,7 @@ import TimelineScreen from './src/screens/TimelineScreen';
 import AddEventScreen from './src/screens/AddEventScreen';
 import AddPoemScreen from './src/screens/AddPoemScreen';
 import AddFoodScreen from './src/screens/AddFoodScreen';
+import AddWashLoadScreen from './src/screens/AddWashLoadScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
 import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
@@ -226,6 +227,14 @@ function AppShell() {
                 component={AddFoodScreen}
                 options={({ route }) => ({
                   title: route.params?.event ? 'Edit Food' : 'Add Food',
+                })}
+              />
+
+              <Stack.Screen
+                name="AddWashLoad"
+                component={AddWashLoadScreen}
+                options={({ route }) => ({
+                  title: route.params?.event ? 'Edit wash load' : 'Wash load',
                 })}
               />
 

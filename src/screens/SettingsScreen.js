@@ -24,6 +24,8 @@ import {
   savePoemCategories,
   getShowFoodInMenu,
   saveShowFoodInMenu,
+  getShowWashInMenu,
+  saveShowWashInMenu,
 } from '../services/profileService';
 import { clearThisAccountLocalCache } from '../services/localCache';
 import { auth } from '../services/firebase';
@@ -77,21 +79,25 @@ export default function SettingsScreen({ navigation }) {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
   const [savingFoodPref, setSavingFoodPref] = useState(false);
+  const [showWashInMenu, setShowWashInMenu] = useState(true);
+  const [savingWashPref, setSavingWashPref] = useState(false);
 
   const about = appAboutInfo();
 
   const load = useCallback(async () => {
-    const [profile, labs, cats, foodOn] = await Promise.all([
+    const [profile, labs, cats, foodOn, washOn] = await Promise.all([
       getProfile(),
       getLabels(),
       getPoemCategories(),
       getShowFoodInMenu(),
+      getShowWashInMenu(),
     ]);
     setDisplayName(profile.displayName);
     setDateOfBirth(profile.dateOfBirth);
     setLabels(labs);
     setPoemCats(cats);
     setShowFoodInMenu(!!foodOn);
+    setShowWashInMenu(washOn !== false);
   }, []);
 
   const loadSessions = useCallback(async () => {
@@ -155,6 +161,19 @@ export default function SettingsScreen({ navigation }) {
         { text: 'Clear', style: 'destructive', onPress: () => resolve(true) },
       ]);
     });
+  };
+
+  const handleToggleWashInMenu = async (value) => {
+    setShowWashInMenu(value);
+    setSavingWashPref(true);
+    try {
+      await saveShowWashInMenu(value);
+    } catch (e) {
+      setShowWashInMenu(!value);
+      notify('Error', 'Could not save Wash loads preference.');
+    } finally {
+      setSavingWashPref(false);
+    }
   };
 
   const handleToggleFoodInMenu = async (value) => {
@@ -465,6 +484,30 @@ export default function SettingsScreen({ navigation }) {
               value={showFoodInMenu}
               onValueChange={handleToggleFoodInMenu}
               disabled={savingFoodPref}
+              trackColor={{ false: colors.cardBorder, true: colors.blue }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
+        <View
+          style={[
+            styles.menuRow,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card },
+          ]}
+        >
+          <View style={styles.menuRowText}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={[styles.menuRowLabel, { color: colors.text }]}>
+                Show Wash loads
+              </Text>
+              <Text style={[styles.hint, { color: colors.faint, marginBottom: 0, marginTop: 4 }]}>
+                On by default. Home row plus + menu. Loads are Household events. Photos and videos stay on this device.
+              </Text>
+            </View>
+            <Switch
+              value={showWashInMenu}
+              onValueChange={handleToggleWashInMenu}
+              disabled={savingWashPref}
               trackColor={{ false: colors.cardBorder, true: colors.blue }}
               thumbColor="#fff"
             />
