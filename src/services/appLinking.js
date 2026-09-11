@@ -4,6 +4,10 @@ import { buildShareLinking } from './shareIntent';
 /**
  * Navigation linking: share-intent (when available) plus invite deep links
  * timelineapp://share/{code}
+ *
+ * Only map screens that need public/deep URLs. In-app stack screens (Home,
+ * Settings, etc.) must NOT get path entries — on web, React Navigation +
+ * expo-linking HTTP prefixes can open those paths as a second tab/document.
  */
 export function buildAppLinking() {
   const shareLinking = buildShareLinking();
@@ -12,16 +16,14 @@ export function buildAppLinking() {
 
   const baseConfig = {
     screens: {
-      Home: 'home',
       AcceptInvite: {
         path: 'share/:code',
         parse: {
           code: (code) => String(code || '').toUpperCase(),
         },
       },
-      EventsWithFriends: 'friends',
+      // Share-intent entry (native share sheet); keep for Add Event deep link.
       AddEvent: 'shareintent',
-      Settings: 'settings',
     },
   };
 
