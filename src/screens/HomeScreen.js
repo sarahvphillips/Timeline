@@ -276,9 +276,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
 
 
       <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
-
-
-      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
         <Text style={[styles.ghostText, { color: colors.faint }]}>Settings</Text>
       </TouchableOpacity>
 
