@@ -1,7 +1,21 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  Pressable,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getEvents, getYearBubbleSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
+import {
+  getEvents,
+  getYearBubbleSummaries,
+  getYearBubblePreviewBlurbs,
+  EVENTS_FIRESTORE_SYNC_ENABLED,
+} from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
 
@@ -187,14 +201,18 @@ function YearBlock({ item, yearIndex, glowKey, onOpenYear, onOpenBubble }) {
 
 export default function YearOverviewScreen({ navigation }) {
   const [years, setYears] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  /** { year, bubble, blurbs } | null — kind-bubble preview sheet */
+  const [preview, setPreview] = useState(null);
 
   const load = useCallback(async () => {
     // Always await cloud pull (via getEvents) before painting spine — never flash stale/empty cache.
     setLoading(true);
     try {
-      const events = await getEvents();
-      setYears(getYearBubbleSummaries(events));
+      const data = await getEvents();
+      setEvents(data);
+      setYears(getYearBubbleSummaries(data));
     } finally {
       setLoading(false);
     }
@@ -221,14 +239,29 @@ export default function YearOverviewScreen({ navigation }) {
   }, [years]);
 
   const openYear = (year) => {
+    // Year spine marker: MonthOverview with no bubble filter.
     navigation.navigate('MonthOverview', { year });
   };
 
   const openBubble = (year, bubble) => {
-    // TODO: MonthOverview / WeekOverview do not filter by kind yet — pass params for a later pass.
+    const filter = {
+      kind: bubble.kind,
+      ...(bubble.filter || {}),
+    };
+    const blurbs = getYearBubblePreviewBlurbs(events, year, filter, 6);
+    setPreview({ year, bubble, blurbs });
+  };
+
+  const closePreview = () => setPreview(null);
+
+  const zoomInFromPreview = () => {
+    if (!preview) return;
+    const { year, bubble } = preview;
+    setPreview(null);
     navigation.navigate('MonthOverview', {
       year,
       kind: bubble.kind,
+      label: bubble.label,
       category: bubble.filter?.category,
       source: bubble.filter?.source,
       hobbyType: bubble.filter?.hobbyType,
@@ -246,6 +279,10 @@ export default function YearOverviewScreen({ navigation }) {
       </View>
     );
   }
+
+  const previewTitle = preview
+    ? `${preview.year} · ${preview.bubble?.label || preview.bubble?.kind || 'Events'}`
+    : '';
 
   return (
     <View style={styles.container}>
@@ -268,6 +305,51 @@ export default function YearOverviewScreen({ navigation }) {
         title="Year bubbles design (temp)"
       />
       <HomeFab navigation={navigation} besidePlus={false} />
+
+      <Modal
+        visible={!!preview}
+        transparent
+        animationType="slide"
+        onRequestClose={closePreview}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={closePreview}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{previewTitle}</Text>
+              <TouchableOpacity
+                onPress={closePreview}
+                accessibilityLabel="Close preview"
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.sheetClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.blurbList}>
+              {(preview?.blurbs || []).length === 0 ? (
+                <Text style={styles.blurbEmpty}>No events in this bubble yet.</Text>
+              ) : (
+                (preview?.blurbs || []).map((b) => (
+                  <View key={b.id || `${b.title}-${b.dateLabel}`} style={styles.blurbRow}>
+                    <Text style={styles.blurbTitle} numberOfLines={1}>
+                      {b.title}
+                    </Text>
+                    <Text style={styles.blurbDate}>{b.dateLabel}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.zoomBtn}
+              onPress={zoomInFromPreview}
+              accessibilityLabel="Zoom in to month view"
+              activeOpacity={0.85}
+            >
+              <Text style={styles.zoomBtnText}>Zoom in</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -371,5 +453,86 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginTop: 2,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#1a1b36',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    borderWidth: 1,
+    borderColor: '#2a2b4a',
+    maxHeight: '70%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#475569',
+    marginBottom: 12,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sheetTitle: {
+    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '800',
+    flex: 1,
+    paddingRight: 12,
+  },
+  sheetClose: {
+    color: '#94a3b8',
+    fontSize: 18,
+    fontWeight: '700',
+    paddingHorizontal: 4,
+  },
+  blurbList: {
+    marginBottom: 16,
+    gap: 10,
+  },
+  blurbRow: {
+    backgroundColor: '#0f1024',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#2a2b4a',
+  },
+  blurbTitle: {
+    color: '#e2e8f0',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  blurbDate: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  blurbEmpty: {
+    color: '#94a3b8',
+    fontSize: 14,
+    paddingVertical: 8,
+  },
+  zoomBtn: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  zoomBtnText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
   },
 });

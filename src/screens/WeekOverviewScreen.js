@@ -41,6 +41,8 @@ function formatDayHeader(day) {
 export default function WeekOverviewScreen({ navigation, route }) {
   const year = route.params?.year ?? new Date().getFullYear();
   const month = route.params?.month ?? new Date().getMonth();
+  // NOTE (2026-09-11): MonthOverview may pass kind/label/category/source/hobbyType/bubbleFilter
+  // when opened from a Year bubble Zoom-in. Week list is not filtered yet — params reserved for a later pass.
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);

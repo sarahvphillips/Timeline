@@ -925,8 +925,59 @@ export function getYearBubbleSummaries(events) {
   });
 }
 
-export function getMonthSummaries(events, year) {
+/**
+ * Whether an event belongs to a year-overview bubble filter.
+ * Prefer matching classifyYearBubbleKind(...).kind when filter.kind is set so
+ * classification priority (email → QR → poem → …) stays consistent with bubbles.
+ * Otherwise match filter.source / category / hobbyType against the event's
+ * classified meta.filter fields.
+ */
+export function eventMatchesBubbleFilter(event, filter) {
+  if (!filter) return true;
+  const meta = classifyYearBubbleKind(event);
+  if (filter.kind) {
+    return meta.kind === filter.kind;
+  }
+  const keys = ['source', 'category', 'hobbyType'];
+  const specified = keys.filter((k) => filter[k] != null && filter[k] !== '');
+  if (specified.length === 0) return true;
+  return specified.every((k) => {
+    const want = String(filter[k]).toLowerCase();
+    const got = String(meta.filter?.[k] || '').toLowerCase();
+    return got === want;
+  });
+}
+
+const PREVIEW_MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/**
+ * Up to `limit` chronological blurbs (title + short date) for a year bubble preview sheet.
+ */
+export function getYearBubblePreviewBlurbs(events, year, filter, limit = 6) {
+  const matched = (events || [])
+    .filter((e) => {
+      const d = new Date(e.date);
+      if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) return false;
+      return eventMatchesBubbleFilter(e, filter);
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  return matched.slice(0, Math.max(0, limit)).map((e) => {
+    const d = new Date(e.date);
+    return {
+      id: e.id,
+      title: e.title || 'Untitled',
+      dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
+    };
+  });
+}
+
+export function getMonthSummaries(events, year, filter) {
   // Months stay index-ascending (Jan→Dec): earlier months higher, later/future lower.
+  // Optional filter (bubble filter / kind) narrows counts + category dots.
   const months = Array.from({ length: 12 }, (_, i) => ({
     month: i,
     letter: MONTH_LETTERS[i],
@@ -937,6 +988,7 @@ export function getMonthSummaries(events, year) {
   events.forEach((e) => {
     const d = new Date(e.date);
     if (d.getFullYear() === year) {
+      if (filter && !eventMatchesBubbleFilter(e, filter)) return;
       const bucket = months[d.getMonth()];
       bucket.count += 1;
       const color = getCategoryColor(e.category);

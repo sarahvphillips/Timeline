@@ -1,10 +1,42 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents, getMonthSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
+
+function buildBubbleFilterFromParams(params) {
+  if (!params) return null;
+  const kind = params.kind;
+  const bubbleFilter = params.bubbleFilter;
+  const category = params.category ?? bubbleFilter?.category;
+  const source = params.source ?? bubbleFilter?.source;
+  const hobbyType = params.hobbyType ?? bubbleFilter?.hobbyType;
+  if (!kind && !category && !source && !hobbyType && !bubbleFilter) return null;
+  return {
+    ...(bubbleFilter && typeof bubbleFilter === 'object' ? bubbleFilter : {}),
+    ...(category != null && category !== '' ? { category } : {}),
+    ...(source != null && source !== '' ? { source } : {}),
+    ...(hobbyType != null && hobbyType !== '' ? { hobbyType } : {}),
+    ...(kind ? { kind } : {}),
+  };
+}
+
+function weekNavParams(year, month, filter, label) {
+  const base = { year, month };
+  if (!filter) return base;
+  // Pass filter through so a later WeekOverview pass can apply it; Month counts are already filtered.
+  return {
+    ...base,
+    kind: filter.kind,
+    label: label || undefined,
+    category: filter.category,
+    source: filter.source,
+    hobbyType: filter.hobbyType,
+    bubbleFilter: filter,
+  };
+}
 
 export default function MonthOverviewScreen({ navigation, route }) {
   const startYear = route.params?.year || new Date().getFullYear();
@@ -13,6 +45,22 @@ export default function MonthOverviewScreen({ navigation, route }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
   const [showWashInMenu, setShowWashInMenu] = useState(true);
+  /** Local override so Clear chip can restore full year without leaving the screen. */
+  const [activeFilter, setActiveFilter] = useState(() => buildBubbleFilterFromParams(route.params));
+  const [filterLabel, setFilterLabel] = useState(() => route.params?.label || '');
+
+  useEffect(() => {
+    setActiveFilter(buildBubbleFilterFromParams(route.params));
+    setFilterLabel(route.params?.label || '');
+  }, [
+    route.params?.year,
+    route.params?.kind,
+    route.params?.label,
+    route.params?.category,
+    route.params?.source,
+    route.params?.hobbyType,
+    route.params?.bubbleFilter,
+  ]);
 
   const load = useCallback(async () => {
     // Await cloud pull before painting month spine from local cache.
@@ -33,10 +81,25 @@ export default function MonthOverviewScreen({ navigation, route }) {
     }, [load])
   );
 
-  const yearsToShow = [startYear, startYear + 1];
+  const yearsToShow = useMemo(() => [startYear, startYear + 1], [startYear]);
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
+
+  const chipText = filterLabel || activeFilter?.kind || 'Filter';
+
+  const clearFilter = () => {
+    setActiveFilter(null);
+    setFilterLabel('');
+    navigation.setParams({
+      kind: undefined,
+      label: undefined,
+      category: undefined,
+      source: undefined,
+      hobbyType: undefined,
+      bubbleFilter: undefined,
+    });
+  };
 
   if (loading) {
     return (
@@ -52,24 +115,39 @@ export default function MonthOverviewScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
+        {activeFilter ? (
+          <View style={styles.chipRow}>
+            <TouchableOpacity
+              style={styles.clearChip}
+              onPress={clearFilter}
+              accessibilityLabel={`Clear filter ${chipText}`}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.clearChipText}>{chipText} ×</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <View style={styles.spine} />
         {yearsToShow.map((year) => {
-          const months = getMonthSummaries(events, year);
+          const months = getMonthSummaries(events, year, activeFilter || undefined);
           return (
             <View key={year} style={styles.yearBlock}>
               <Text style={styles.yearLabel}>{year}</Text>
               {months.map((m, index) => {
                 const left = index % 2 === 0;
                 const isCurrent = year === currentYear && m.month === currentMonth;
+                const openWeek = () =>
+                  navigation.navigate(
+                    'WeekOverview',
+                    weekNavParams(year, m.month, activeFilter, filterLabel)
+                  );
                 return (
                   <View key={`${year}-${m.month}`} style={styles.row}>
                     {left ? (
                       m.count > 0 ? (
                         <TouchableOpacity
                           style={[styles.bubble, styles.bubbleLeft]}
-                          onPress={() =>
-                            navigation.navigate('WeekOverview', { year, month: m.month })
-                          }
+                          onPress={openWeek}
                         >
                           <Text style={styles.count}>{m.count}</Text>
                         </TouchableOpacity>
@@ -82,9 +160,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
 
                     <TouchableOpacity
                       style={styles.monthCol}
-                      onPress={() =>
-                        navigation.navigate('WeekOverview', { year, month: m.month })
-                      }
+                      onPress={openWeek}
                       accessibilityLabel={`Open ${m.name} ${year}`}
                     >
                       <View style={[styles.tick, m.count > 0 && styles.tickActive]} />
@@ -106,9 +182,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
                       m.count > 0 ? (
                         <TouchableOpacity
                           style={[styles.bubble, styles.bubbleRight]}
-                          onPress={() =>
-                            navigation.navigate('WeekOverview', { year, month: m.month })
-                          }
+                          onPress={openWeek}
                         >
                           <Text style={styles.count}>{m.count}</Text>
                         </TouchableOpacity>
@@ -184,10 +258,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  syncHint: {
+    marginTop: 12,
+    color: '#94a3b8',
+    fontSize: 14,
+  },
   scroll: {
     paddingVertical: 24,
     paddingHorizontal: 12,
     paddingBottom: 100,
+  },
+  chipRow: {
+    alignItems: 'center',
+    marginBottom: 12,
+    zIndex: 2,
+  },
+  clearChip: {
+    backgroundColor: '#1a1b36',
+    borderWidth: 1.5,
+    borderColor: '#8b5cf6',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  clearChipText: {
+    color: '#e2e8f0',
+    fontSize: 14,
+    fontWeight: '700',
   },
   spine: {
     position: 'absolute',
