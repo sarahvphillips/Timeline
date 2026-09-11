@@ -12,7 +12,7 @@ import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileServ
 import DesignTargetButton from '../components/DesignTargetButton';
 import { getEvents, getLatestWash, washStatusLabel } from '../services/eventService';
 import { getShowWashInMenu } from '../services/profileService';
-import { loadAdmin, roleOf, isStaff } from '../services/adminService';
+import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -39,7 +39,9 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const [sessions, setSessions] = useState([]);
   const [showWash, setShowWash] = useState(true);
   const [latestWash, setLatestWash] = useState(null);
+  const [showAddEvent, setShowAddEvent] = useState(true);
   const [staff, setStaff] = useState(false);
+  const [blocked, setBlocked] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -58,10 +60,18 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         .catch(() => {});
       loadAdmin(user?.email)
         .then((s) => {
-          if (!cancelled) setStaff(isStaff(roleOf(user?.email, s)));
+          if (cancelled) return;
+          const email = user?.email;
+          setBlocked(isBlocked(email, s));
+          setShowAddEvent(canSeeHomeAddEvent(email, s));
+          setStaff(canSeeHomeAdmin(email, s));
         })
         .catch(() => {
-          if (!cancelled) setStaff(false);
+          if (!cancelled) {
+            setBlocked(false);
+            setShowAddEvent(true);
+            setStaff(false);
+          }
         });
       return () => {
         cancelled = true;
@@ -157,6 +167,20 @@ export default function HomeScreen({ navigation, user, onLogout }) {
       return Number.isFinite(created) && created >= fifteenMinAgo;
     });
 
+  if (blocked) {
+    return (
+      <View style={[styles.container, { flex: 1, backgroundColor: colors.bg, justifyContent: 'center' }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Timeline</Text>
+        <Text style={[styles.email, { color: colors.faint, marginTop: 12 }]}>
+          This email is blocked. Only the owner can unblock it from Admin.
+        </Text>
+        <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder, marginTop: 24 }]} onPress={onLogout}>
+          <Text style={[styles.ghostText, { color: colors.faint }]}>Log out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* TEMP design target — remove when home hub matches sketch. */}
@@ -208,6 +232,12 @@ export default function HomeScreen({ navigation, user, onLogout }) {
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('YearOverview')}>
         <Text style={styles.buttonText}>Timeline</Text>
       </TouchableOpacity>
+
+      {showAddEvent ? (
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('AddEvent')}>
+          <Text style={styles.buttonText}>Add event</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {staff ? (
         <TouchableOpacity

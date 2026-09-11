@@ -179,9 +179,28 @@ export function isStaff(role: Role): boolean {
   return role === "owner" || role === "admin";
 }
 
+export function isBlocked(email: string, state: AdminState): boolean {
+  const e = normalizeEmail(email);
+  if (!e || isOwnerEmail(e)) return false;
+  return state.blocked.includes(e);
+}
+
 export function canUseFeature(key: FeatureKey, state: AdminState, email = state.signedInEmail): boolean {
+  const who = email || state.signedInEmail;
+  if (isBlocked(who, state)) return false;
   const access = state.gates[key] ?? "everyone";
   if (access === "everyone") return true;
+  return isStaff(roleOf(who, state));
+}
+
+/** Home Add event: every non-blocked role. Admin must never remove this. */
+export function canSeeHomeAddEvent(email: string, state: AdminState): boolean {
+  return !isBlocked(email, state);
+}
+
+/** Home Admin button: staff-only. */
+export function canSeeHomeAdmin(email: string, state: AdminState): boolean {
+  if (isBlocked(email, state)) return false;
   return isStaff(roleOf(email, state));
 }
 

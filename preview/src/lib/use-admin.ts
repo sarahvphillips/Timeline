@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ADMIN_EVENT,
   canUseFeature,
+  isBlocked,
   isOwnerEmail,
   isStaff,
   loadAdmin,
@@ -34,7 +35,7 @@ export function useAdmin() {
   const role: Role = useMemo(() => roleOf(state.signedInEmail, state), [state]);
   const owner = isOwnerEmail(state.signedInEmail);
   const staff = isStaff(role);
-  const blocked = state.blocked.includes(state.signedInEmail);
+  const blocked = isBlocked(state.signedInEmail, state);
 
   const can = useCallback((key: FeatureKey) => canUseFeature(key, state), [state]);
 

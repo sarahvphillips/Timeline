@@ -1,8 +1,30 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import {
+  OWNER_EMAIL,
+  normalizeEmail,
+  isOwnerEmail,
+  roleOf,
+  isStaff,
+  isBlocked,
+  canUseFeature,
+  canSeeHomeAddEvent,
+  canSeeHomeAdmin,
+} from './adminAccess';
 
-export const OWNER_EMAIL = 'sarah.v.phillips@googlemail.com';
+export {
+  OWNER_EMAIL,
+  normalizeEmail,
+  isOwnerEmail,
+  roleOf,
+  isStaff,
+  isBlocked,
+  canUseFeature,
+  canSeeHomeAddEvent,
+  canSeeHomeAdmin,
+};
+
 const STORE_KEY = '@timeline_admin_v1';
 
 export const FEATURES = [
@@ -15,14 +37,6 @@ export const FEATURES = [
   { key: 'userBlock', title: 'Block a user', blurb: 'Stop an email from using this Timeline.', defaultAccess: 'admin' },
   { key: 'auditLog', title: 'Admin audit log', blurb: 'Who granted admin, who changed a gate.', defaultAccess: 'admin' },
 ];
-
-export function normalizeEmail(raw) {
-  return String(raw || '').trim().toLowerCase();
-}
-
-export function isOwnerEmail(email) {
-  return normalizeEmail(email) === OWNER_EMAIL;
-}
 
 export function defaultGates() {
   const gates = {};
@@ -65,23 +79,6 @@ function mergeState(raw, signedInEmail) {
     invites: Array.isArray(raw.invites) ? raw.invites : [],
     audit: Array.isArray(raw.audit) ? raw.audit : [],
   };
-}
-
-export function roleOf(email, state) {
-  const e = normalizeEmail(email);
-  if (isOwnerEmail(e)) return 'owner';
-  if ((state?.admins || []).includes(e)) return 'admin';
-  return 'user';
-}
-
-export function isStaff(role) {
-  return role === 'owner' || role === 'admin';
-}
-
-export function canUseFeature(key, state, email) {
-  const access = (state?.gates && state.gates[key]) || 'everyone';
-  if (access === 'everyone') return true;
-  return isStaff(roleOf(email || state.signedInEmail, state));
 }
 
 function staffDoc() {

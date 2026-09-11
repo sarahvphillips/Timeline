@@ -11,6 +11,8 @@ import {
   setGate,
   canUseFeature,
   blockUser,
+  canSeeHomeAddEvent,
+  canSeeHomeAdmin,
 } from "./admin.ts";
 
 describe("admin roles", () => {
@@ -50,5 +52,18 @@ describe("admin roles", () => {
   it("cannot block the owner", () => {
     const r = blockUser(defaultState(), OWNER_EMAIL);
     assert.equal(r.ok, false);
+  });
+
+  it("becoming admin never removes Home Add event (admin is additive)", () => {
+    const asOwner = defaultState();
+    assert.equal(canSeeHomeAddEvent("pal@example.com", asOwner), true);
+    assert.equal(canSeeHomeAdmin("pal@example.com", asOwner), false);
+    const ok = grantAdmin(asOwner, "pal@example.com");
+    assert.equal(ok.ok, true);
+    if (ok.ok) {
+      assert.equal(canSeeHomeAddEvent("pal@example.com", ok.state), true);
+      assert.equal(canSeeHomeAdmin("pal@example.com", ok.state), true);
+      assert.equal(canUseFeature("purchases", ok.state, "pal@example.com"), true);
+    }
   });
 });
