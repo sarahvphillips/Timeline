@@ -15,6 +15,7 @@ import Constants from 'expo-constants';
 import { useTheme } from '../themeContext';
 import { MODES, PALETTES } from '../theme';
 import HomeFab from '../components/HomeFab';
+import DesignTargetButton from '../components/DesignTargetButton';
 import {
   getProfile,
   saveProfile,
