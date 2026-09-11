@@ -7,9 +7,22 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    function isAdmin() {
+    function isOwnerEmail() {
       return isSignedIn()
         && request.auth.token.email == 'sarah.v.phillips@googlemail.com';
+    }
+    function isListedAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/app/staff)
+        && request.auth.token.email in get(/databases/$(database)/documents/app/staff).data.admins;
+    }
+    function isAdmin() {
+      return isOwnerEmail() || isListedAdmin();
+    }
+
+    match /app/staff {
+      allow read: if isSignedIn();
+      allow write: if isOwnerEmail();
     }
 
     match /users/{userId} {

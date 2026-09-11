@@ -1,8 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { formatBytes, formatClock, loadChecksums, shortHash, type ChecksumRow } from "@/lib/checksum";
+import { FeatureGate } from "@/components/admin-gate";
 
-export const Route = createFileRoute("/checksums")({ component: ChecksumsPage });
+export const Route = createFileRoute("/checksums")({ component: ChecksumsRoute });
+
+function ChecksumsRoute() {
+  return (
+    <FeatureGate feature="checksums">
+      <ChecksumsPage />
+    </FeatureGate>
+  );
+}
 
 function ChecksumsPage() {
   const [rows, setRows] = useState<ChecksumRow[]>([]);

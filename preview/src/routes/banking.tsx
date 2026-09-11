@@ -1,8 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { formatUk, nowStamp, toIso } from "@/lib/date-span";
+import { FeatureGate } from "@/components/admin-gate";
 
-export const Route = createFileRoute("/banking")({ component: BankingPage });
+export const Route = createFileRoute("/banking")({ component: BankingRoute });
+
+function BankingRoute() {
+  return (
+    <FeatureGate feature="banking">
+      <BankingPage />
+    </FeatureGate>
+  );
+}
 
 const KINDS = [
   "Direct debit",

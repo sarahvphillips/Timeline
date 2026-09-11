@@ -22,6 +22,7 @@ import AddEventScreen from './src/screens/AddEventScreen';
 import AddPoemScreen from './src/screens/AddPoemScreen';
 import AddFoodScreen from './src/screens/AddFoodScreen';
 import AddWashLoadScreen from './src/screens/AddWashLoadScreen';
+import AdminScreen from './src/screens/AdminScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
 import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
@@ -236,6 +237,12 @@ function AppShell() {
                 options={({ route }) => ({
                   title: route.params?.event ? 'Edit wash load' : 'Wash load',
                 })}
+              />
+
+              <Stack.Screen
+                name="Admin"
+                component={AdminScreen}
+                options={{ title: 'Admin' }}
               />
 
               <Stack.Screen

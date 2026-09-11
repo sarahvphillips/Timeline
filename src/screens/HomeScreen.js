@@ -12,6 +12,7 @@ import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileServ
 import DesignTargetButton from '../components/DesignTargetButton';
 import { getEvents, getLatestWash, washStatusLabel } from '../services/eventService';
 import { getShowWashInMenu } from '../services/profileService';
+import { loadAdmin, roleOf, isStaff } from '../services/adminService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -38,6 +39,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const [sessions, setSessions] = useState([]);
   const [showWash, setShowWash] = useState(true);
   const [latestWash, setLatestWash] = useState(null);
+  const [staff, setStaff] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -54,10 +56,17 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           if (!cancelled) setLatestWash(getLatestWash(list));
         })
         .catch(() => {});
+      loadAdmin(user?.email)
+        .then((s) => {
+          if (!cancelled) setStaff(isStaff(roleOf(user?.email, s)));
+        })
+        .catch(() => {
+          if (!cancelled) setStaff(false);
+        });
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [user?.email])
   );
 
   useEffect(() => {
@@ -199,6 +208,15 @@ export default function HomeScreen({ navigation, user, onLogout }) {
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('YearOverview')}>
         <Text style={styles.buttonText}>Timeline</Text>
       </TouchableOpacity>
+
+      {staff ? (
+        <TouchableOpacity
+          style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
+          onPress={() => navigation.navigate('Admin')}
+        >
+          <Text style={[styles.ghostText, { color: colors.faint }]}>Admin</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('EventsWithFriends')}>
         <Text style={styles.buttonText}>Events with friends</Text>

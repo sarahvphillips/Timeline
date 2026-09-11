@@ -1,3 +1,4 @@
+import { FeatureGate } from "@/components/admin-gate";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LocationPicker } from "@/components/location-picker";
@@ -8,7 +9,15 @@ import { formatUk, nowStamp, toIso } from "@/lib/date-span";
 import { uberEatsReceipts } from "@/lib/uber-eats";
 import { ocrImage, parseUberOcr, type DeliveryShot, type ShotKind, type UberOcrFill } from "@/lib/uber-ocr";
 
-export const Route = createFileRoute("/purchases")({ component: AddPurchasePage });
+export const Route = createFileRoute("/purchases")({ component: PurchasesRoute });
+
+function PurchasesRoute() {
+  return (
+    <FeatureGate feature="purchases">
+      <AddPurchasePage />
+    </FeatureGate>
+  );
+}
 
 const SOURCES = [
   "Manual",
