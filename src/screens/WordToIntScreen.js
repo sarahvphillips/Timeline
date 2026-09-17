@@ -48,9 +48,22 @@ export default function WordToIntScreen({ navigation, route }) {
   const [listLoading, setListLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lookupNumber, setLookupNumber] = useState('');
+  const [dupNotice, setDupNotice] = useState(false);
   const lastPhraseParam = useRef(null);
 
   const result = convertPhrase(phrase);
+  const duplicateHit = findSavedPhrase(list, result.phrase || phrase);
+  const showDup = !!(dupNotice || duplicateHit);
+
+  const alertDuplicate = () => {
+    setDupNotice(true);
+    const msg = 'that word is already saved in the list!';
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
+      window.alert(msg);
+      return;
+    }
+    Alert.alert('Already saved', msg);
+  };
 
   const loadList = useCallback(async () => {
     // Await cloud pull before showing saved list (avoids empty-then-fill flash).
@@ -108,10 +121,6 @@ export default function WordToIntScreen({ navigation, route }) {
     Alert.alert('Number', String(text));
   };
 
-  const alertDuplicate = () => {
-    Alert.alert('Already saved', 'that word is already saved in the list!');
-  };
-
   const handleSaveList = async () => {
     if (!result.phrase) {
       Alert.alert('Missing phrase', 'Type a word or short phrase first.');
@@ -136,7 +145,8 @@ export default function WordToIntScreen({ navigation, route }) {
           : `"${saved.phrase}" is on this device. Firebase: ${saved.cloudError || 'not signed in or Firestore is off'}.`
       );
     } catch (e) {
-      if (e?.code === 'DUPLICATE_PHRASE') {
+      const msg = String(e?.message || '');
+      if (e?.code === 'DUPLICATE_PHRASE' || /already saved/i.test(msg)) {
         alertDuplicate();
       } else {
         Alert.alert('Error', e?.message || 'Could not save this number.');
@@ -193,7 +203,8 @@ export default function WordToIntScreen({ navigation, route }) {
           : `"${result.phrase}" is on this device. Firebase: ${saved.cloudError || 'not signed in or Firestore is off'}.`
       );
     } catch (e) {
-      if (e?.code === 'DUPLICATE_PHRASE') {
+      const msg = String(e?.message || '');
+      if (e?.code === 'DUPLICATE_PHRASE' || /already saved/i.test(msg)) {
         alertDuplicate();
       } else {
         Alert.alert('Error', e?.message || 'Could not save to the timeline.');
@@ -313,7 +324,10 @@ export default function WordToIntScreen({ navigation, route }) {
       <TextInput
         style={styles.input}
         value={phrase}
-        onChangeText={setPhrase}
+        onChangeText={(text) => {
+          setPhrase(text);
+          setDupNotice(false);
+        }}
         placeholder="e.g. Figaro, North Star, rain"
         placeholderTextColor="#64748b"
         autoCapitalize="words"
@@ -323,6 +337,9 @@ export default function WordToIntScreen({ navigation, route }) {
           if (!saving) handleSaveList();
         }}
       />
+      {showDup ? (
+        <Text style={styles.dupMsg}>that word is already saved in the list!</Text>
+      ) : null}
 
       <Text style={styles.label}>Method</Text>
       <View style={styles.methodRow}>
@@ -381,10 +398,21 @@ export default function WordToIntScreen({ navigation, route }) {
         multiline
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleSaveList} disabled={saving}>
+      <TouchableOpacity
+        style={[styles.button, showDup && styles.buttonDisabled]}
+        onPress={handleSaveList}
+        disabled={saving || showDup}
+      >
         <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save to number list'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.button, styles.ghost]} onPress={handleSaveTimeline} disabled={saving}>
+      {showDup ? (
+        <Text style={styles.dupMsg}>that word is already saved in the list!</Text>
+      ) : null}
+      <TouchableOpacity
+        style={[styles.button, styles.ghost, showDup && styles.buttonDisabled]}
+        onPress={handleSaveTimeline}
+        disabled={saving || showDup}
+      >
         <Text style={styles.ghostText}>Save list + add to timeline</Text>
       </TouchableOpacity>
 
@@ -435,6 +463,22 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 8,
+  },
+  dupMsg: {
+    color: '#fca5a5',
+    backgroundColor: '#3f1d1d',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  buttonDisabled: {
+    opacity: 0.45,
   },
   sectionTitle: {
     color: '#c4b5fd',

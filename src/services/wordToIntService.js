@@ -239,13 +239,19 @@ function sortWordNumbers(list) {
 }
 
 export function phraseKey(phrase) {
-  return String(phrase || '').trim().toLowerCase();
+  return String(phrase || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 export function findSavedPhrase(list, phrase) {
   const key = phraseKey(phrase);
+  const letters = lettersOnly(phrase);
   if (!key) return null;
-  return (list || []).find((item) => phraseKey(item.phrase) === key) || null;
+  return (
+    (list || []).find((item) => {
+      if (phraseKey(item.phrase) === key) return true;
+      return !!(letters && lettersOnly(item.phrase) === letters);
+    }) || null
+  );
 }
 
 /** Keep the oldest entry per phrase (capitals ignored). Empty phrases are dropped. */
