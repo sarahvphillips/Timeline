@@ -230,6 +230,103 @@ export function formatWeekLine(span) {
   return `${padUnit(span.weeks, 'week', 'weeks')} and ${padUnit(span.weekDays, 'day', 'days')}`;
 }
 
+/** Paper-style: 14y 6m 6d (YYy MMm DDd). */
+export function formatDmy(span) {
+  if (!span) return '';
+  const days = span.calDays != null ? span.calDays : span.days != null ? span.days : 0;
+  return `${span.years || 0}y ${span.months || 0}m ${days}d`;
+}
+
+/** DD/MM/YYYY from YYYY-MM-DD or a Date. */
+export function formatDob(isoOrDate) {
+  if (!isoOrDate) return '';
+  if (isoOrDate instanceof Date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(isoOrDate.getDate())}/${pad(isoOrDate.getMonth() + 1)}/${isoOrDate.getFullYear()}`;
+  }
+  const d = String(isoOrDate).slice(0, 10);
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return String(isoOrDate);
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+export function toIsoDate(date) {
+  if (!date) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function parseIsoDay(iso) {
+  const [y, m, d] = String(iso || '').split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+/** Whole days from focus until next birthday. excludeEndDate skips counting the birthday itself. */
+export function daysUntilNext(focusIso, birthIso, { excludeEndDate = true } = {}) {
+  const focus = parseIsoDay(focusIso);
+  const birth = parseIsoDay(birthIso);
+  const start = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate());
+  let next = new Date(focus.getFullYear(), birth.getMonth(), birth.getDate());
+  if (next.getTime() < start.getTime()) {
+    next = new Date(focus.getFullYear() + 1, birth.getMonth(), birth.getDate());
+  }
+  if (next.getTime() === start.getTime()) return 0;
+  const raw = Math.round((next.getTime() - start.getTime()) / 86400000);
+  return excludeEndDate ? Math.max(0, raw - 1) : raw;
+}
+
+export function daysBetweenBirthdays(focusIso, aIso, bIso, { excludeEndDate = true } = {}) {
+  return Math.abs(
+    daysUntilNext(focusIso, aIso, { excludeEndDate }) -
+      daysUntilNext(focusIso, bIso, { excludeEndDate }),
+  );
+}
+
+/** Month/day only — does not change when the focus date changes. */
+export function daysBetweenAnniversaries(aIso, bIso) {
+  const a = parseIsoDay(aIso);
+  const b = parseIsoDay(bIso);
+  const leap =
+    (a.getMonth() === 1 && a.getDate() === 29) || (b.getMonth() === 1 && b.getDate() === 29);
+  const y = leap ? 2024 : 2025;
+  const da = new Date(y, a.getMonth(), a.getDate());
+  const db = new Date(y, b.getMonth(), b.getDate());
+  return Math.round(Math.abs(db.getTime() - da.getTime()) / 86400000);
+}
+
+export function spanYmd(fromIso, untilIso) {
+  let a = parseIsoDay(fromIso);
+  let b = parseIsoDay(untilIso);
+  if (a.getTime() > b.getTime()) {
+    const swap = a;
+    a = b;
+    b = swap;
+  }
+  let years = b.getFullYear() - a.getFullYear();
+  let months = b.getMonth() - a.getMonth();
+  let days = b.getDate() - a.getDate();
+  if (days < 0) {
+    months -= 1;
+    days += new Date(b.getFullYear(), b.getMonth(), 0).getDate();
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  const totalDays = Math.round((b.getTime() - a.getTime()) / 86400000);
+  return { years, months, days, totalDays };
+}
+
+export function digitSum(n) {
+  const digits = String(Math.abs(Math.trunc(n))).split('');
+  const total = digits.reduce((s, d) => s + Number(d), 0);
+  return { total, parts: digits.join('+') };
+}
+
+export function concatNumbers(a, b) {
+  return Number(`${a}${b}`);
+}
+
 async function readListRaw(uid = currentUid()) {
   if (uid) await migrateLegacySpansOnce(uid);
   const raw = await AsyncStorage.getItem(spansStorageKey(uid));
@@ -289,6 +386,7 @@ export async function saveSpan(entry) {
     totalDays: span ? span.totalDays : Number(entry.totalDays) || 0,
     calendarLine: span ? formatCalendarLine(span) : entry.calendarLine || '',
     resultLine: span ? formatResultLine(span) : entry.resultLine || '',
+    ymd: span ? formatDmy(span) : entry.ymd || '',
     createdAt: entry.createdAt || now,
     updatedAt: now,
     ownerUid: uid || undefined,

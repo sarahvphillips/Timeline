@@ -32,6 +32,7 @@ import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
 import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
+import DateCircleScreen from './src/screens/DateCircleScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
@@ -269,6 +270,12 @@ function AppShell() {
                 name="DateSpan"
                 component={DateSpanScreen}
                 options={{ title: 'Days between dates' }}
+              />
+
+              <Stack.Screen
+                name="DateCircle"
+                component={DateCircleScreen}
+                options={{ title: 'Date circle' }}
               />
 
               <Stack.Screen

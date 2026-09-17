@@ -18,6 +18,8 @@ import {
   formatCalendarLine,
   formatMonthLine,
   formatWeekLine,
+  formatDmy,
+  formatDob,
   dateFromDayCount,
   formatIsoDate,
   formatIsoTime,
@@ -31,6 +33,7 @@ import {
   preferredNumber,
 } from '../services/wordToIntService';
 import { saveEvent } from '../services/eventService';
+import DesignTargetButton from '../components/DesignTargetButton';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -154,12 +157,13 @@ export default function DateSpanScreen({ navigation, route }) {
 
   const resultText = span
     ? [
-        `From: ${formatLongDate(span.from)}`,
-        `To: ${formatLongDate(span.to)}`,
+        `From: ${formatDob(span.from)}`,
+        `To: ${formatDob(span.to)}`,
         '',
-        `Result: ${formatResultLine(span)}`,
-        `Or ${formatCalendarLine(span)}`,
-        `Or ${formatMonthLine(span)}`,
+        formatDmy(span),
+        formatCalendarLine(span),
+        formatMonthLine(span),
+        formatResultLine(span),
         '',
         'Alternative time units',
         `${span.totalSeconds.toLocaleString()} seconds`,
@@ -215,6 +219,7 @@ export default function DateSpanScreen({ navigation, route }) {
         note,
         totalDays: span.totalDays,
         calendarLine: formatCalendarLine(span),
+        ymd: formatDmy(span),
       });
       await loadLists();
       Alert.alert('Saved', 'Added to your span list.');
@@ -273,12 +278,20 @@ export default function DateSpanScreen({ navigation, route }) {
   const phraseMatches = span ? findPhrasesForNumber(wordList, span.totalDays) : [];
 
   return (
+    <View style={{ flex: 1 }}>
+      <DesignTargetButton
+        imageSource={require('../../assets/design-days-between.jpg')}
+        title="Days between design (temp)"
+      />
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Days between dates</Text>
       <Text style={styles.intro}>
-        Same style of breakdown as timeanddate: total days and time, then years / months / days,
-        then other units. Default ignores the end date. Saved events use the Days Between category.
+        Result as YYy MMm DDd — 14y 6m 6d. Dates as DD/MM/YYYY. Same numbers as Date circle. Default
+        excludes the end date.
       </Text>
+      <TouchableOpacity onPress={() => navigation.navigate('DateCircle')}>
+        <Text style={styles.link}>Open Date circle</Text>
+      </TouchableOpacity>
 
       <Text style={styles.label}>Title</Text>
       <TextInput
@@ -353,16 +366,17 @@ export default function DateSpanScreen({ navigation, route }) {
         <Text style={styles.error}>Enter valid dates as YYYY-MM-DD and times as HH:MM:SS.</Text>
       ) : (
         <View style={styles.card}>
-          <Text style={styles.meta}>From: {formatLongDate(span.from)}</Text>
-          <Text style={styles.meta}>To: {formatLongDate(span.to)}</Text>
+          <Text style={styles.meta}>From: {formatDob(span.from)} · {formatLongDate(span.from)}</Text>
+          <Text style={styles.meta}>To: {formatDob(span.to)} · {formatLongDate(span.to)}</Text>
           {span.swapped && (
             <Text style={styles.note}>Dates were swapped so the earlier date is From.</Text>
           )}
 
-          <Text style={styles.resultLabel}>Result</Text>
-          <Text style={styles.result}>{formatResultLine(span)}</Text>
-          <Text style={styles.or}>Or {formatCalendarLine(span)}</Text>
-          <Text style={styles.or}>Or {formatMonthLine(span)}</Text>
+          <Text style={styles.resultLabel}>Result (YYy MMm DDd)</Text>
+          <Text style={styles.ymd}>{formatDmy(span)}</Text>
+          <Text style={styles.or}>{formatCalendarLine(span)}</Text>
+          <Text style={styles.or}>{formatMonthLine(span)}</Text>
+          <Text style={styles.or}>{formatResultLine(span)}</Text>
 
           <Text style={styles.altTitle}>Alternative time units</Text>
           <Text style={styles.alt}>• {span.totalSeconds.toLocaleString()} seconds</Text>
@@ -406,10 +420,10 @@ export default function DateSpanScreen({ navigation, route }) {
         spans.map((item) => (
           <View key={item.id} style={styles.item}>
             <TouchableOpacity onPress={() => reuseSpan(item)} style={styles.itemMain}>
-              <Text style={styles.itemPhrase}>{item.title || `${item.totalDays} days`}</Text>
-              <Text style={styles.itemNumber}>{item.totalDays} days</Text>
+              <Text style={styles.itemPhrase}>{item.title || item.ymd || `${item.totalDays} days`}</Text>
+              <Text style={styles.itemNumber}>{item.ymd || `${item.totalDays} days`}</Text>
               <Text style={styles.itemMeta}>
-                {item.fromDate} {item.fromTime || '00:00:00'} → {item.toDate} {item.toTime || '00:00:00'}
+                {formatDob(item.fromDate)} → {formatDob(item.toDate)}
               </Text>
               {!!item.calendarLine && <Text style={styles.itemMeta}>{item.calendarLine}</Text>}
               {!!item.note && <Text style={styles.itemNotes}>{item.note}</Text>}
@@ -426,6 +440,7 @@ export default function DateSpanScreen({ navigation, route }) {
         ))
       )}
     </ScrollView>
+    </View>
   );
 }
 
@@ -520,6 +535,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     lineHeight: 28,
+  },
+  ymd: {
+    color: '#93c5fd',
+    fontSize: 32,
+    fontWeight: '800',
+    lineHeight: 38,
+    marginBottom: 8,
   },
   or: {
     color: '#cbd5e1',

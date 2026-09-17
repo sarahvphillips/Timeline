@@ -290,6 +290,10 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Days between dates</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('DateCircle')}>
+        <Text style={styles.buttonText}>Date circle</Text>
+      </TouchableOpacity>
+
       {showWash ? (
         <>
           <TouchableOpacity
