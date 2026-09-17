@@ -21,7 +21,9 @@ import {
   applyJoinRewards,
   getRewards,
   hasPerk,
+  STAMPS,
 } from '../services/rewardsService';
+import StampsRow from '../components/StampsRow';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -51,7 +53,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const [showAddEvent, setShowAddEvent] = useState(true);
   const [staff, setStaff] = useState(false);
   const [blocked, setBlocked] = useState(false);
-  const [stamps, setStamps] = useState([]);
+  const [stamps, setStamps] = useState(() => STAMPS.map((s) => ({ ...s, earned: false })));
   const [credits, setCredits] = useState(0);
   const [showChecksums, setShowChecksums] = useState(false);
 
@@ -71,26 +73,51 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         })
         .catch(() => {});
       (async () => {
+        let events = [];
+        let people = [];
+        let words = [];
         try {
-          const [events, people, words] = await Promise.all([
-            getEvents(),
-            syncAcceptedJoins(),
-            getWordNumbers(),
-          ]);
-          if (cancelled) return;
+          events = await getEvents();
+        } catch {
+          events = [];
+        }
+        try {
+          people = await syncAcceptedJoins();
+        } catch {
+          people = [];
+        }
+        try {
+          words = await getWordNumbers();
+        } catch {
+          words = [];
+        }
+        if (cancelled) return;
+        try {
           await applyJoinRewards(people);
-          const nextStamps = evaluateStamps({ events, people, words });
+        } catch {
+          /* join rewards optional */
+        }
+        const nextStamps = evaluateStamps({ events, people, words });
+        if (!cancelled) setStamps(nextStamps);
+        try {
           const stampResult = await applyStampRowReward(nextStamps);
           const rewards = stampResult.rewards || (await getRewards());
           if (cancelled) return;
-          setStamps(nextStamps);
           setCredits(rewards.credits || 0);
           setShowChecksums(hasPerk(rewards, 'checksumHome'));
           if (stampResult.newlyClaimed?.length) {
             Alert.alert('Stamps', `${stampResult.newlyClaimed[0].label}. Open Credits shop to spend them.`);
           }
         } catch {
-          /* stamps stay empty */
+          try {
+            const rewards = await getRewards();
+            if (!cancelled) {
+              setCredits(rewards.credits || 0);
+              setShowChecksums(hasPerk(rewards, 'checksumHome'));
+            }
+          } catch {
+            /* keep defaults */
+          }
         }
       })();
       loadAdmin(user?.email)
@@ -235,38 +262,13 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={[styles.email, { color: colors.faint }]}>{user?.email || 'Signed in'}</Text>
       </View>
 
-      <View style={[styles.stampsCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-        <View style={styles.stampsHead}>
-          <Text style={[styles.devicesTitle, { color: colors.muted, marginBottom: 0 }]}>Stamps</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('CreditsShop')}>
-            <Text style={[styles.creditsLink, { color: colors.blueSoft }]}>Credits {credits} · Shop</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={[styles.stampsHint, { color: colors.faint }]}>
-          Private. Fill a tile by doing the thing. First row of four gives +2 credits, once.
-        </Text>
-        <View style={styles.stampsGrid}>
-          {stamps.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              style={styles.stampCell}
-              onPress={() => s.screen && navigation.navigate(s.screen)}
-            >
-              <View
-                style={[
-                  styles.stampDot,
-                  s.earned
-                    ? { backgroundColor: colors.blue, borderColor: colors.blue }
-                    : { backgroundColor: 'transparent', borderColor: colors.cardBorder },
-                ]}
-              >
-                <Text style={styles.stampMark}>{s.earned ? '✓' : ''}</Text>
-              </View>
-              <Text style={[styles.stampLabel, { color: s.earned ? colors.text : colors.faint }]}>{s.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      <StampsRow
+        stamps={stamps}
+        credits={credits}
+        colors={colors}
+        onShop={() => navigation.navigate('CreditsShop')}
+        onStamp={(s) => s.screen && navigation.navigate(s.screen)}
+      />
 
       <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
         <Text style={[styles.devicesTitle, { color: colors.muted }]}>Signed-in devices</Text>
@@ -490,58 +492,6 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 6,
     textAlign: 'center',
-  },
-  stampsCard: {
-    width: '100%',
-    maxWidth: 320,
-    marginBottom: 20,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  stampsHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  creditsLink: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  stampsHint: {
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 10,
-  },
-  stampsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  stampCell: {
-    width: '25%',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  stampDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stampMark: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  stampLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: 4,
-    paddingHorizontal: 2,
   },
   devicesSection: {
     width: '100%',
