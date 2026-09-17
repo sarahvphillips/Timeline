@@ -27,6 +27,7 @@ import AddWatchedScreen from './src/screens/AddWatchedScreen';
 import YouTubeScreen from './src/screens/YouTubeScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
+import UtilitiesScreen from './src/screens/UtilitiesScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
 import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
 import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
@@ -259,6 +260,12 @@ function AppShell() {
                 name="Admin"
                 component={AdminScreen}
                 options={{ title: 'Admin' }}
+              />
+
+              <Stack.Screen
+                name="Utilities"
+                component={UtilitiesScreen}
+                options={{ title: 'Utilities' }}
               />
 
               <Stack.Screen
