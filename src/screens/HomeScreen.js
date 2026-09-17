@@ -154,7 +154,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     navigation.navigate('Settings');
   };
 
-
   const thisSession = sessions.find((s) => s.id === thisDeviceId);
   const otherSessions = sessions.filter((s) => s.id !== thisDeviceId);
   const recentOthers = otherRecentSessions(sessions, thisDeviceId);
@@ -183,7 +182,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      {/* TEMP design target — remove when home hub matches sketch. */}
       <DesignTargetButton
         imageSource={require('../../assets/design-home-hub.png')}
         title="Home hub design (temp)"
@@ -266,6 +264,20 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Add from email</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: colors.blue }]}
+        onPress={() => navigation.navigate('PickFromGmail')}
+      >
+        <Text style={styles.buttonText}>Pick from Gmail</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: colors.blue }]}
+        onPress={() => navigation.navigate('AddWatched')}
+      >
+        <Text style={styles.buttonText}>TV & films</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('StarlinkCheck')}>
         <Text style={styles.buttonText}>Starlink check</Text>
       </TouchableOpacity>
@@ -303,7 +315,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           ) : null}
         </>
       ) : null}
-
 
       <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
         <Text style={[styles.ghostText, { color: colors.faint }]}>Settings</Text>
