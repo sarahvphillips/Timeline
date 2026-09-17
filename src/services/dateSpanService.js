@@ -314,7 +314,14 @@ export function spanYmd(fromIso, untilIso) {
     months += 12;
   }
   const totalDays = Math.round((b.getTime() - a.getTime()) / 86400000);
-  return { years, months, days, totalDays };
+  return {
+    years,
+    months,
+    days,
+    totalDays,
+    from: toIsoDate(a),
+    to: toIsoDate(b),
+  };
 }
 
 export function digitSum(n) {
@@ -325,6 +332,29 @@ export function digitSum(n) {
 
 export function concatNumbers(a, b) {
   return Number(`${a}${b}`);
+}
+
+export function formatUk(isoOrDate) {
+  if (!isoOrDate) return '';
+  if (isoOrDate instanceof Date) {
+    return `${isoOrDate.getDate()}/${isoOrDate.getMonth() + 1}/${isoOrDate.getFullYear()}`;
+  }
+  const d = parseIsoDay(isoOrDate);
+  if (Number.isNaN(d.getTime())) return String(isoOrDate);
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+}
+
+export function formatSpan(s) {
+  if (!s) return '';
+  const days = s.calDays != null ? s.calDays : s.days != null ? s.days : 0;
+  const bits = [s.years ? `${s.years}y` : null, s.months ? `${s.months}m` : null, `${days}d`].filter(Boolean);
+  return bits.join(' ');
+}
+
+export function spanDetail(fromIso, untilIso, { excludeEndDate = true } = {}) {
+  const from = parseIsoDay(fromIso);
+  const to = parseIsoDay(untilIso);
+  return calculateSpan(from, to, { excludeEndDate });
 }
 
 async function readListRaw(uid = currentUid()) {
