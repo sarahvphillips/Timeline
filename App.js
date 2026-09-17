@@ -35,6 +35,7 @@ import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
 import DateCircleScreen from './src/screens/DateCircleScreen';
+import PeopleScreen from './src/screens/PeopleScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
@@ -290,6 +291,12 @@ function AppShell() {
                 name="DateCircle"
                 component={DateCircleScreen}
                 options={{ title: 'Date circle' }}
+              />
+
+              <Stack.Screen
+                name="People"
+                component={PeopleScreen}
+                options={{ title: 'People' }}
               />
 
               <Stack.Screen

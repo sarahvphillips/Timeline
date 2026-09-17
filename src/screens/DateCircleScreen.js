@@ -354,6 +354,9 @@ export default function DateCircleScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.navigate('WordToInt')}>
           <Text style={styles.link}>Word to Int</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('People')}>
+          <Text style={styles.link}>People</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.card}>

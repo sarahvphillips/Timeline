@@ -250,6 +250,10 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Events with friends</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('People')}>
+        <Text style={styles.buttonText}>People</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity
         style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
         onPress={() => navigation.navigate('AcceptInvite')}
