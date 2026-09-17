@@ -22,6 +22,8 @@ import AddEventScreen from './src/screens/AddEventScreen';
 import AddPoemScreen from './src/screens/AddPoemScreen';
 import AddFoodScreen from './src/screens/AddFoodScreen';
 import AddWashLoadScreen from './src/screens/AddWashLoadScreen';
+import PickFromGmailScreen from './src/screens/PickFromGmailScreen';
+import AddWatchedScreen from './src/screens/AddWatchedScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
@@ -53,19 +55,13 @@ function AppShell() {
         setUser(firebaseUser);
         if (firebaseUser) {
           const uid = firebaseUser.uid;
-          // Invalidate any in-flight event / wordNumbers I/O from a previous account first.
           beginAuthScope(uid);
           beginWordNumbersAuthScope(uid);
           beginSpansAuthScope(uid);
-          // Pull before paint: hold the shell until the first cloud sync finishes
-          // (or local load when sync flags are off) so Year/Month never flash stale cache.
           const waitForCloud =
             EVENTS_FIRESTORE_SYNC_ENABLED || WORD_NUMBERS_FIRESTORE_SYNC_ENABLED;
           if (waitForCloud) setCloudSyncing(true);
           setInitializing(false);
-          // Load this uid locally (cloud only if the matching Firestore sync flag is on).
-          // Before @timeline_last_uid so legacy migration sees the previous uid.
-          // Then record this login as last_uid for future sessions.
           Promise.all([
             syncEventsFromCloud(uid).catch((err) => {
               console.warn(
@@ -99,7 +95,6 @@ function AppShell() {
           beginSpansAuthScope(null);
           setCloudSyncing(false);
           setInitializing(false);
-          // Logged out: guest cache only — never leave the previous user's list active.
           readLocalEvents(null).catch(() => {});
           syncWordNumbersFromCloud(null).catch(() => {});
           syncSettingsFromCloud(null).catch(() => {});
@@ -180,7 +175,6 @@ function AppShell() {
                 })}
               />
 
-
               <Stack.Screen
                 name="WeekOverview"
                 component={WeekOverviewScreen}
@@ -240,6 +234,20 @@ function AppShell() {
               />
 
               <Stack.Screen
+                name="PickFromGmail"
+                component={PickFromGmailScreen}
+                options={{ title: 'Pick from Gmail' }}
+              />
+
+              <Stack.Screen
+                name="AddWatched"
+                component={AddWatchedScreen}
+                options={({ route }) => ({
+                  title: route.params?.event ? 'Edit watched' : 'TV & films',
+                })}
+              />
+
+              <Stack.Screen
                 name="Admin"
                 component={AdminScreen}
                 options={{ title: 'Admin' }}
@@ -262,7 +270,6 @@ function AppShell() {
                 component={DateSpanScreen}
                 options={{ title: 'Days between dates' }}
               />
-
 
               <Stack.Screen
                 name="EventsWithFriends"
