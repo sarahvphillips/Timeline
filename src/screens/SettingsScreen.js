@@ -35,6 +35,8 @@ import {
   listSessions,
   otherRecentSessions,
 } from '../services/deviceSession';
+import { syncAcceptedJoins } from '../services/peopleService';
+import { applyJoinRewards, perkLabel } from '../services/rewardsService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -82,6 +84,7 @@ export default function SettingsScreen({ navigation }) {
   const [savingFoodPref, setSavingFoodPref] = useState(false);
   const [showWashInMenu, setShowWashInMenu] = useState(true);
   const [savingWashPref, setSavingWashPref] = useState(false);
+  const [referralLine, setReferralLine] = useState('');
 
   const about = appAboutInfo();
 
@@ -99,6 +102,21 @@ export default function SettingsScreen({ navigation }) {
     setPoemCats(cats);
     setShowFoodInMenu(!!foodOn);
     setShowWashInMenu(washOn !== false);
+    try {
+      const people = await syncAcceptedJoins();
+      const { rewards, stats } = await applyJoinRewards(people);
+      const perks = (rewards.unlockedPerks || []).map(perkLabel).filter(Boolean);
+      const next = stats.nextMilestone
+        ? `${stats.remaining} more joined for ${stats.nextMilestone.label}`
+        : 'All current referral rewards claimed';
+      setReferralLine(
+        `${stats.invited} invited · ${stats.joined} joined · ${rewards.credits} credits` +
+          (perks.length ? ` · ${perks.join(', ')}` : '') +
+          ` · ${next}`
+      );
+    } catch {
+      setReferralLine('Open People to see invite counts and rewards.');
+    }
   }, []);
 
   const loadSessions = useCallback(async () => {
@@ -526,7 +544,19 @@ export default function SettingsScreen({ navigation }) {
         {renderSoonRow("Export data", "Exporting your data")}
         {renderSoonRow("Purchases security", "2-factor auth and similar checks before in-app purchases")}
         {renderSoonRow("Friend invite limits", "Free tier caps how many invites and friends per shared event; paid unlocks more")}
-        {renderSoonRow("Friend referrals", "Refer a friend for one month of free invite headroom (details TBD)")}
+        <TouchableOpacity
+          style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('People')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuRowText}>
+            <Text style={[styles.menuRowLabel, { color: colors.text }]}>Friend referrals</Text>
+            <Text style={[styles.hint, { color: colors.faint, marginTop: 4, marginBottom: 0 }]}>
+              {referralLine || 'Counts friends who join with your code.'}
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: colors.faint }]}>›</Text>
+        </TouchableOpacity>
 
         <Text style={[styles.section, { color: colors.muted }]}>About</Text>
         <View style={[styles.aboutCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>

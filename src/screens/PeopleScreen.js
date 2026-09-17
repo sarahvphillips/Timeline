@@ -24,6 +24,7 @@ import {
 } from '../services/peopleService';
 import { daysUntilNext, formatUk } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
+import { applyJoinRewards } from '../services/rewardsService';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -39,10 +40,24 @@ export default function PeopleScreen({ navigation }) {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [rewardNote, setRewardNote] = useState('');
+  const [stats, setStats] = useState(null);
+  const [credits, setCredits] = useState(0);
 
   const load = useCallback(async () => {
     const list = await syncAcceptedJoins();
     setPeople(list);
+    const { rewards, newlyClaimed, stats: nextStats } = await applyJoinRewards(list);
+    setStats(nextStats);
+    setCredits(rewards.credits);
+    if (newlyClaimed.length) {
+      const lines = newlyClaimed.map((m) => m.label).join('\n');
+      const msg = `Thanks — ${nextStats.joined} friend${nextStats.joined === 1 ? '' : 's'} joined.\n${lines}`;
+      setRewardNote(msg);
+      Alert.alert('Referral reward', msg);
+    } else {
+      setRewardNote('');
+    }
   }, []);
 
   useFocusEffect(
@@ -192,8 +207,26 @@ export default function PeopleScreen({ navigation }) {
         <Text style={styles.heading}>People</Text>
         <Text style={styles.intro}>
           Real-life friends, even if they don’t use Timeline. They can sit under events, SMS, calls,
-          and the date circle. Invite is optional.
+          and the date circle. Invite is optional. Rewards count friends who join with your code, not
+          just invites sent.
         </Text>
+        {stats ? (
+          <View style={styles.rewardCard}>
+            <Text style={styles.rewardTitle}>
+              {stats.invited} invited · {stats.joined} joined
+            </Text>
+            <Text style={styles.rewardMeta}>Credits {credits}</Text>
+            {stats.nextMilestone ? (
+              <Text style={styles.rewardHint}>
+                {stats.remaining} more joined friend{stats.remaining === 1 ? '' : 's'} unlocks{' '}
+                {stats.nextMilestone.label} (at {stats.nextMilestone.joined}).
+              </Text>
+            ) : (
+              <Text style={styles.rewardHint}>All current referral rewards claimed. Thank you.</Text>
+            )}
+            {rewardNote ? <Text style={styles.rewardWin}>{rewardNote}</Text> : null}
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{editingId ? 'Edit person' : 'Add person'}</Text>
@@ -352,6 +385,18 @@ const styles = StyleSheet.create({
   },
   heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
   intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  rewardCard: {
+    backgroundColor: '#1a1b36',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#8b5cf6',
+    marginBottom: 16,
+  },
+  rewardTitle: { color: '#f8fafc', fontSize: 16, fontWeight: '800' },
+  rewardMeta: { color: '#c4b5fd', fontSize: 13, fontWeight: '700', marginTop: 4 },
+  rewardHint: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginTop: 6 },
+  rewardWin: { color: '#86efac', fontSize: 13, marginTop: 8, fontWeight: '600' },
   card: {
     backgroundColor: '#1a1b36',
     borderRadius: 14,
