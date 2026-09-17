@@ -24,6 +24,7 @@ import AddFoodScreen from './src/screens/AddFoodScreen';
 import AddWashLoadScreen from './src/screens/AddWashLoadScreen';
 import PickFromGmailScreen from './src/screens/PickFromGmailScreen';
 import AddWatchedScreen from './src/screens/AddWatchedScreen';
+import YouTubeScreen from './src/screens/YouTubeScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
@@ -246,6 +247,12 @@ function AppShell() {
                 options={({ route }) => ({
                   title: route.params?.event ? 'Edit watched' : 'TV & films',
                 })}
+              />
+
+              <Stack.Screen
+                name="YouTube"
+                component={YouTubeScreen}
+                options={{ title: 'YouTube' }}
               />
 
               <Stack.Screen

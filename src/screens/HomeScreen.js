@@ -278,6 +278,13 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>TV & films</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: colors.blue }]}
+        onPress={() => navigation.navigate('YouTube')}
+      >
+        <Text style={styles.buttonText}>YouTube</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('StarlinkCheck')}>
         <Text style={styles.buttonText}>Starlink check</Text>
       </TouchableOpacity>

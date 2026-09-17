@@ -342,6 +342,7 @@ export default function TimelineScreen({ navigation, route }) {
               onPress={() => {
                 if (item.source === 'food') navigation.navigate('AddFood', { event: item });
                 else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
+                else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
                 else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
                 else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
                 else navigation.navigate('AddEvent', { event: item });
@@ -438,6 +439,7 @@ export default function TimelineScreen({ navigation, route }) {
               { label: 'Add from email', action: () => navigation.navigate('AddEvent', { fromEmail: true, source: 'email' }) },
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
+              { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu
                 ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]

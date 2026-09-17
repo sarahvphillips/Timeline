@@ -109,7 +109,7 @@ Product map:
 - [x] Customisable poem types (Settings UI says Type; AsyncStorage/Firestore key poemCategories unchanged)
 - [x] Label / tag system basics (Settings can edit labels list locally; showing on expanded cards still open)
 - [ ] User add tv or films watched (description + score /10)
-- [ ] **YouTube** — track *your own* uploads: paste video URL, title, upload date, note. Later: share that view with Timeline friends (same share-with-friends path as events). Thumbnails / channel list later. Not the same as TV & films watched (that’s viewing other people’s work).
+- [x] **YouTube** (first pass 17 Sep 2026) — track *your own* uploads: paste video URL, title, upload date, note. Optional add to timeline. Share that view with Timeline friends (note + link, not YouTube comments). Thumbnail from the video id. Channel list / auto-import later. Not the same as TV & films watched.
 - [ ] User add Spotify activity
 - [ ] User add friends photos from social media
 - [ ] User add social media feeds
