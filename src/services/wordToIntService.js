@@ -343,6 +343,16 @@ export async function getWordNumbers() {
   }
 }
 
+export function phraseKey(phrase) {
+  return String(phrase || '').trim().toLowerCase();
+}
+
+export function findSavedPhrase(list, phrase) {
+  const key = phraseKey(phrase);
+  if (!key) return null;
+  return (list || []).find((item) => phraseKey(item.phrase) === key) || null;
+}
+
 export async function saveWordNumber(entry) {
   const result = convertPhrase(entry.phrase);
   if (!result.phrase) {
@@ -373,16 +383,17 @@ export async function saveWordNumber(entry) {
     updatedAt: now,
   };
 
-  const index = list.findIndex((item) => {
-    if (entry.id && String(item.id) === String(entry.id)) return true;
-    return (
-      String(item.phrase || '').trim().toLowerCase() === payload.phrase.toLowerCase() &&
-      (item.preferred || 'ordinal') === payload.preferred
-    );
-  });
-
   const uid = currentUid();
   if (uid) payload.ownerUid = uid;
+
+  const existing = findSavedPhrase(list, payload.phrase);
+  if (existing && (!entry.id || String(existing.id) !== String(entry.id))) {
+    const err = new Error('that word is already saved in the list!');
+    err.code = 'DUPLICATE_PHRASE';
+    throw err;
+  }
+
+  const index = list.findIndex((item) => entry.id && String(item.id) === String(entry.id));
 
   if (index !== -1) {
     payload.id = list[index].id;

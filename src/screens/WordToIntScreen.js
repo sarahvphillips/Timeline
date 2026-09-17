@@ -21,6 +21,7 @@ import {
   findPhrasesForNumber,
   javaHashCode,
   METHODS,
+  findSavedPhrase,
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
@@ -98,9 +99,17 @@ export default function WordToIntScreen({ navigation, route }) {
     Alert.alert('Number', String(text));
   };
 
+  const alertDuplicate = () => {
+    Alert.alert('Already saved', 'that word is already saved in the list!');
+  };
+
   const handleSaveList = async () => {
     if (!result.phrase) {
       Alert.alert('Missing phrase', 'Type a word or short phrase first.');
+      return;
+    }
+    if (findSavedPhrase(list, result.phrase)) {
+      alertDuplicate();
       return;
     }
     setSaving(true);
@@ -118,7 +127,11 @@ export default function WordToIntScreen({ navigation, route }) {
           : `"${saved.phrase}" is on this device. Firebase: ${saved.cloudError || 'not signed in or Firestore is off'}.`
       );
     } catch (e) {
-      Alert.alert('Error', e?.message || 'Could not save this number.');
+      if (e?.code === 'DUPLICATE_PHRASE') {
+        alertDuplicate();
+      } else {
+        Alert.alert('Error', e?.message || 'Could not save this number.');
+      }
     } finally {
       setSaving(false);
     }
@@ -127,6 +140,10 @@ export default function WordToIntScreen({ navigation, route }) {
   const handleSaveTimeline = async () => {
     if (!result.phrase) {
       Alert.alert('Missing phrase', 'Type a word or short phrase first.');
+      return;
+    }
+    if (findSavedPhrase(list, result.phrase)) {
+      alertDuplicate();
       return;
     }
     const number = currentNumber();
@@ -167,7 +184,11 @@ export default function WordToIntScreen({ navigation, route }) {
           : `"${result.phrase}" is on this device. Firebase: ${saved.cloudError || 'not signed in or Firestore is off'}.`
       );
     } catch (e) {
-      Alert.alert('Error', e?.message || 'Could not save to the timeline.');
+      if (e?.code === 'DUPLICATE_PHRASE') {
+        alertDuplicate();
+      } else {
+        Alert.alert('Error', e?.message || 'Could not save to the timeline.');
+      }
     } finally {
       setSaving(false);
     }
