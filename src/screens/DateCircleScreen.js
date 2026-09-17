@@ -565,8 +565,8 @@ export default function DateCircleScreen({ navigation }) {
       <View style={styles.card}>
         <Text style={styles.subHead}>Add to timeline</Text>
         <Text style={styles.hint}>
-          Category: wheel of dates. Extra photo is optional. Expo Go cannot snapshot the wheel
-          itself the way the preview does — the numbers still save.
+          Category: wheel of dates. If you want a picture of the circle, take a screenshot on
+          the phone, then pick it here as the extra image.
         </Text>
         <View style={styles.chipRow}>
           <TouchableOpacity
@@ -595,7 +595,7 @@ export default function DateCircleScreen({ navigation }) {
           <Text style={styles.hint}>Uses {formatUk(todayIso())}</Text>
         )}
         <TouchableOpacity style={styles.ghostBtn} onPress={pickExtraImage}>
-          <Text style={styles.ghostText}>Extra image (optional)</Text>
+          <Text style={styles.ghostText}>Add screenshot (optional)</Text>
         </TouchableOpacity>
         {eventImage ? <Image source={{ uri: eventImage }} style={styles.extraImg} /> : null}
         <TouchableOpacity style={styles.button} onPress={addWheelEvent} disabled={saving}>
