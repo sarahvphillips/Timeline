@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,11 @@ import {
   METHODS,
   findSavedPhrase,
   scrubWordNumberDuplicates,
+  LIST_SORTS,
+  getListSort,
+  setListSort,
+  sortWordNumberList,
+  formatAddedAt,
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
@@ -49,11 +54,18 @@ export default function WordToIntScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [lookupNumber, setLookupNumber] = useState('');
   const [dupNotice, setDupNotice] = useState(false);
+  const [sortMode, setSortMode] = useState('added');
   const lastPhraseParam = useRef(null);
 
   const result = convertPhrase(phrase);
   const duplicateHit = findSavedPhrase(list, result.phrase || phrase);
   const showDup = !!(dupNotice || duplicateHit);
+  const sortedList = useMemo(() => sortWordNumberList(list, sortMode), [list, sortMode]);
+
+  const pickSort = async (id) => {
+    setSortMode(id);
+    await setListSort(id);
+  };
 
   const alertDuplicate = () => {
     setDupNotice(true);
@@ -69,9 +81,14 @@ export default function WordToIntScreen({ navigation, route }) {
     // Await cloud pull before showing saved list (avoids empty-then-fill flash).
     setListLoading(true);
     try {
-      const [words, savedSpans] = await Promise.all([getWordNumbers(), getSpans()]);
+      const [words, savedSpans, savedSort] = await Promise.all([
+        getWordNumbers(),
+        getSpans(),
+        getListSort(),
+      ]);
       setList(words);
       setSpans(savedSpans);
+      setSortMode(savedSort);
     } finally {
       setListLoading(false);
     }
@@ -417,6 +434,21 @@ export default function WordToIntScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <Text style={styles.listTitle}>Saved numbers</Text>
+      {list.length > 0 ? (
+        <View style={styles.sortRow}>
+          {LIST_SORTS.map((opt) => (
+            <TouchableOpacity
+              key={opt.id}
+              style={[styles.sortChip, sortMode === opt.id && styles.sortChipOn]}
+              onPress={() => pickSort(opt.id)}
+            >
+              <Text style={[styles.sortChipText, sortMode === opt.id && styles.sortChipTextOn]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
       {listLoading ? (
         <View style={styles.listLoading}>
           <ActivityIndicator size="small" color="#3b82f6" />
@@ -427,11 +459,14 @@ export default function WordToIntScreen({ navigation, route }) {
       ) : list.length === 0 ? (
         <Text style={styles.empty}>No saved numbers yet. Convert a phrase and save it here.</Text>
       ) : (
-        list.map((item) => (
+        sortedList.map((item) => (
           <View key={item.id} style={styles.item}>
             <TouchableOpacity onPress={() => reuseItem(item)} style={styles.itemMain}>
               <Text style={styles.itemPhrase}>{item.phrase}</Text>
               <Text style={styles.itemNumber}>{preferredNumber(item)}</Text>
+              <Text style={styles.itemAdded}>
+                Added {formatAddedAt(item.createdAt || item.updatedAt)}
+              </Text>
               <Text style={styles.itemMeta}>
                 Ord {item.ordinal} · Pyth {item.pythagorean} · Rev {item.reverse} · Red {item.reduced} · hash {displayHash(item)}
               </Text>
@@ -626,6 +661,31 @@ const styles = StyleSheet.create({
     marginTop: 28,
     marginBottom: 10,
   },
+  sortRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sortChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  sortChipOn: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  sortChipText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sortChipTextOn: {
+    color: '#fff',
+  },
   listLoading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -653,6 +713,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     marginVertical: 4,
+  },
+  itemAdded: {
+    color: '#93c5fd',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   itemMeta: {
     color: '#64748b',

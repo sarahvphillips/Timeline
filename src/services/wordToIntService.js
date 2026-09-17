@@ -552,6 +552,68 @@ export function preferredNumber(entry) {
   return entry.ordinal;
 }
 
+const SORT_KEY = '@word_to_int_list_sort';
+export const LIST_SORTS = [
+  { id: 'added', label: 'Added' },
+  { id: 'alpha', label: 'A–Z' },
+  { id: 'number', label: 'Number' },
+];
+
+export async function getListSort() {
+  try {
+    const v = await AsyncStorage.getItem(SORT_KEY);
+    if (v === 'alpha' || v === 'number' || v === 'added') return v;
+  } catch (_) {
+    /* keep default */
+  }
+  return 'added';
+}
+
+export async function setListSort(mode) {
+  const id = mode === 'alpha' || mode === 'number' ? mode : 'added';
+  try {
+    await AsyncStorage.setItem(SORT_KEY, id);
+  } catch (_) {
+    /* still return the chosen mode for this session */
+  }
+  return id;
+}
+
+export function sortWordNumberList(list, mode) {
+  const rows = [...(list || [])];
+  if (mode === 'alpha') {
+    rows.sort(
+      (a, b) =>
+        phraseKey(a.phrase).localeCompare(phraseKey(b.phrase)) ||
+        String(a.phrase || '').localeCompare(String(b.phrase || ''))
+    );
+  } else if (mode === 'number') {
+    rows.sort((a, b) => {
+      const na = Number(preferredNumber(a));
+      const nb = Number(preferredNumber(b));
+      const fa = Number.isFinite(na) ? na : Infinity;
+      const fb = Number.isFinite(nb) ? nb : Infinity;
+      if (fa !== fb) return fa - fb;
+      return phraseKey(a.phrase).localeCompare(phraseKey(b.phrase));
+    });
+  } else {
+    rows.sort((a, b) => {
+      const ta = Date.parse(a.createdAt || a.updatedAt || '') || 0;
+      const tb = Date.parse(b.createdAt || b.updatedAt || '') || 0;
+      if (tb !== ta) return tb - ta;
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
+  }
+  return rows;
+}
+
+export function formatAddedAt(iso) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return 'Added time unknown';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function numberMatches(entry, n) {
   if (!entry || Number.isNaN(n)) return [];
   const hits = [];
