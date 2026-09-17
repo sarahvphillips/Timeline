@@ -1008,6 +1008,79 @@ export function getMonthSummaries(events, year, filter) {
   return months;
 }
 
+function sortKindBubbles(buckets) {
+  return Object.values(buckets)
+    .filter((b) => b.count > 0)
+    .sort((a, b) => {
+      const ai = YEAR_BUBBLE_KIND_ORDER.indexOf(a.kind);
+      const bi = YEAR_BUBBLE_KIND_ORDER.indexOf(b.kind);
+      const ao = ai === -1 ? 100 : ai;
+      const bo = bi === -1 ? 100 : bi;
+      if (ao !== bo) return ao - bo;
+      return b.count - a.count || a.label.localeCompare(b.label);
+    });
+}
+
+/**
+ * Per-month kind-bubbles for MonthOverviewScreen — same classification as years.
+ * Always returns Jan–Dec for `year`. Empty months have bubbles: [].
+ */
+export function getMonthBubbleSummaries(events, year, filter) {
+  const months = Array.from({ length: 12 }, (_, i) => ({
+    month: i,
+    letter: MONTH_LETTERS[i],
+    name: MONTH_NAMES[i],
+    short: PREVIEW_MONTH_SHORT[i],
+    count: 0,
+    bubbles: [],
+  }));
+  const bucketsByMonth = Array.from({ length: 12 }, () => ({}));
+  (events || []).forEach((event) => {
+    const d = new Date(event.date);
+    if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) return;
+    if (filter && !eventMatchesBubbleFilter(event, filter)) return;
+    const m = d.getMonth();
+    months[m].count += 1;
+    const meta = classifyYearBubbleKind(event);
+    const buckets = bucketsByMonth[m];
+    if (!buckets[meta.kind]) {
+      buckets[meta.kind] = {
+        kind: meta.kind,
+        label: meta.label,
+        color: meta.color,
+        filter: meta.filter,
+        count: 0,
+      };
+    }
+    buckets[meta.kind].count += 1;
+  });
+  return months.map((row, i) => ({
+    ...row,
+    bubbles: sortKindBubbles(bucketsByMonth[i]),
+  }));
+}
+
+export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit = 6) {
+  const matched = (events || [])
+    .filter((e) => {
+      const d = new Date(e.date);
+      if (Number.isNaN(d.getTime()) || d.getFullYear() !== year || d.getMonth() !== month) {
+        return false;
+      }
+      return eventMatchesBubbleFilter(e, filter);
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  return matched.slice(0, Math.max(0, limit)).map((e) => {
+    const d = new Date(e.date);
+    return {
+      id: e.id,
+      title: e.title || 'Untitled',
+      dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
+    };
+  });
+}
+
 export function filterEventsByYearMonth(events, year, month) {
   return events.filter((e) => {
     const d = new Date(e.date);

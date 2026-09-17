@@ -1,9 +1,24 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  Pressable,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getEvents, getMonthSummaries, EVENTS_FIRESTORE_SYNC_ENABLED } from '../services/eventService';
+import {
+  getEvents,
+  getMonthBubbleSummaries,
+  getMonthBubblePreviewBlurbs,
+  EVENTS_FIRESTORE_SYNC_ENABLED,
+} from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
+import SpineKindBlock from '../components/SpineKindBlock';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
 function buildBubbleFilterFromParams(params) {
@@ -26,7 +41,6 @@ function buildBubbleFilterFromParams(params) {
 function weekNavParams(year, month, filter, label) {
   const base = { year, month };
   if (!filter) return base;
-  // Pass filter through so a later WeekOverview pass can apply it; Month counts are already filtered.
   return {
     ...base,
     kind: filter.kind,
@@ -45,9 +59,9 @@ export default function MonthOverviewScreen({ navigation, route }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
   const [showWashInMenu, setShowWashInMenu] = useState(true);
-  /** Local override so Clear chip can restore full year without leaving the screen. */
   const [activeFilter, setActiveFilter] = useState(() => buildBubbleFilterFromParams(route.params));
   const [filterLabel, setFilterLabel] = useState(() => route.params?.label || '');
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     setActiveFilter(buildBubbleFilterFromParams(route.params));
@@ -63,7 +77,6 @@ export default function MonthOverviewScreen({ navigation, route }) {
   ]);
 
   const load = useCallback(async () => {
-    // Await cloud pull before painting month spine from local cache.
     setLoading(true);
     try {
       const data = await getEvents();
@@ -81,16 +94,32 @@ export default function MonthOverviewScreen({ navigation, route }) {
     }, [load])
   );
 
-  const yearsToShow = useMemo(() => [startYear, startYear + 1], [startYear]);
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
+  const months = useMemo(
+    () => getMonthBubbleSummaries(events, startYear, activeFilter || undefined),
+    [events, startYear, activeFilter]
+  );
+
+  const glowKey = useMemo(() => {
+    let best = null;
+    let bestCount = 0;
+    months.forEach((m) => {
+      (m.bubbles || []).forEach((b) => {
+        if (b.count > bestCount) {
+          bestCount = b.count;
+          best = `${startYear}-${m.month}:${b.kind}`;
+        }
+      });
+    });
+    return best;
+  }, [months, startYear]);
 
   const chipText = filterLabel || activeFilter?.kind || 'Filter';
 
   const clearFilter = () => {
     setActiveFilter(null);
     setFilterLabel('');
+    setPreview(null);
     navigation.setParams({
       kind: undefined,
       label: undefined,
@@ -99,6 +128,33 @@ export default function MonthOverviewScreen({ navigation, route }) {
       hobbyType: undefined,
       bubbleFilter: undefined,
     });
+  };
+
+  const openMonth = (monthIndex) => {
+    navigation.navigate('WeekOverview', weekNavParams(startYear, monthIndex, activeFilter, filterLabel));
+  };
+
+  const openBubble = (monthRow, bubble) => {
+    const filter = {
+      kind: bubble.kind,
+      ...(bubble.filter || {}),
+    };
+    const blurbs = getMonthBubblePreviewBlurbs(events, startYear, monthRow.month, filter, 6);
+    setPreview({ monthRow, bubble, blurbs });
+  };
+
+  const zoomInFromPreview = () => {
+    if (!preview) return;
+    const { monthRow, bubble } = preview;
+    const filter = {
+      kind: bubble.kind,
+      ...(bubble.filter || {}),
+    };
+    setPreview(null);
+    navigation.navigate(
+      'WeekOverview',
+      weekNavParams(startYear, monthRow.month, filter, bubble.label)
+    );
   };
 
   if (loading) {
@@ -112,9 +168,17 @@ export default function MonthOverviewScreen({ navigation, route }) {
     );
   }
 
+  const previewTitle = preview
+    ? `${preview.monthRow?.short || ''} ${startYear} · ${preview.bubble?.label || 'Events'}`
+    : '';
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={styles.yearHeading}>{startYear}</Text>
+        <Text style={styles.intro}>
+          Same as years: month on the spine, type-bubbles on spokes. Tap a bubble, then zoom in to the weeks.
+        </Text>
         {activeFilter ? (
           <View style={styles.chipRow}>
             <TouchableOpacity
@@ -128,76 +192,19 @@ export default function MonthOverviewScreen({ navigation, route }) {
           </View>
         ) : null}
         <View style={styles.spine} />
-        {yearsToShow.map((year) => {
-          const months = getMonthSummaries(events, year, activeFilter || undefined);
-          return (
-            <View key={year} style={styles.yearBlock}>
-              <Text style={styles.yearLabel}>{year}</Text>
-              {months.map((m, index) => {
-                const left = index % 2 === 0;
-                const isCurrent = year === currentYear && m.month === currentMonth;
-                const openWeek = () =>
-                  navigation.navigate(
-                    'WeekOverview',
-                    weekNavParams(year, m.month, activeFilter, filterLabel)
-                  );
-                return (
-                  <View key={`${year}-${m.month}`} style={styles.row}>
-                    {left ? (
-                      m.count > 0 ? (
-                        <TouchableOpacity
-                          style={[styles.bubble, styles.bubbleLeft]}
-                          onPress={openWeek}
-                        >
-                          <Text style={styles.count}>{m.count}</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <View style={styles.tickSide} />
-                      )
-                    ) : (
-                      <View style={styles.tickSide} />
-                    )}
-
-                    <TouchableOpacity
-                      style={styles.monthCol}
-                      onPress={openWeek}
-                      accessibilityLabel={`Open ${m.name} ${year}`}
-                    >
-                      <View style={[styles.tick, m.count > 0 && styles.tickActive]} />
-                      {m.count > 0 ? <View style={styles.eventPip} /> : null}
-                      <Text style={[styles.letter, isCurrent && styles.letterCurrent]}>
-                        {m.letter}
-                      </Text>
-                      {m.count > 0 ? (
-                        <View style={styles.indicatorRow}>
-                          {(m.categories || []).slice(0, 4).map((color) => (
-                            <View key={color} style={[styles.catDot, { backgroundColor: color }]} />
-                          ))}
-                        </View>
-                      ) : null}
-                      {isCurrent ? <Text style={styles.nowMark}>★</Text> : null}
-                    </TouchableOpacity>
-
-                    {!left ? (
-                      m.count > 0 ? (
-                        <TouchableOpacity
-                          style={[styles.bubble, styles.bubbleRight]}
-                          onPress={openWeek}
-                        >
-                          <Text style={styles.count}>{m.count}</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <View style={styles.tickSide} />
-                      )
-                    ) : (
-                      <View style={styles.tickSide} />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          );
-        })}
+        {months.map((m, index) => (
+          <SpineKindBlock
+            key={`${startYear}-${m.month}`}
+            id={`${startYear}-${m.month}`}
+            label={m.short}
+            current={startYear === now.getFullYear() && m.month === now.getMonth()}
+            bubbles={m.bubbles}
+            blockIndex={index}
+            glowKey={glowKey}
+            onOpenLabel={() => openMonth(m.month)}
+            onOpenBubble={(bubble) => openBubble(m, bubble)}
+          />
+        ))}
       </ScrollView>
 
       <HomeFab navigation={navigation} />
@@ -218,6 +225,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
               { label: 'Email', action: () => navigation.navigate('AddEvent', { fromEmail: true }) },
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
+              { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu
                 ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]
@@ -243,6 +251,37 @@ export default function MonthOverviewScreen({ navigation, route }) {
           </View>
         </Pressable>
       </Modal>
+
+      <Modal visible={!!preview} transparent animationType="slide" onRequestClose={() => setPreview(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setPreview(null)}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{previewTitle}</Text>
+              <TouchableOpacity onPress={() => setPreview(null)} accessibilityLabel="Close preview">
+                <Text style={styles.sheetClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.blurbList}>
+              {(preview?.blurbs || []).length === 0 ? (
+                <Text style={styles.blurbEmpty}>No events in this bubble yet.</Text>
+              ) : (
+                (preview?.blurbs || []).map((b) => (
+                  <View key={b.id || `${b.title}-${b.dateLabel}`} style={styles.blurbRow}>
+                    <Text style={styles.blurbTitle} numberOfLines={1}>
+                      {b.title}
+                    </Text>
+                    <Text style={styles.blurbDate}>{b.dateLabel}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+            <TouchableOpacity style={styles.zoomBtn} onPress={zoomInFromPreview} activeOpacity={0.85}>
+              <Text style={styles.zoomBtnText}>Zoom in</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -264,9 +303,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   scroll: {
-    paddingVertical: 24,
-    paddingHorizontal: 12,
+    paddingVertical: 28,
+    paddingHorizontal: 10,
     paddingBottom: 100,
+  },
+  yearHeading: {
+    textAlign: 'center',
+    color: '#f8fafc',
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 6,
+    zIndex: 2,
+  },
+  intro: {
+    textAlign: 'center',
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 16,
+    paddingHorizontal: 24,
+    zIndex: 2,
   },
   chipRow: {
     alignItems: 'center',
@@ -291,99 +347,10 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     left: '50%',
-    width: 18,
-    marginLeft: -9,
+    width: 3,
+    marginLeft: -1.5,
     backgroundColor: '#8b5cf6',
-    borderRadius: 10,
-  },
-  yearBlock: {
-    marginBottom: 16,
-  },
-  yearLabel: {
-    textAlign: 'center',
-    color: '#a78bfa',
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 56,
-    marginBottom: 8,
-  },
-  monthCol: {
-    width: 52,
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  tick: {
-    width: 22,
-    height: 4,
-    backgroundColor: '#64748b',
-    marginBottom: 4,
-  },
-  tickActive: {
-    backgroundColor: '#8b5cf6',
-  },
-  eventPip: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#3b82f6',
-    marginBottom: 3,
-    borderWidth: 2,
-    borderColor: '#c4b5fd',
-  },
-  indicatorRow: {
-    flexDirection: 'row',
-    marginTop: 3,
-    gap: 3,
-  },
-  catDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  letter: {
-    color: '#e2e8f0',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  letterCurrent: {
-    color: '#fde047',
-  },
-  nowMark: {
-    color: '#fde047',
-    fontSize: 16,
-    marginTop: 2,
-    fontWeight: '700',
-  },
-  bubble: {
-    minWidth: 56,
-    backgroundColor: '#1a1b36',
-    borderWidth: 2,
-    borderColor: '#8b5cf6',
-    borderRadius: 28,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-  },
-  bubbleLeft: {
-    marginRight: 8,
-    marginLeft: 'auto',
-  },
-  bubbleRight: {
-    marginLeft: 8,
-    marginRight: 'auto',
-  },
-  tickSide: {
-    flex: 1,
-  },
-  count: {
-    color: '#f8fafc',
-    fontSize: 18,
-    fontWeight: '700',
+    borderRadius: 2,
   },
   fab: {
     position: 'absolute',
@@ -421,4 +388,85 @@ const styles = StyleSheet.create({
   menuItemText: { color: '#e2e8f0', fontSize: 16 },
   menuCancel: { paddingVertical: 14, alignItems: 'center' },
   menuCancelText: { color: '#94a3b8', fontSize: 15 },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#1a1b36',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    borderWidth: 1,
+    borderColor: '#2a2b4a',
+    maxHeight: '70%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#475569',
+    marginBottom: 12,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sheetTitle: {
+    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '800',
+    flex: 1,
+    paddingRight: 12,
+  },
+  sheetClose: {
+    color: '#94a3b8',
+    fontSize: 18,
+    fontWeight: '700',
+    paddingHorizontal: 4,
+  },
+  blurbList: {
+    marginBottom: 16,
+    gap: 10,
+  },
+  blurbRow: {
+    backgroundColor: '#0f1024',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#2a2b4a',
+  },
+  blurbTitle: {
+    color: '#e2e8f0',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  blurbDate: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  blurbEmpty: {
+    color: '#94a3b8',
+    fontSize: 14,
+    paddingVertical: 8,
+  },
+  zoomBtn: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  zoomBtnText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
 });
