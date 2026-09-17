@@ -628,26 +628,37 @@ export function numberMatches(entry, n) {
   return [...new Set(hits)];
 }
 
-/** Look up saved phrases for a number. Preferred match first. */
-export function findPhrasesForNumber(list, rawNumber) {
+/** Look up saved phrases for a number. Optional method: ordinal | pythagorean | reverse | reduced | hashcode | all. */
+export function findPhrasesForNumber(list, rawNumber, methodFilter = 'all') {
   const n = Number(String(rawNumber).trim());
   if (!String(rawNumber).trim() || Number.isNaN(n)) return [];
+  const filter = methodFilter || 'all';
 
-  const preferred = [];
-  const other = [];
-
-  (list || []).forEach((entry) => {
-    const hits = numberMatches(entry, n);
-    if (!hits.length) return;
-    const row = { ...entry, matchOn: hits, matchNumber: n };
-    if (hits.includes('preferred') && preferredNumber(entry) === n) {
-      preferred.push(row);
-    } else {
-      other.push(row);
+  const hitsFor = (entry) => {
+    if (filter === 'ordinal') return entry.ordinal === n ? ['ordinal'] : [];
+    if (filter === 'pythagorean') return entry.pythagorean === n ? ['pythagorean'] : [];
+    if (filter === 'reverse') return entry.reverse === n ? ['reverse'] : [];
+    if (filter === 'reduced') return Number(entry.reduced) === n ? ['reduced'] : [];
+    if (filter === 'hashcode') {
+      const hash = entryHashCode(entry);
+      if (hash === n || (hash != null && Math.abs(hash) === Math.abs(n))) return ['hashcode'];
+      return [];
     }
-  });
+    return numberMatches(entry, n).filter((h) => h !== 'preferred');
+  };
 
-  return [...preferred, ...other];
+  const rows = [];
+  (list || []).forEach((entry) => {
+    const hits = hitsFor(entry);
+    if (!hits.length) return;
+    rows.push({ ...entry, matchOn: hits, matchNumber: n });
+  });
+  rows.sort(
+    (a, b) =>
+      phraseKey(a.phrase).localeCompare(phraseKey(b.phrase)) ||
+      String(a.phrase || '').localeCompare(String(b.phrase || ''))
+  );
+  return rows;
 }
 
 export const METHODS = [
@@ -656,4 +667,12 @@ export const METHODS = [
   { id: 'reverse', label: 'Reverse (A=26 … Z=1)', short: 'Reverse' },
   { id: 'reduced', label: 'Reduced (single digit / master)', short: 'Reduced' },
   { id: 'hashcode', label: 'Java hashCode', short: 'hashCode' },
+];
+
+export const LOOKUP_METHODS = [
+  { id: 'ordinal', short: 'Ordinal' },
+  { id: 'pythagorean', short: 'Pythagorean' },
+  { id: 'reverse', short: 'Reverse' },
+  { id: 'reduced', short: 'Reduced' },
+  { id: 'all', short: 'All' },
 ];

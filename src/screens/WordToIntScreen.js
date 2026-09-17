@@ -21,6 +21,7 @@ import {
   findPhrasesForNumber,
   javaHashCode,
   METHODS,
+  LOOKUP_METHODS,
   findSavedPhrase,
   scrubWordNumberDuplicates,
   LIST_SORTS,
@@ -55,6 +56,7 @@ export default function WordToIntScreen({ navigation, route }) {
   const [lookupNumber, setLookupNumber] = useState('');
   const [dupNotice, setDupNotice] = useState(false);
   const [sortMode, setSortMode] = useState('added');
+  const [lookupMethod, setLookupMethod] = useState('ordinal');
   const lastPhraseParam = useRef(null);
 
   const result = convertPhrase(phrase);
@@ -275,7 +277,7 @@ export default function WordToIntScreen({ navigation, route }) {
     navigation.navigate('DateSpan', { span, t: Date.now() });
   };
 
-  const matches = findPhrasesForNumber(list, lookupNumber);
+  const matches = findPhrasesForNumber(list, lookupNumber, lookupMethod);
   const spanMatches = findSpansForNumber(spans, lookupNumber);
   const number = currentNumber();
   const showDayCount = isDayCount(number);
@@ -300,11 +302,27 @@ export default function WordToIntScreen({ navigation, route }) {
         placeholderTextColor="#64748b"
         keyboardType="numeric"
       />
+      <Text style={styles.label}>Match using</Text>
+      <View style={styles.methodRow}>
+        {LOOKUP_METHODS.map((m) => (
+          <TouchableOpacity
+            key={m.id}
+            style={[styles.methodChip, lookupMethod === m.id && styles.methodChipOn]}
+            onPress={() => setLookupMethod(m.id)}
+          >
+            <Text style={[styles.methodText, lookupMethod === m.id && styles.methodTextOn]}>
+              {m.short}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       {!!String(lookupNumber).trim() && (
         <View style={styles.lookupCard}>
           {matches.length === 0 && spanMatches.length === 0 ? (
             <Text style={styles.empty}>
-              No saved word or date span for {String(lookupNumber).trim()}. Convert the word and tap Save to number list first.
+              No saved word
+              {lookupMethod === 'all' ? '' : ` with ${lookupMethod} ${String(lookupNumber).trim()}`}.
+              {lookupMethod !== 'all' ? ' Try All, or save the word first.' : ' Convert the word and tap Save to number list first.'}
             </Text>
           ) : (
             <>
@@ -312,7 +330,7 @@ export default function WordToIntScreen({ navigation, route }) {
                 <TouchableOpacity key={item.id} style={styles.lookupRow} onPress={() => reuseItem(item)}>
                   <Text style={styles.itemPhrase}>{item.phrase}</Text>
                   <Text style={styles.itemMeta}>
-                    {preferredNumber(item)} · {item.preferred || 'ordinal'}
+                    {item.matchNumber} · {(item.matchOn || []).join(', ') || lookupMethod}
                     {item.notes ? ` · ${item.notes}` : ''}
                   </Text>
                 </TouchableOpacity>
