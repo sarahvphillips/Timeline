@@ -287,6 +287,11 @@ export default function WordToIntScreen({ navigation, route }) {
         placeholder="e.g. Figaro, North Star, rain"
         placeholderTextColor="#64748b"
         autoCapitalize="words"
+        returnKeyType="done"
+        blurOnSubmit
+        onSubmitEditing={() => {
+          if (!saving) handleSaveList();
+        }}
       />
 
       <Text style={styles.label}>Method</Text>
