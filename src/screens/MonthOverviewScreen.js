@@ -227,6 +227,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
               { label: 'YouTube', action: () => navigation.navigate('YouTube') },
+              { label: 'SMS', action: () => navigation.navigate('AddSms') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu
                 ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]

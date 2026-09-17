@@ -761,6 +761,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   family: '#a855f7',
   event: '#3b82f6',
   youtube: '#f87171',
+  sms: '#22c55e',
 };
 
 const YEAR_BUBBLE_KIND_ORDER = [
@@ -772,6 +773,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'food',
   'household',
   'youtube',
+  'sms',
 ];
 
 /**
@@ -827,6 +829,14 @@ export function classifyYearBubbleKind(event) {
       label: 'YouTube',
       color: YEAR_BUBBLE_KIND_COLORS.youtube,
       filter: { source: 'youtube' },
+    };
+  }
+  if (source === 'sms') {
+    return {
+      kind: 'sms',
+      label: 'SMS',
+      color: YEAR_BUBBLE_KIND_COLORS.sms,
+      filter: { source: 'sms' },
     };
   }
   if (source === 'laundry' || category === 'household') {

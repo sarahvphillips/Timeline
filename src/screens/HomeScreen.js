@@ -324,6 +324,10 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>People</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('AddSms')}>
+        <Text style={styles.buttonText}>SMS</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditsShop')}>
         <Text style={styles.buttonText}>Credits shop</Text>
       </TouchableOpacity>
