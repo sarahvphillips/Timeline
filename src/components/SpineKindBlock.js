@@ -105,7 +105,9 @@ function staggerOffset(seed, bubbleIndex) {
 export default function SpineKindBlock({
   id,
   label,
+  sublabel,
   current,
+  muted,
   bubbles,
   blockIndex,
   glowKey,
@@ -116,7 +118,8 @@ export default function SpineKindBlock({
   const list = bubbles || [];
   const primaryLeft = blockIndex % 2 === 0;
   const n = list.length;
-  const stackHeight = n === 0 ? 96 : Math.max(96, (n - 1) * VERT_GAP + BUBBLE_SIZE + 28);
+  const twoLine = boxedLabel && !!sublabel;
+  const stackHeight = n === 0 ? (twoLine ? 112 : 96) : Math.max(twoLine ? 112 : 96, (n - 1) * VERT_GAP + BUBBLE_SIZE + 28);
   const spineY = stackHeight / 2;
   const seed = id ?? blockIndex;
 
@@ -131,10 +134,10 @@ export default function SpineKindBlock({
     return { bubble: b, side, distance, bubbleCenterY };
   });
 
-  const labelTop = boxedLabel ? spineY - 34 : spineY - 28;
+  const labelTop = twoLine ? spineY - 44 : boxedLabel ? spineY - 34 : spineY - 28;
 
   return (
-    <View style={[styles.block, { height: stackHeight, marginBottom: 40 }]}>
+    <View style={[styles.block, { height: stackHeight, marginBottom: 40 }, muted && styles.blockMuted]}>
       {placements.map((p) => (
         <CurvedDashedSpoke
           key={`spoke-${p.bubble.kind}`}
@@ -148,11 +151,14 @@ export default function SpineKindBlock({
       <TouchableOpacity
         style={[styles.labelCol, { top: labelTop }]}
         onPress={onOpenLabel}
-        accessibilityLabel={`Open ${label}`}
+        accessibilityLabel={`Open ${label}${sublabel ? ` ${sublabel}` : ''}`}
       >
         <View style={[boxedLabel && styles.labelChip, boxedLabel && current && styles.labelChipCurrent]}>
           <View style={[styles.dot, current && styles.dotCurrent]} />
           <Text style={[styles.label, current && styles.labelCurrent]}>{label}</Text>
+          {sublabel ? (
+            <Text style={[styles.sublabel, current && styles.labelCurrent]}>{sublabel}</Text>
+          ) : null}
           {current ? <Text style={styles.nowMark}>★</Text> : null}
         </View>
       </TouchableOpacity>
@@ -181,6 +187,9 @@ const styles = StyleSheet.create({
   block: {
     position: 'relative',
     width: '100%',
+  },
+  blockMuted: {
+    opacity: 0.45,
   },
   labelCol: {
     position: 'absolute',
@@ -227,6 +236,13 @@ const styles = StyleSheet.create({
   },
   labelCurrent: {
     color: '#fde047',
+  },
+  sublabel: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 1,
+    textAlign: 'center',
   },
   nowMark: {
     color: '#fde047',

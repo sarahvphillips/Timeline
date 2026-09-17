@@ -1081,6 +1081,51 @@ export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit =
   });
 }
 
+function eventOnLocalDay(event, date) {
+  const d = new Date(event.date);
+  if (Number.isNaN(d.getTime())) return false;
+  return (
+    d.getFullYear() === date.getFullYear() &&
+    d.getMonth() === date.getMonth() &&
+    d.getDate() === date.getDate()
+  );
+}
+
+export function getDayBubbleSummaries(events, date, filter) {
+  const buckets = {};
+  (events || []).forEach((event) => {
+    if (!eventOnLocalDay(event, date)) return;
+    if (filter && !eventMatchesBubbleFilter(event, filter)) return;
+    const meta = classifyYearBubbleKind(event);
+    if (!buckets[meta.kind]) {
+      buckets[meta.kind] = {
+        kind: meta.kind,
+        label: meta.label,
+        color: meta.color,
+        filter: meta.filter,
+        count: 0,
+      };
+    }
+    buckets[meta.kind].count += 1;
+  });
+  return sortKindBubbles(buckets);
+}
+
+export function getDayBubblePreviewBlurbs(events, date, filter, limit = 6) {
+  const matched = (events || [])
+    .filter((e) => eventOnLocalDay(e, date) && eventMatchesBubbleFilter(e, filter))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  return matched.slice(0, Math.max(0, limit)).map((e) => {
+    const d = new Date(e.date);
+    return {
+      id: e.id,
+      event: e,
+      title: e.title || 'Untitled',
+      dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
+    };
+  });
+}
+
 export function filterEventsByYearMonth(events, year, month) {
   return events.filter((e) => {
     const d = new Date(e.date);
