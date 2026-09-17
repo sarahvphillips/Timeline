@@ -201,6 +201,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
             bubbles={m.bubbles}
             blockIndex={index}
             glowKey={glowKey}
+            boxedLabel
             onOpenLabel={() => openMonth(m.month)}
             onOpenBubble={(bubble) => openBubble(m, bubble)}
           />

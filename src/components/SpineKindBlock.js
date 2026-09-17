@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 export const BUBBLE_SIZE = 78;
 const VERT_GAP = 62;
-const LABEL_COL = 78;
-const OFFSETS = [28, 72, 44, 96, 56];
+const LABEL_COL = 86;
+const OFFSETS = [36, 84, 52, 108, 64, 44, 96];
 
 function quadPoint(p0, p1, p2, t) {
   const u = 1 - t;
@@ -12,6 +12,14 @@ function quadPoint(p0, p1, p2, t) {
     x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
     y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y,
   };
+}
+
+function seedNumber(seed) {
+  if (typeof seed === 'number' && Number.isFinite(seed)) return Math.abs(Math.trunc(seed));
+  const s = String(seed || '');
+  let n = 0;
+  for (let i = 0; i < s.length; i += 1) n = (n * 31 + s.charCodeAt(i)) >>> 0;
+  return n;
 }
 
 function CurvedDashedSpoke({ side, distance, bubbleCenterY, spineY }) {
@@ -90,7 +98,7 @@ function KindBubble({ bubble, glow, onPress, style }) {
 }
 
 function staggerOffset(seed, bubbleIndex) {
-  const hash = (Number(seed) * 17 + bubbleIndex * 3) % OFFSETS.length;
+  const hash = (seedNumber(seed) + bubbleIndex * 3) % OFFSETS.length;
   return OFFSETS[hash];
 }
 
@@ -103,23 +111,27 @@ export default function SpineKindBlock({
   glowKey,
   onOpenLabel,
   onOpenBubble,
+  boxedLabel = false,
 }) {
   const list = bubbles || [];
   const primaryLeft = blockIndex % 2 === 0;
   const n = list.length;
-  const stackHeight = n === 0 ? 88 : Math.max(88, (n - 1) * VERT_GAP + BUBBLE_SIZE + 24);
+  const stackHeight = n === 0 ? 96 : Math.max(96, (n - 1) * VERT_GAP + BUBBLE_SIZE + 28);
   const spineY = stackHeight / 2;
+  const seed = id ?? blockIndex;
 
   const placements = list.map((b, i) => {
-    let side = primaryLeft ? 'left' : 'right';
-    if (n >= 4 && i === n - 1) side = primaryLeft ? 'right' : 'left';
-    else if (n >= 5 && i === 2) side = primaryLeft ? 'right' : 'left';
-    const offset = staggerOffset(id || blockIndex, i);
-    const distance = LABEL_COL / 2 + 8 + offset + BUBBLE_SIZE / 2;
+    let side = (i + (primaryLeft ? 0 : 1)) % 2 === 0 ? 'left' : 'right';
+    if (n >= 5 && i === 2) side = primaryLeft ? 'right' : 'left';
+    const offset = staggerOffset(seed, i);
+    const distance = LABEL_COL / 2 + 18 + offset + BUBBLE_SIZE / 2;
+    const jitter = ((seedNumber(`${seed}:${i}`) % 5) - 2) * 4;
     const bubbleCenterY =
-      n === 1 ? spineY : spineY - ((n - 1) * VERT_GAP) / 2 + i * VERT_GAP;
+      n === 1 ? spineY + jitter : spineY - ((n - 1) * VERT_GAP) / 2 + i * VERT_GAP + jitter;
     return { bubble: b, side, distance, bubbleCenterY };
   });
+
+  const labelTop = boxedLabel ? spineY - 34 : spineY - 28;
 
   return (
     <View style={[styles.block, { height: stackHeight, marginBottom: 40 }]}>
@@ -134,13 +146,15 @@ export default function SpineKindBlock({
       ))}
 
       <TouchableOpacity
-        style={[styles.labelCol, { top: spineY - 28 }]}
+        style={[styles.labelCol, { top: labelTop }]}
         onPress={onOpenLabel}
         accessibilityLabel={`Open ${label}`}
       >
-        <View style={[styles.dot, current && styles.dotCurrent]} />
-        <Text style={[styles.label, current && styles.labelCurrent]}>{label}</Text>
-        {current ? <Text style={styles.nowMark}>★</Text> : null}
+        <View style={[boxedLabel && styles.labelChip, boxedLabel && current && styles.labelChipCurrent]}>
+          <View style={[styles.dot, current && styles.dotCurrent]} />
+          <Text style={[styles.label, current && styles.labelCurrent]}>{label}</Text>
+          {current ? <Text style={styles.nowMark}>★</Text> : null}
+        </View>
       </TouchableOpacity>
 
       {placements.map((p) => {
@@ -175,7 +189,21 @@ const styles = StyleSheet.create({
     width: LABEL_COL,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 3,
+    zIndex: 5,
+  },
+  labelChip: {
+    backgroundColor: '#0f1024',
+    borderWidth: 1.5,
+    borderColor: '#8b5cf6',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    minWidth: 68,
+    alignItems: 'center',
+  },
+  labelChipCurrent: {
+    borderColor: '#facc15',
+    backgroundColor: '#1a1630',
   },
   dot: {
     width: 12,
