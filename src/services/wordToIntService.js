@@ -238,6 +238,94 @@ function sortWordNumbers(list) {
   );
 }
 
+export function phraseKey(phrase) {
+  return String(phrase || '').trim().toLowerCase();
+}
+
+export function findSavedPhrase(list, phrase) {
+  const key = phraseKey(phrase);
+  if (!key) return null;
+  return (list || []).find((item) => phraseKey(item.phrase) === key) || null;
+}
+
+/** Keep the oldest entry per phrase (capitals ignored). Empty phrases are dropped. */
+export function dedupeWordNumbers(list) {
+  const byKey = new Map();
+  const dropped = [];
+  const patched = [];
+  const items = Array.isArray(list) ? [...list] : [];
+  items.sort((a, b) => {
+    const ta = Date.parse(a?.createdAt || '') || Number.MAX_SAFE_INTEGER;
+    const tb = Date.parse(b?.createdAt || '') || Number.MAX_SAFE_INTEGER;
+    if (ta !== tb) return ta - tb;
+    return String(a?.id || '').localeCompare(String(b?.id || ''));
+  });
+  items.forEach((item) => {
+    const key = phraseKey(item?.phrase);
+    if (!key) {
+      dropped.push(item);
+      return;
+    }
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, { ...item });
+      return;
+    }
+    const keeper = byKey.get(key);
+    if (!(keeper.notes || '').trim() && (item.notes || '').trim()) {
+      keeper.notes = item.notes;
+      keeper.updatedAt = new Date().toISOString();
+      patched.push(keeper);
+    }
+    dropped.push(item);
+  });
+  return { kept: Array.from(byKey.values()), dropped, patched };
+}
+
+async function applyDedupe(list, uid, epoch) {
+  const { kept, dropped, patched } = dedupeWordNumbers(list);
+  if (dropped.length === 0 && patched.length === 0) return kept;
+  if (uid && epoch != null && !isScopeCurrent(uid, epoch)) return kept;
+  await writeList(kept, uid);
+  if (uid && WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
+    await Promise.all(
+      dropped.map(async (item) => {
+        if (!item?.id) return;
+        try {
+          await deleteDoc(wordNumberDoc(uid, item.id));
+        } catch (e) {
+          console.warn('Duplicate word-number cloud delete skipped', e);
+        }
+      })
+    );
+    await Promise.all(
+      patched.map(async (item) => {
+        try {
+          await pushWordNumberToFirebase(item);
+        } catch (e) {
+          console.warn('Duplicate word-number keeper update skipped', e);
+        }
+      })
+    );
+  }
+  return kept;
+}
+
+/** Quiet sweep: drop case-insensitive duplicates that slipped onto the list. */
+export async function scrubWordNumberDuplicates() {
+  const uid = currentUid();
+  const epoch = authEpoch;
+  try {
+    let list = await readListRaw(uid);
+    if (uid) list = list.filter((item) => entryBelongsToUid(item, uid));
+    const kept = await applyDedupe(list, uid, epoch);
+    return sortWordNumbers(kept);
+  } catch (e) {
+    console.warn('Word-to-int duplicate scrub failed', e);
+    return [];
+  }
+}
+
 /** Local cache only — does not touch Firestore. Uses per-uid (or guest) key. */
 export async function readLocalWordNumbers(uid = currentUid()) {
   try {
@@ -294,7 +382,8 @@ export async function getWordNumbers() {
 
     if (!uid || !WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
       if (uid && !isScopeCurrent(uid, epoch)) return [];
-      return sortWordNumbers(local);
+      const cleaned = await applyDedupe(local, uid, epoch);
+      return sortWordNumbers(cleaned);
     }
 
     let remote = [];
@@ -320,7 +409,8 @@ export async function getWordNumbers() {
         );
         if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
         await writeList(local, uid);
-        return sortWordNumbers(local);
+        const cleaned = await applyDedupe(local, uid, epoch);
+        return sortWordNumbers(cleaned);
       }
       if (!isScopeCurrent(uid, epoch)) return [];
       await writeList([], uid);
@@ -335,22 +425,12 @@ export async function getWordNumbers() {
       entryBelongsToUid(item, uid)
     );
     if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
-    await writeList(merged, uid);
-    return sortWordNumbers(merged);
+    const cleaned = await applyDedupe(merged, uid, epoch);
+    return sortWordNumbers(cleaned);
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
     return [];
   }
-}
-
-export function phraseKey(phrase) {
-  return String(phrase || '').trim().toLowerCase();
-}
-
-export function findSavedPhrase(list, phrase) {
-  const key = phraseKey(phrase);
-  if (!key) return null;
-  return (list || []).find((item) => phraseKey(item.phrase) === key) || null;
 }
 
 export async function saveWordNumber(entry) {
@@ -365,6 +445,13 @@ export async function saveWordNumber(entry) {
   } catch (e) {
     console.warn('Word-to-int list unreadable; not overwriting', e);
     throw new Error('Could not read the saved number list');
+  }
+
+  const uid = currentUid();
+  try {
+    list = await applyDedupe(list, uid, authEpoch);
+  } catch (e) {
+    console.warn('Word-to-int pre-save scrub skipped', e);
   }
 
   const now = new Date().toISOString();
@@ -383,7 +470,6 @@ export async function saveWordNumber(entry) {
     updatedAt: now,
   };
 
-  const uid = currentUid();
   if (uid) payload.ownerUid = uid;
 
   const existing = findSavedPhrase(list, payload.phrase);

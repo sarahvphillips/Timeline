@@ -22,6 +22,7 @@ import {
   javaHashCode,
   METHODS,
   findSavedPhrase,
+  scrubWordNumberDuplicates,
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
@@ -74,6 +75,14 @@ export default function WordToIntScreen({ navigation, route }) {
         if (route.params?.preferred) setMethod(route.params.preferred);
         if (route.params?.notes) setNotes(route.params.notes);
       }
+      const timer = setInterval(() => {
+        scrubWordNumberDuplicates()
+          .then((words) => {
+            if (Array.isArray(words)) setList(words);
+          })
+          .catch(() => {});
+      }, 60 * 1000);
+      return () => clearInterval(timer);
     }, [loadList, route?.params])
   );
 
