@@ -19,6 +19,7 @@ import {
   rejectInviteByCode,
 } from '../services/shareService';
 import { parseInviteCodeFromScan } from '../utils/inviteCode';
+import { getJoinInvite, acceptJoinInvite } from '../services/peopleService';
 
 let CameraView = null;
 let useCameraPermissions = null;
@@ -146,25 +147,30 @@ export default function AcceptInviteScreen({ navigation, route }) {
     setLoadingPreview(true);
     try {
       const invite = await getInviteByCode(normalised);
-      if (!invite) {
-        setPreview({ error: 'No invite found for that code.' });
+      if (invite) {
+        let shared = null;
+        try {
+          shared = await getSharedEvent(invite.shareId);
+        } catch (_) {
+          shared = null;
+        }
+        if (!shared) {
+          shared = {
+            id: invite.shareId,
+            title: invite.eventTitle || 'Shared event',
+            date: invite.createdAt,
+            description: '',
+          };
+        }
+        setPreview({ kind: 'event', invite, shared });
         return;
       }
-      let shared = null;
-      try {
-        shared = await getSharedEvent(invite.shareId);
-      } catch (_) {
-        shared = null;
+      const joinInvite = await getJoinInvite(normalised);
+      if (joinInvite) {
+        setPreview({ kind: 'join', joinInvite });
+        return;
       }
-      if (!shared) {
-        shared = {
-          id: invite.shareId,
-          title: invite.eventTitle || 'Shared event',
-          date: invite.createdAt,
-          description: '',
-        };
-      }
-      setPreview({ invite, shared });
+      setPreview({ error: 'No invite found for that code.' });
     } catch (e) {
       setPreview({ error: e?.message || 'Could not look up invite.' });
     } finally {
@@ -193,6 +199,22 @@ export default function AcceptInviteScreen({ navigation, route }) {
     }
     setAccepting(true);
     try {
+      if (preview?.kind === 'join' || (!preview?.shared && preview?.joinInvite)) {
+        const result = await acceptJoinInvite(normalised);
+        Alert.alert(
+          result.alreadyAccepted ? 'Already joined' : 'You are on Timeline',
+          result.alreadyAccepted
+            ? 'This join code is already linked to your account.'
+            : `${result.invite?.fromEmail || result.invite?.fromName || 'Your friend'} will see you as Uses Timeline on their People list.`,
+          [{ text: 'OK' }],
+        );
+        setPreview((prev) =>
+          prev?.joinInvite
+            ? { ...prev, joinInvite: { ...prev.joinInvite, status: 'accepted' } }
+            : prev,
+        );
+        return;
+      }
       const result = await acceptInviteByCode(normalised);
       Alert.alert(
         result.alreadyParticipant ? 'Already shared' : 'Invite accepted',
@@ -246,6 +268,10 @@ export default function AcceptInviteScreen({ navigation, route }) {
       'Decline',
     );
     if (!ok) return;
+    if (preview?.kind === 'join') {
+      notify('Join codes', 'Decline is only for shared events. Ignore a People join code if you do not want it.');
+      return;
+    }
     setRejecting(true);
     try {
       const result = await rejectInviteByCode(normalised);
@@ -269,8 +295,9 @@ export default function AcceptInviteScreen({ navigation, route }) {
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Enter invite code</Text>
       <Text style={styles.hint}>
-        Your friend shared a single event (not their whole timeline). Scan their Share QR, paste the
-        code, or open the timelineapp://share/... link while signed in.
+        Paste a code from a friend. That can be a shared event, or a People join code so they can mark
+        you as on Timeline. Scan a QR, paste the code, or open timelineapp://share/... or
+        timelineapp://join/... while signed in.
       </Text>
 
       <Text style={styles.label}>Invite code</Text>
@@ -296,6 +323,24 @@ export default function AcceptInviteScreen({ navigation, route }) {
       </TouchableOpacity>
 
       {preview?.error ? <Text style={styles.error}>{preview.error}</Text> : null}
+      {preview?.kind === 'join' && preview.joinInvite ? (
+        <View style={styles.preview}>
+          <Text style={styles.previewTitle}>Join Timeline</Text>
+          <Text style={styles.previewMeta}>
+            {preview.joinInvite.fromEmail
+              ? `From ${preview.joinInvite.fromEmail}`
+              : preview.joinInvite.fromName
+                ? `From ${preview.joinInvite.fromName}`
+                : 'People invite'}
+          </Text>
+          <Text style={styles.previewDesc}>
+            {preview.joinInvite.personName
+              ? `They listed you as ${preview.joinInvite.personName}. Accepting tells them you now have a Timeline account.`
+              : 'Accepting tells them you now have a Timeline account.'}
+          </Text>
+          <Text style={styles.previewStatus}>Status: {preview.joinInvite.status || 'pending'}</Text>
+        </View>
+      ) : null}
       {preview?.shared ? (
         <View style={styles.preview}>
           <Text style={styles.previewTitle}>{preview.shared.title}</Text>

@@ -87,5 +87,23 @@ service cloud.firestore {
       allow delete: if isSignedIn()
         && request.auth.uid == resource.data.fromUid;
     }
+
+    match /joinInvites/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.fromUid
+        && request.resource.data.type == 'join';
+      allow update: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.fromUid
+          || (
+            resource.data.status == 'pending'
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedByUid == request.auth.uid
+          )
+        );
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.fromUid;
+    }
   }
 }

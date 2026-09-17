@@ -1,5 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth } from './firebase';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { auth, db } from './firebase';
 
 const PEOPLE_KEY_PREFIX = '@timeline_people_v1_';
 const WHEEL_STORE = '@timeline_date_circle_v2';
@@ -53,6 +63,9 @@ export function normalizePerson(raw) {
     onApp: Boolean(raw?.onApp),
     inviteSent: Boolean(raw?.inviteSent),
     fromWheelId: String(raw?.fromWheelId || ''),
+    joinCode: String(raw?.joinCode || '').toUpperCase(),
+    linkedUid: String(raw?.linkedUid || ''),
+    linkedEmail: String(raw?.linkedEmail || ''),
     createdAt: raw?.createdAt || new Date().toISOString(),
     updatedAt: raw?.updatedAt || new Date().toISOString(),
     ownerUid: raw?.ownerUid || currentUid() || undefined,
@@ -76,9 +89,41 @@ export function findPerson(list, { contact, number, wheelId } = {}) {
   );
 }
 
-export function inviteText(person) {
+export function inviteText(person, code, link) {
   const who = person?.name || 'there';
-  return `Hi ${who} — I'm using Timeline to keep dates and notes in one place. You're on my people list (you don't need an account for that). If you'd like your own Timeline, say and I'll send an invite.`;
+  const joinCode = String(code || person?.joinCode || '').toUpperCase();
+  const joinLink = link || (joinCode ? buildJoinLink(joinCode) : '');
+  const lines = [
+    `Hi ${who} — I'm using Timeline to keep dates and notes in one place. You're on my people list (you don't need an account for that).`,
+  ];
+  if (joinCode) {
+    lines.push(
+      '',
+      'If you want your own Timeline:',
+      '1. Install Timeline (Expo Go is fine while we test)',
+      '2. Create an account and sign in',
+      '3. Home → Enter invite code → paste this code:',
+      joinCode,
+    );
+    if (joinLink) {
+      lines.push('', `Or open: ${joinLink}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+export function buildJoinLink(code) {
+  return `timelineapp://join/${String(code || '').toUpperCase()}`;
+}
+
+const JOIN_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function makeJoinCode(length = 6) {
+  let code = '';
+  for (let i = 0; i < length; i += 1) {
+    code += JOIN_CHARS[Math.floor(Math.random() * JOIN_CHARS.length)];
+  }
+  return code;
 }
 
 async function readList(uid = currentUid()) {
@@ -254,3 +299,135 @@ export async function addPersonToDateCircle(person) {
   await patchPerson(person.id, { fromWheelId: node.id });
   return node;
 }
+
+function joinInviteDoc(code) {
+  return doc(db, 'joinInvites', String(code).toUpperCase());
+}
+
+export async function getJoinInvite(code) {
+  const normalised = String(code || '').trim().toUpperCase();
+  if (!normalised) return null;
+  const snap = await getDoc(joinInviteDoc(normalised));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data(), code: snap.id };
+}
+
+export async function createJoinInvite(person) {
+  const uid = currentUid();
+  if (!uid) throw new Error('Sign in to send a join code.');
+  if (!person?.id) throw new Error('Save the person first.');
+
+  const existingCode = String(person.joinCode || '').trim().toUpperCase();
+  if (existingCode) {
+    try {
+      const existing = await getJoinInvite(existingCode);
+      if (existing && existing.status === 'pending' && existing.fromUid === uid) {
+        const link = buildJoinLink(existingCode);
+        return {
+          code: existingCode,
+          link,
+          text: inviteText(person, existingCode, link),
+          reused: true,
+        };
+      }
+    } catch {
+      /* mint a new one */
+    }
+  }
+
+  let code = makeJoinCode(6);
+  for (let i = 0; i < 6; i += 1) {
+    const snap = await getDoc(joinInviteDoc(code));
+    if (!snap.exists()) break;
+    code = makeJoinCode(6);
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    code,
+    type: 'join',
+    fromUid: uid,
+    fromEmail: auth.currentUser?.email || '',
+    fromName: auth.currentUser?.displayName || '',
+    personId: person.id,
+    personName: person.name,
+    personEmail: person.email || '',
+    status: 'pending',
+    createdAt: now,
+  };
+  await setDoc(joinInviteDoc(code), payload);
+  await patchPerson(person.id, { joinCode: code, inviteSent: true });
+  const link = buildJoinLink(code);
+  return { code, link, text: inviteText({ ...person, joinCode: code }, code, link), reused: false };
+}
+
+export async function acceptJoinInvite(code) {
+  const uid = currentUid();
+  if (!uid) throw new Error('Sign in to accept a join invite.');
+  const invite = await getJoinInvite(code);
+  if (!invite) throw new Error('No join invite found for that code.');
+  if (invite.fromUid === uid) {
+    throw new Error('That is your own join code. Send it to the other person.');
+  }
+  if (invite.status === 'accepted' && invite.acceptedByUid === uid) {
+    return { alreadyAccepted: true, invite };
+  }
+  if (invite.status === 'accepted') {
+    throw new Error('This join code was already used.');
+  }
+  if (invite.status && invite.status !== 'pending') {
+    throw new Error(`This invite is ${invite.status}.`);
+  }
+  const now = new Date().toISOString();
+  await updateDoc(joinInviteDoc(invite.code), {
+    status: 'accepted',
+    acceptedByUid: uid,
+    acceptedByEmail: auth.currentUser?.email || '',
+    acceptedAt: now,
+  });
+  return {
+    alreadyAccepted: false,
+    invite: {
+      ...invite,
+      status: 'accepted',
+      acceptedByUid: uid,
+      acceptedByEmail: auth.currentUser?.email || '',
+    },
+  };
+}
+
+/** Owner: mark local people as on the app when their join code was accepted. */
+export async function syncAcceptedJoins() {
+  const uid = currentUid();
+  if (!uid) return await getPeople();
+  let remote = [];
+  try {
+    const snap = await getDocs(query(collection(db, 'joinInvites'), where('fromUid', '==', uid)));
+    remote = snap.docs.map((d) => ({ id: d.id, ...d.data(), code: d.id }));
+  } catch (e) {
+    console.warn('join invite sync skipped', e);
+    return getPeople();
+  }
+  const list = await readList(uid);
+  let changed = false;
+  remote.forEach((inv) => {
+    if (inv.status !== 'accepted') return;
+    const person = list.find(
+      (p) =>
+        String(p.id) === String(inv.personId) ||
+        String(p.joinCode || '').toUpperCase() === String(inv.code || '').toUpperCase()
+    );
+    if (!person) return;
+    if (person.onApp && person.linkedUid === inv.acceptedByUid) return;
+    person.onApp = true;
+    person.linkedUid = inv.acceptedByUid || person.linkedUid;
+    person.linkedEmail = inv.acceptedByEmail || person.linkedEmail || person.email;
+    person.inviteSent = true;
+    person.joinCode = inv.code || person.joinCode;
+    person.updatedAt = new Date().toISOString();
+    changed = true;
+  });
+  if (changed) await writeList(list, uid);
+  return sortPeople(list);
+}
+

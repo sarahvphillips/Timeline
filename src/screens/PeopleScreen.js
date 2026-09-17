@@ -13,14 +13,14 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import {
-  getPeople,
   savePerson,
   deletePerson,
   patchPerson,
   importFromDateCircle,
   addPersonToDateCircle,
-  inviteText,
   parseBirthday,
+  createJoinInvite,
+  syncAcceptedJoins,
 } from '../services/peopleService';
 import { daysUntilNext, formatUk } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
@@ -41,7 +41,7 @@ export default function PeopleScreen({ navigation }) {
   const [copiedId, setCopiedId] = useState(null);
 
   const load = useCallback(async () => {
-    const list = await getPeople();
+    const list = await syncAcceptedJoins();
     setPeople(list);
   }, []);
 
@@ -120,15 +120,21 @@ export default function PeopleScreen({ navigation }) {
   };
 
   const handleInvite = async (p) => {
-    const text = inviteText(p);
     try {
-      await Share.share({ message: text });
-    } catch {
-      Alert.alert('Invite', text);
+      const result = await createJoinInvite(p);
+      try {
+        await Share.share({ message: result.text });
+      } catch {
+        Alert.alert('Join code', result.text);
+      }
+      setCopiedId(p.id);
+      await load();
+    } catch (e) {
+      Alert.alert(
+        'Invite not ready',
+        e?.message || 'Could not create a join code. Check you are signed in and online, then try again.'
+      );
     }
-    await patchPerson(p.id, { inviteSent: true });
-    setCopiedId(p.id);
-    await load();
   };
 
   const handleImportWheel = async () => {
@@ -266,9 +272,11 @@ export default function PeopleScreen({ navigation }) {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.personName}>{p.name}</Text>
                     <Text style={styles.personStatus}>
-                      {p.onApp ? 'Uses Timeline' : 'Not on the app yet'}
+                      {p.onApp
+                        ? `Uses Timeline${p.linkedEmail ? ` · ${p.linkedEmail}` : ''}`
+                        : 'Not on the app yet'}
                       {p.fromWheelId ? ' · on date circle' : ''}
-                      {p.inviteSent ? ' · invite sent' : ''}
+                      {p.joinCode ? ` · code ${p.joinCode}` : p.inviteSent ? ' · invite sent' : ''}
                     </Text>
                   </View>
                 </View>
@@ -310,7 +318,7 @@ export default function PeopleScreen({ navigation }) {
                     <Text style={styles.link}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleInvite(p)}>
-                    <Text style={styles.link}>{copiedId === p.id ? 'Invite sent' : 'Invite'}</Text>
+                    <Text style={styles.link}>{copiedId === p.id ? 'Code sent' : p.joinCode ? 'Resend code' : 'Invite'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleToWheel(p)}>
                     <Text style={styles.link}>Date circle</Text>

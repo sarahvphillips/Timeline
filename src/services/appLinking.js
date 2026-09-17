@@ -1,4 +1,5 @@
 import * as LinkingExpo from 'expo-linking';
+import { getStateFromPath as defaultGetStateFromPath } from '@react-navigation/native';
 import { buildShareLinking } from './shareIntent';
 
 /**
@@ -27,6 +28,22 @@ export function buildAppLinking() {
     },
   };
 
+  const linking = {
+    prefixes: [`${scheme}://`, PREFIX],
+    config: baseConfig,
+    getStateFromPath(path, options) {
+      const join = String(path || '').match(/(?:^|\/)join\/([A-Za-z0-9]+)/i);
+      if (join) {
+        return {
+          routes: [
+            { name: 'AcceptInvite', params: { code: join[1].toUpperCase() } },
+          ],
+        };
+      }
+      return defaultGetStateFromPath(path, options);
+    },
+  };
+
   if (shareLinking) {
     return {
       ...shareLinking,
@@ -39,11 +56,9 @@ export function buildAppLinking() {
           ...baseConfig.screens,
         },
       },
+      getStateFromPath: linking.getStateFromPath,
     };
   }
 
-  return {
-    prefixes: [`${scheme}://`, PREFIX],
-    config: baseConfig,
-  };
+  return linking;
 }
