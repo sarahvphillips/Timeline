@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 8 Sep 2026 (temp Design mock previews)
+**Last updated:** 17 Sep 2026 (YouTube uploads todo)
 
 ---
 
@@ -109,6 +109,7 @@ Product map:
 - [x] Customisable poem types (Settings UI says Type; AsyncStorage/Firestore key poemCategories unchanged)
 - [x] Label / tag system basics (Settings can edit labels list locally; showing on expanded cards still open)
 - [ ] User add tv or films watched (description + score /10)
+- [ ] **YouTube** — track *your own* uploads: paste video URL, title, upload date, note. Later: share that view with Timeline friends (same share-with-friends path as events). Thumbnails / channel list later. Not the same as TV & films watched (that’s viewing other people’s work).
 - [ ] User add Spotify activity
 - [ ] User add friends photos from social media
 - [ ] User add social media feeds
