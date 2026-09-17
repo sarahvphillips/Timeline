@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 8,
     paddingHorizontal: 8,
-    minWidth: 68,
+    minWidth: 72,
     alignItems: 'center',
   },
   labelChipCurrent: {

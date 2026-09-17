@@ -114,6 +114,7 @@ export default function YearOverviewScreen({ navigation }) {
             bubbles={item.bubbles}
             blockIndex={index}
             glowKey={glowKey}
+            boxedLabel
             onOpenLabel={() => openYear(item.year)}
             onOpenBubble={(bubble) => openBubble(item.year, bubble)}
           />
