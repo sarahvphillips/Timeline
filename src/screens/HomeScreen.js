@@ -13,6 +13,15 @@ import DesignTargetButton from '../components/DesignTargetButton';
 import { getEvents, getLatestWash, washStatusLabel } from '../services/eventService';
 import { getShowWashInMenu } from '../services/profileService';
 import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
+import { syncAcceptedJoins } from '../services/peopleService';
+import { getWordNumbers } from '../services/wordToIntService';
+import {
+  evaluateStamps,
+  applyStampRowReward,
+  applyJoinRewards,
+  getRewards,
+  hasPerk,
+} from '../services/rewardsService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -42,6 +51,9 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const [showAddEvent, setShowAddEvent] = useState(true);
   const [staff, setStaff] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [stamps, setStamps] = useState([]);
+  const [credits, setCredits] = useState(0);
+  const [showChecksums, setShowChecksums] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -58,6 +70,29 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           if (!cancelled) setLatestWash(getLatestWash(list));
         })
         .catch(() => {});
+      (async () => {
+        try {
+          const [events, people, words] = await Promise.all([
+            getEvents(),
+            syncAcceptedJoins(),
+            getWordNumbers(),
+          ]);
+          if (cancelled) return;
+          await applyJoinRewards(people);
+          const nextStamps = evaluateStamps({ events, people, words });
+          const stampResult = await applyStampRowReward(nextStamps);
+          const rewards = stampResult.rewards || (await getRewards());
+          if (cancelled) return;
+          setStamps(nextStamps);
+          setCredits(rewards.credits || 0);
+          setShowChecksums(hasPerk(rewards, 'checksumHome'));
+          if (stampResult.newlyClaimed?.length) {
+            Alert.alert('Stamps', `${stampResult.newlyClaimed[0].label}. Open Credits shop to spend them.`);
+          }
+        } catch {
+          /* stamps stay empty */
+        }
+      })();
       loadAdmin(user?.email)
         .then((s) => {
           if (cancelled) return;
@@ -200,6 +235,39 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={[styles.email, { color: colors.faint }]}>{user?.email || 'Signed in'}</Text>
       </View>
 
+      <View style={[styles.stampsCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+        <View style={styles.stampsHead}>
+          <Text style={[styles.devicesTitle, { color: colors.muted, marginBottom: 0 }]}>Stamps</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('CreditsShop')}>
+            <Text style={[styles.creditsLink, { color: colors.blueSoft }]}>Credits {credits} · Shop</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.stampsHint, { color: colors.faint }]}>
+          Private. Fill a tile by doing the thing. First row of four gives +2 credits, once.
+        </Text>
+        <View style={styles.stampsGrid}>
+          {stamps.map((s) => (
+            <TouchableOpacity
+              key={s.id}
+              style={styles.stampCell}
+              onPress={() => s.screen && navigation.navigate(s.screen)}
+            >
+              <View
+                style={[
+                  styles.stampDot,
+                  s.earned
+                    ? { backgroundColor: colors.blue, borderColor: colors.blue }
+                    : { backgroundColor: 'transparent', borderColor: colors.cardBorder },
+                ]}
+              >
+                <Text style={styles.stampMark}>{s.earned ? '✓' : ''}</Text>
+              </View>
+              <Text style={[styles.stampLabel, { color: s.earned ? colors.text : colors.faint }]}>{s.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
         <Text style={[styles.devicesTitle, { color: colors.muted }]}>Signed-in devices</Text>
         <View style={styles.deviceRow}>
@@ -253,6 +321,19 @@ export default function HomeScreen({ navigation, user, onLogout }) {
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('People')}>
         <Text style={styles.buttonText}>People</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditsShop')}>
+        <Text style={styles.buttonText}>Credits shop</Text>
+      </TouchableOpacity>
+
+      {showChecksums ? (
+        <TouchableOpacity
+          style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
+          onPress={() => navigation.navigate('YearOverview')}
+        >
+          <Text style={[styles.ghostText, { color: colors.faint }]}>Checksums</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity
         style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
@@ -409,6 +490,58 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 6,
     textAlign: 'center',
+  },
+  stampsCard: {
+    width: '100%',
+    maxWidth: 320,
+    marginBottom: 20,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  stampsHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  creditsLink: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  stampsHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  stampsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  stampCell: {
+    width: '25%',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  stampDot: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stampMark: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  stampLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 2,
   },
   devicesSection: {
     width: '100%',

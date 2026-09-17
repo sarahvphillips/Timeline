@@ -136,7 +136,7 @@ Product map:
 - [ ] Life events (birthdays, house moves, wedding, â¦)
 - [x] User add friends - per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
 - [x] **People** (17 Sep 2026): real-life friends even if they don’t use Timeline. Name, phone, email, birthday DD/MM/YYYY, note. Optional invite. Auto-share SMS/calls flags for later SMS/call screens. Import from date circle / add to wheel. Birthday can be pinned as a Family timeline event. Local uid-scoped list (`@timeline_people_v1_{uid}`).
-- [x] **People join rewards** (17 Sep 2026): counts **joined** (accepted join code), not invites sent. Banner on People + Settings → Friend referrals. Milestones: 3 joined → Delivery tracking perk + 5 credits; 5 → 10 credits; 10 → 15 credits. Stored `@timeline_rewards_v1_{uid}`. Credits are a balance for later paid perks.
+- [x] **Stamps + credits shop** (17 Sep 2026): Home private stamps (Poem, Friend joined, Word saved, Wash done, Event shared, Checksum, Food, Birthday). First row of four filled → +2 credits once. Shop spends credits on delivery perk, extra invites, clip points, custom categories, checksums-on-home. No streaks.
 - [ ] Broader friend graph / whole-timeline link (later)
 - [ ] **Friend usernames (privacy)** - some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
 - [ ] **Friend avatars on sharedEvents** - do not write local photoUri (data:/blob:/asref:) to participants; use Firebase Storage download URLs later. Until then friends view falls back to initial. (participantForCloud)

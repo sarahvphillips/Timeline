@@ -36,6 +36,7 @@ import WordToIntScreen from './src/screens/WordToIntScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
 import DateCircleScreen from './src/screens/DateCircleScreen';
 import PeopleScreen from './src/screens/PeopleScreen';
+import CreditsShopScreen from './src/screens/CreditsShopScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
@@ -297,6 +298,12 @@ function AppShell() {
                 name="People"
                 component={PeopleScreen}
                 options={{ title: 'People' }}
+              />
+
+              <Stack.Screen
+                name="CreditsShop"
+                component={CreditsShopScreen}
+                options={{ title: 'Credits shop' }}
               />
 
               <Stack.Screen
