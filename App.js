@@ -25,6 +25,7 @@ import AddWashLoadScreen from './src/screens/AddWashLoadScreen';
 import PickFromGmailScreen from './src/screens/PickFromGmailScreen';
 import AddWatchedScreen from './src/screens/AddWatchedScreen';
 import YouTubeScreen from './src/screens/YouTubeScreen';
+import SpotifyScreen from './src/screens/SpotifyScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import UtilitiesScreen from './src/screens/UtilitiesScreen';
@@ -258,6 +259,12 @@ function AppShell() {
                 name="YouTube"
                 component={YouTubeScreen}
                 options={{ title: 'YouTube' }}
+              />
+
+              <Stack.Screen
+                name="Spotify"
+                component={SpotifyScreen}
+                options={{ title: 'Spotify' }}
               />
 
               <Stack.Screen
