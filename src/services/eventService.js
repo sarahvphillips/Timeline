@@ -23,6 +23,7 @@ const QUOTA_USER_MESSAGE =
 function imageStorageKey(eventId, field) {
   if (field === 'coverImageUri') return `@timeline_img_${eventId}_cover`;
   if (field === 'videoUri') return `@timeline_img_${eventId}_video`;
+  if (field === 'audioUri') return `@timeline_img_${eventId}_audio`;
   return `@timeline_img_${eventId}`;
 }
 
@@ -56,8 +57,9 @@ async function removeImageKeysForEvents(events) {
       keys.add(imageStorageKey(ev.id, 'imageUri'));
       keys.add(imageStorageKey(ev.id, 'coverImageUri'));
       keys.add(imageStorageKey(ev.id, 'videoUri'));
+      keys.add(imageStorageKey(ev.id, 'audioUri'));
     }
-    for (const field of ['imageUri', 'coverImageUri', 'videoUri']) {
+    for (const field of ['imageUri', 'coverImageUri', 'videoUri', 'audioUri']) {
       const u = ev[field];
       if (typeof u === 'string' && u.startsWith(IMG_REF_PREFIX)) {
         keys.add(u.slice(IMG_REF_PREFIX.length));
@@ -88,7 +90,7 @@ async function externalizeEventImages(events) {
       continue;
     }
     const copy = { ...ev };
-    for (const field of ['imageUri', 'coverImageUri', 'videoUri']) {
+    for (const field of ['imageUri', 'coverImageUri', 'videoUri', 'audioUri']) {
       const uri = copy[field];
       if (!isHeavyImagePayload(uri)) continue;
       const key = imageStorageKey(ev.id, field);
@@ -108,7 +110,7 @@ async function hydrateEventImages(events) {
   for (const ev of events) {
     if (!ev) continue;
     const copy = { ...ev };
-    for (const field of ['imageUri', 'coverImageUri', 'videoUri']) {
+    for (const field of ['imageUri', 'coverImageUri', 'videoUri', 'audioUri']) {
       const uri = copy[field];
       if (typeof uri !== 'string' || !uri.startsWith(IMG_REF_PREFIX)) continue;
       const key = uri.slice(IMG_REF_PREFIX.length);
@@ -329,7 +331,7 @@ function isLocalOnlyImageUri(uri) {
  */
 function eventPayloadForCloud(event, uid) {
   const payload = { ...event, ownerUid: uid };
-  ['imageUri', 'coverImageUri', 'videoUri'].forEach((key) => {
+  ['imageUri', 'coverImageUri', 'videoUri', 'audioUri'].forEach((key) => {
     if (isLocalOnlyImageUri(payload[key])) {
       delete payload[key];
     }
@@ -543,6 +545,8 @@ export async function syncEventsFromCloud(uid) {
         imageUri: ev.imageUri || (prev && prev.imageUri) || undefined,
         coverImageUri: ev.coverImageUri || (prev && prev.coverImageUri) || undefined,
         videoUri: ev.videoUri || (prev && prev.videoUri) || undefined,
+        audioUri: ev.audioUri || (prev && prev.audioUri) || undefined,
+        audioName: ev.audioName || (prev && prev.audioName) || undefined,
       };
     });
 
@@ -762,6 +766,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   event: '#3b82f6',
   youtube: '#f87171',
   sms: '#22c55e',
+  call: '#fb923c',
 };
 
 const YEAR_BUBBLE_KIND_ORDER = [
@@ -774,6 +779,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'household',
   'youtube',
   'sms',
+  'call',
 ];
 
 /**
@@ -837,6 +843,14 @@ export function classifyYearBubbleKind(event) {
       label: 'SMS',
       color: YEAR_BUBBLE_KIND_COLORS.sms,
       filter: { source: 'sms' },
+    };
+  }
+  if (source === 'call') {
+    return {
+      kind: 'call',
+      label: 'Call',
+      color: YEAR_BUBBLE_KIND_COLORS.call,
+      filter: { source: 'call' },
     };
   }
   if (source === 'laundry' || category === 'household') {

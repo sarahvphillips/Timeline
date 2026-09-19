@@ -344,6 +344,7 @@ export default function TimelineScreen({ navigation, route }) {
                 else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
                 else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
                 else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
+                else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
                 else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
                 else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
                 else navigation.navigate('AddEvent', { event: item });
@@ -442,6 +443,7 @@ export default function TimelineScreen({ navigation, route }) {
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
               { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'SMS', action: () => navigation.navigate('AddSms') },
+              { label: 'Phone call', action: () => navigation.navigate('AddCall') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu
                 ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]

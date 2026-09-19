@@ -294,6 +294,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
               { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'SMS', action: () => navigation.navigate('AddSms') },
+              { label: 'Phone call', action: () => navigation.navigate('AddCall') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }] : []),
               ...(showWashInMenu ? [{ label: 'Wash load', action: () => navigation.navigate('AddWashLoad') }] : []),

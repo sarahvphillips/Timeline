@@ -37,6 +37,7 @@ import DateSpanScreen from './src/screens/DateSpanScreen';
 import DateCircleScreen from './src/screens/DateCircleScreen';
 import PeopleScreen from './src/screens/PeopleScreen';
 import AddSmsScreen from './src/screens/AddSmsScreen';
+import AddCallScreen from './src/screens/AddCallScreen';
 import CreditsShopScreen from './src/screens/CreditsShopScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
@@ -311,6 +312,12 @@ function AppShell() {
                 name="AddSms"
                 component={AddSmsScreen}
                 options={{ title: 'Add SMS' }}
+              />
+
+              <Stack.Screen
+                name="AddCall"
+                component={AddCallScreen}
+                options={{ title: 'Add phone call' }}
               />
 
               <Stack.Screen

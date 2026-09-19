@@ -117,7 +117,7 @@ Product map:
 ### Communication
 
 - [x] **Add SMS** (17 Sep 2026): log received/sent texts, match People by name/number, show their card, default share from SMS Auto (can untick). Location Home/Internet/free text. Saves timeline `source: 'sms'`. If they use the app, tries event share. Home + + menus. Year bubble SMS.
-- [ ] User add phone calls (notes, category, inbound/outbound)
+- [x] **Phone calls** (19 Sep 2026): incoming / outgoing / missed, duration, note, location. Match People; Calls Auto default share. Attach audio or record a voice note (not a tap of the live line). Audio stays on-device (`audioUri`). Timeline `source: 'call'`.
 
 ### Daily life & tracking
 
