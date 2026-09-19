@@ -76,8 +76,9 @@ export default function AddCallScreen({ navigation, route }) {
   const [category, setCategory] = useState(existing?.category || 'personal');
   const [location, setLocation] = useState(existing?.callLocation || '');
   const [shareThis, setShareThis] = useState(!!existing?.sharedWithFriend);
-  const [audioUri, setAudioUri] = useState(existing?.audioUri || '');
+  const [audioUri, setAudioUri] = useState(existing?.audioUri || existing?.videoUri || '');
   const [audioName, setAudioName] = useState(existing?.audioName || '');
+  const [audioKind, setAudioKind] = useState(existing?.audioKind || (existing?.videoUri ? 'video' : 'audio'));
   const [people, setPeople] = useState([]);
   const [logged, setLogged] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -122,6 +123,7 @@ export default function AddCallScreen({ navigation, route }) {
     setShareThis(false);
     setAudioUri('');
     setAudioName('');
+    setAudioKind('audio');
   };
 
   const handleSave = async () => {
@@ -152,8 +154,10 @@ export default function AddCallScreen({ navigation, route }) {
         callSeconds: String(Number(seconds) || 0),
         callNote: note.trim(),
         callLocation: location.trim(),
-        audioUri: audioUri || undefined,
+        audioUri: audioKind === 'video' ? undefined : audioUri || undefined,
+        videoUri: audioKind === 'video' ? audioUri || undefined : undefined,
         audioName: audioName || undefined,
+        audioKind,
         personId: friend?.id || '',
         sharedWithFriend: Boolean(friend && shareThis),
       });
@@ -337,9 +341,11 @@ export default function AddCallScreen({ navigation, route }) {
           <CallAudioField
             audioUri={audioUri}
             audioName={audioName}
-            onChange={({ uri, name }) => {
+            audioKind={audioKind}
+            onChange={({ uri, name, kind }) => {
               setAudioUri(uri || '');
               setAudioName(name || '');
+              setAudioKind(kind || 'audio');
             }}
           />
 
@@ -389,7 +395,11 @@ export default function AddCallScreen({ navigation, route }) {
                   {durationLabel(item.callMinutes, item.callSeconds)}
                 </Text>
                 {item.callLocation ? <Text style={styles.meta}>Location · {item.callLocation}</Text> : null}
-                {item.audioUri ? <Text style={styles.audioFlag}>Recording on this device</Text> : null}
+                {item.audioUri || item.videoUri ? (
+                  <Text style={styles.audioFlag}>
+                    {item.audioKind === 'video' ? 'Screen recording on this device' : 'Recording on this device'}
+                  </Text>
+                ) : null}
                 {item.description ? <Text style={styles.note}>{item.description}</Text> : null}
                 {friend ? (
                   <Text style={styles.matchName}>

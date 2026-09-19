@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 
 function audioApi() {
   try {
@@ -10,7 +11,13 @@ function audioApi() {
   }
 }
 
-export default function CallAudioField({ audioUri, audioName, onChange }) {
+function kindFromName(name = '', mime = '') {
+  const blob = `${name} ${mime}`.toLowerCase();
+  if (/(video|mp4|webm|mov|mkv|screen)/.test(blob)) return 'video';
+  return 'audio';
+}
+
+export default function CallAudioField({ audioUri, audioName, audioKind, onChange }) {
   const [recording, setRecording] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -22,19 +29,61 @@ export default function CallAudioField({ audioUri, audioName, onChange }) {
     Alert.alert(title, message);
   };
 
+  const finish = (file) => {
+    if (!file?.uri) return;
+    onChange({
+      uri: file.uri,
+      name: file.name || file.fileName || 'call-recording',
+      kind: kindFromName(file.name || file.fileName, file.mimeType),
+    });
+  };
+
   const attachFile = async () => {
     if (busy) return;
     setBusy(true);
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: ['audio/*', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/3gpp'],
+        type: [
+          'audio/*',
+          'video/*',
+          'audio/mpeg',
+          'audio/mp4',
+          'audio/x-m4a',
+          'audio/wav',
+          'audio/3gpp',
+          'video/mp4',
+          'video/quicktime',
+          'video/webm',
+        ],
         copyToCacheDirectory: true,
       });
       if (res.canceled || !res.assets?.[0]?.uri) return;
-      const file = res.assets[0];
-      onChange({ uri: file.uri, name: file.name || 'call-audio' });
+      finish(res.assets[0]);
     } catch (e) {
-      notify('Audio', e?.message || 'Could not attach a file.');
+      notify('Recording', e?.message || 'Could not attach a file.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const attachScreen = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        quality: 1,
+        videoMaxDuration: 600,
+      });
+      if (res.canceled || !res.assets?.[0]?.uri) return;
+      const file = res.assets[0];
+      onChange({
+        uri: file.uri,
+        name: file.fileName || 'screen-recording.mp4',
+        kind: 'video',
+      });
+    } catch (e) {
+      notify('Screen recording', e?.message || 'Could not open gallery videos.');
     } finally {
       setBusy(false);
     }
@@ -45,7 +94,7 @@ export default function CallAudioField({ audioUri, audioName, onChange }) {
     if (!Audio) {
       notify(
         'In-app record',
-        'Needs expo-av on this install. You can still attach a file from Voice Recorder or a call recording the phone already saved.'
+        'Needs expo-av on this install. You can still attach Voice Recorder, call recorder, or a screen recording.'
       );
       return;
     }
@@ -72,7 +121,7 @@ export default function CallAudioField({ audioUri, audioName, onChange }) {
     try {
       await rec.stopAndUnloadAsync();
       const uri = rec.getURI();
-      if (uri) onChange({ uri, name: 'voice-note.m4a' });
+      if (uri) onChange({ uri, name: 'voice-note.m4a', kind: 'audio' });
     } catch (e) {
       notify('Record', e?.message || 'Could not save the voice note.');
     }
@@ -80,8 +129,11 @@ export default function CallAudioField({ audioUri, audioName, onChange }) {
 
   const play = async () => {
     const Audio = audioApi();
-    if (!Audio || !audioUri) {
-      notify('Playback', 'Audio is saved on this device. Play it in Files / Voice Recorder if in-app play is unavailable.');
+    if (!Audio || !audioUri || audioKind === 'video') {
+      notify(
+        'Playback',
+        'Saved on this device. Open it in Gallery / Files if in-app play is unavailable for this type.'
+      );
       return;
     }
     try {
@@ -96,15 +148,21 @@ export default function CallAudioField({ audioUri, audioName, onChange }) {
     <View style={styles.wrap}>
       <Text style={styles.label}>Call recording</Text>
       <Text style={styles.hint}>
-        Timeline cannot tap the live phone line. Attach a recording the phone already saved, or record a
-        voice note here. Stays on this device — not uploaded to Firestore.
+        Timeline cannot tap the live phone line. Attach Voice Recorder, the phone’s call recorder, or a
+        screen recording from Gallery. Stays on this device.
       </Text>
       {audioUri ? (
-        <Text style={styles.file}>{audioName || 'Audio saved on this device'}</Text>
+        <Text style={styles.file}>
+          {audioKind === 'video' ? 'Screen recording · ' : ''}
+          {audioName || 'Saved on this device'}
+        </Text>
       ) : null}
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={attachFile} disabled={busy}>
-          <Text style={styles.btnText}>{busy ? 'Working…' : audioUri ? 'Change file' : 'Attach audio'}</Text>
+          <Text style={styles.btnText}>{busy ? 'Working…' : audioUri ? 'Change file' : 'Attach file'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.btn} onPress={attachScreen} disabled={busy}>
+          <Text style={styles.btnText}>Screen recording</Text>
         </TouchableOpacity>
         {recording ? (
           <TouchableOpacity style={[styles.btn, styles.stop]} onPress={stopMemo}>
@@ -121,7 +179,10 @@ export default function CallAudioField({ audioUri, audioName, onChange }) {
           <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={play}>
             <Text style={styles.ghostText}>Play</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={() => onChange({ uri: '', name: '' })}>
+          <TouchableOpacity
+            style={[styles.btn, styles.ghost]}
+            onPress={() => onChange({ uri: '', name: '', kind: 'audio' })}
+          >
             <Text style={styles.ghostText}>Remove</Text>
           </TouchableOpacity>
         </View>
