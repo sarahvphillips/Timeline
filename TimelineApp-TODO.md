@@ -111,6 +111,8 @@ Product map:
 - [ ] User add tv or films watched (description + score /10)
 - [x] **YouTube** (first pass 17 Sep 2026) — track *your own* uploads: paste video URL, title, upload date, note. Optional add to timeline. Share that view with Timeline friends (note + link, not YouTube comments). Thumbnail from the video id. Channel list / auto-import later. Not the same as TV & films watched.
 - [x] **Spotify** (19 Sep 2026): paste track/album/playlist link, title, artist, listened/saved/playlist, note. Optional timeline + share view. Not live Spotify login.
+- [ ] **Live Spotify login** (asked 19 Sep 2026, next): OAuth so recently played / saved can import instead of paste-only. Needs a Spotify developer app (client id + redirect).
+- [x] **Call recordings credits perk** (19 Sep 2026): attach/record/screen-recording on phone calls locked until `callRecording` shop item (4 credits). Call log itself stays free.
 - [x] **Call recordings credits perk** (19 Sep 2026): attach/record/screen-recording on phone calls locked until `callRecording` shop item (4 credits). Call log itself stays free.
 - [ ] User add friends photos from social media
 - [ ] User add social media feeds
