@@ -16,6 +16,13 @@ import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { getPeople, findPerson, patchPerson } from '../services/peopleService';
 import { formatUk } from '../services/dateSpanService';
 import { createEventShare } from '../services/shareService';
+import {
+  getRewards,
+  spendShopItem,
+  hasPerk,
+  CALL_RECORDING_COST,
+  CALL_RECORDING_PERK,
+} from '../services/rewardsService';
 
 const CATEGORIES = [
   { id: 'personal', label: 'Personal' },
@@ -83,10 +90,13 @@ export default function AddCallScreen({ navigation, route }) {
   const [logged, setLogged] = useState([]);
   const [saving, setSaving] = useState(false);
   const [matched, setMatched] = useState(null);
+  const [rewards, setRewards] = useState(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const load = useCallback(async () => {
-    const [list, events] = await Promise.all([getPeople(), getEvents()]);
+    const [list, events, rew] = await Promise.all([getPeople(), getEvents(), getRewards()]);
     setPeople(list);
+    setRewards(rew);
     setLogged(
       (events || [])
         .filter((e) => e.source === 'call')
@@ -342,6 +352,30 @@ export default function AddCallScreen({ navigation, route }) {
             audioUri={audioUri}
             audioName={audioName}
             audioKind={audioKind}
+            unlocked={hasPerk(rewards, CALL_RECORDING_PERK)}
+            credits={rewards?.credits || 0}
+            cost={CALL_RECORDING_COST}
+            unlocking={unlocking}
+            onUnlock={async () => {
+              if (unlocking) return;
+              setUnlocking(true);
+              try {
+                const next = await spendShopItem(CALL_RECORDING_PERK);
+                setRewards(next);
+                Alert.alert('Unlocked', `Call recordings are on. Credits left: ${next.credits}.`);
+              } catch (e) {
+                if (e?.code === 'NEED_CREDITS') {
+                  Alert.alert('Not enough credits', e.message);
+                } else if (e?.code === 'OWNED') {
+                  Alert.alert('Already yours', 'Call recordings are already unlocked.');
+                } else {
+                  Alert.alert('Shop', e?.message || 'Could not unlock.');
+                }
+              } finally {
+                setUnlocking(false);
+              }
+            }}
+            onShop={() => navigation.navigate('CreditsShop')}
             onChange={({ uri, name, kind }) => {
               setAudioUri(uri || '');
               setAudioName(name || '');

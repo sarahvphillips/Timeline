@@ -17,7 +17,18 @@ function kindFromName(name = '', mime = '') {
   return 'audio';
 }
 
-export default function CallAudioField({ audioUri, audioName, audioKind, onChange }) {
+export default function CallAudioField({
+  audioUri,
+  audioName,
+  audioKind,
+  onChange,
+  unlocked = false,
+  credits = 0,
+  cost = 4,
+  unlocking = false,
+  onUnlock,
+  onShop,
+}) {
   const [recording, setRecording] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,6 +50,10 @@ export default function CallAudioField({ audioUri, audioName, audioKind, onChang
   };
 
   const attachFile = async () => {
+    if (!unlocked) {
+      notify('Credits perk', `Call recordings cost ${cost} credits. Unlock in the shop.`);
+      return;
+    }
     if (busy) return;
     setBusy(true);
     try {
@@ -67,6 +82,10 @@ export default function CallAudioField({ audioUri, audioName, audioKind, onChang
   };
 
   const attachScreen = async () => {
+    if (!unlocked) {
+      notify('Credits perk', `Call recordings cost ${cost} credits. Unlock in the shop.`);
+      return;
+    }
     if (busy) return;
     setBusy(true);
     try {
@@ -90,6 +109,10 @@ export default function CallAudioField({ audioUri, audioName, audioKind, onChang
   };
 
   const startMemo = async () => {
+    if (!unlocked) {
+      notify('Credits perk', `Call recordings cost ${cost} credits. Unlock in the shop.`);
+      return;
+    }
     const Audio = audioApi();
     if (!Audio) {
       notify(
@@ -151,12 +174,42 @@ export default function CallAudioField({ audioUri, audioName, audioKind, onChang
         Timeline cannot tap the live phone line. Attach Voice Recorder, the phone’s call recorder, or a
         screen recording from Gallery. Stays on this device.
       </Text>
+      {!unlocked ? (
+        <View style={styles.lock}>
+          <Text style={styles.lockTitle}>Credits perk · {cost} credits</Text>
+          <Text style={styles.hint}>
+            Attach and record are locked until you spend credits. You have {credits}. Logging the call
+            itself stays free.
+          </Text>
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.btn}
+              onPress={onUnlock}
+              disabled={unlocking || credits < cost}
+            >
+              <Text style={styles.btnText}>
+                {unlocking
+                  ? 'Unlocking…'
+                  : credits >= cost
+                    ? `Unlock for ${cost}`
+                    : `Need ${cost} (have ${credits})`}
+              </Text>
+            </TouchableOpacity>
+            {onShop ? (
+              <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={onShop}>
+                <Text style={styles.ghostText}>Credits shop</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
       {audioUri ? (
         <Text style={styles.file}>
           {audioKind === 'video' ? 'Screen recording · ' : ''}
           {audioName || 'Saved on this device'}
         </Text>
       ) : null}
+      {unlocked ? (
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={attachFile} disabled={busy}>
           <Text style={styles.btnText}>{busy ? 'Working…' : audioUri ? 'Change file' : 'Attach file'}</Text>
@@ -174,6 +227,7 @@ export default function CallAudioField({ audioUri, audioName, audioKind, onChang
           </TouchableOpacity>
         )}
       </View>
+      ) : null}
       {audioUri ? (
         <View style={styles.row}>
           <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={play}>
@@ -196,6 +250,15 @@ const styles = StyleSheet.create({
   label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginBottom: 6 },
   hint: { color: '#64748b', fontSize: 12, lineHeight: 17, marginBottom: 8 },
   file: { color: '#86efac', fontSize: 13, marginBottom: 8 },
+  lock: {
+    backgroundColor: '#141428',
+    borderWidth: 1,
+    borderColor: '#8b5cf6',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  lockTitle: { color: '#c4b5fd', fontSize: 13, fontWeight: '800', marginBottom: 4 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   btn: {
     backgroundColor: '#3b82f6',

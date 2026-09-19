@@ -46,6 +46,9 @@ export const STAMP_ROW_REWARD = {
   label: 'First stamps row +2 credits',
 };
 
+export const CALL_RECORDING_COST = 4;
+export const CALL_RECORDING_PERK = 'callRecording';
+
 export const SHOP_ITEMS = [
   {
     id: 'deliveryPerk',
@@ -67,6 +70,13 @@ export const SHOP_ITEMS = [
     blurb: 'Trim a copy, checksum it, leave the original.',
     cost: 4,
     perk: 'clipPoints',
+  },
+  {
+    id: 'callRecording',
+    title: 'Call recordings',
+    blurb: 'Attach audio, a screen recording, or a voice note on phone-call events.',
+    cost: 4,
+    perk: 'callRecording',
   },
   {
     id: 'customCategories',
@@ -236,6 +246,7 @@ export function perkLabel(key) {
   if (key === 'deliveryPerk') return 'Delivery tracking perk';
   if (key === 'inviteBoost') return 'Extra invite room';
   if (key === 'clipPoints') return 'Video clip points';
+  if (key === 'callRecording') return 'Call recordings';
   if (key === 'customCategories') return 'Custom event categories';
   if (key === 'checksumHome') return 'Checksums on Home';
   return key;
