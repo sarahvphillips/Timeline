@@ -18,6 +18,7 @@ import { createEventShare } from '../services/shareService';
 
 const CATEGORIES = [
   { id: 'personal', label: 'Personal' },
+  { id: 'friends', label: 'Friends' },
   { id: 'family', label: 'Family' },
   { id: 'work', label: 'Work' },
   { id: 'other', label: 'Other' },

@@ -26,6 +26,7 @@ import {
 
 const CATEGORIES = [
   { id: 'personal', label: 'Personal' },
+  { id: 'friends', label: 'Friends' },
   { id: 'family', label: 'Family' },
   { id: 'work', label: 'Work' },
   { id: 'delivery', label: 'Delivery' },
