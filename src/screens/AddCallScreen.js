@@ -28,8 +28,11 @@ const CATEGORIES = [
   { id: 'personal', label: 'Personal' },
   { id: 'family', label: 'Family' },
   { id: 'work', label: 'Work' },
+  { id: 'delivery', label: 'Delivery' },
   { id: 'other', label: 'Other' },
 ];
+
+const QUICK_CONTACTS = ['Uber delivery', 'Deliveroo', 'Amazon', 'Driver', 'Unknown'];
 
 const DIRECTIONS = [
   { id: 'incoming', label: 'Incoming' },
@@ -77,8 +80,12 @@ export default function AddCallScreen({ navigation, route }) {
   const [number, setNumber] = useState(existing?.callNumber || '');
   const [date, setDate] = useState(eventToDateTime(existing?.date).date);
   const [time, setTime] = useState(existing?.callTime || eventToDateTime(existing?.date).time);
-  const [minutes, setMinutes] = useState(String(existing?.callMinutes ?? '0'));
-  const [seconds, setSeconds] = useState(String(existing?.callSeconds ?? '0'));
+  const [minutes, setMinutes] = useState(
+    existing?.callMinutes != null && existing.callMinutes !== '0' ? String(existing.callMinutes) : ''
+  );
+  const [seconds, setSeconds] = useState(
+    existing?.callSeconds != null && existing.callSeconds !== '0' ? String(existing.callSeconds) : ''
+  );
   const [note, setNote] = useState(existing?.description || existing?.callNote || '');
   const [category, setCategory] = useState(existing?.category || 'personal');
   const [location, setLocation] = useState(existing?.callLocation || '');
@@ -125,8 +132,8 @@ export default function AddCallScreen({ navigation, route }) {
     setNumber('');
     setDate(todayIso());
     setTime(nowClock());
-    setMinutes('0');
-    setSeconds('0');
+    setMinutes('');
+    setSeconds('');
     setNote('');
     setCategory('personal');
     setLocation('');
@@ -137,12 +144,21 @@ export default function AddCallScreen({ navigation, route }) {
   };
 
   const handleSave = async () => {
-    if (!contact.trim() && !number.trim() && !note.trim() && !audioUri) {
-      Alert.alert('Need a call', 'Add a contact, number, note, or recording.');
+    const who = contact.trim() || number.trim();
+    if (!who) {
+      Alert.alert(
+        'Who was it?',
+        'Add a name, Uber delivery, or a number. They do not have to be on People.'
+      );
+      return;
+    }
+    const mins = Number(minutes) || 0;
+    const secs = Number(seconds) || 0;
+    if (direction !== 'missed' && mins <= 0 && secs <= 0) {
+      Alert.alert('Length of call', 'Please add the length of the call.');
       return;
     }
     const friend = findPerson(people, { contact, number });
-    const who = contact.trim() || friend?.name || 'Unknown';
     const hhmm = time.length >= 5 ? time.slice(0, 5) : nowClock();
     const iso = `${date}T${hhmm}:00`;
     setSaving(true);
@@ -222,8 +238,8 @@ export default function AddCallScreen({ navigation, route }) {
         <Text style={styles.kicker}>Home</Text>
         <Text style={styles.heading}>{existing ? 'Edit phone call' : 'Add phone call'}</Text>
         <Text style={styles.intro}>
-          Log a call as a timeline event. Same People list as SMS. Not the phone’s call log — you add
-          it. Sharing defaults on only when that person has Calls Auto.
+          The other person can be anyone — a friend, Uber delivery, a driver. They do not have to be
+          on People.
         </Text>
 
         <View style={styles.card}>
@@ -240,14 +256,28 @@ export default function AddCallScreen({ navigation, route }) {
             ))}
           </View>
 
-          <Text style={styles.label}>Contact</Text>
+          <Text style={styles.label}>Who was the call with?</Text>
           <TextInput
             style={styles.input}
             value={contact}
             onChangeText={setContact}
-            placeholder="Who was the call with?"
+            placeholder="Name, Uber delivery, driver…"
             placeholderTextColor="#64748b"
           />
+          <View style={styles.row}>
+            {QUICK_CONTACTS.map((name) => (
+              <TouchableOpacity
+                key={name}
+                style={[styles.chip, contact === name && styles.chipOn]}
+                onPress={() => {
+                  setContact(name);
+                  if (name !== 'Unknown') setCategory('delivery');
+                }}
+              >
+                <Text style={[styles.chipText, contact === name && styles.chipTextOn]}>{name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <Text style={styles.label}>Number</Text>
           <TextInput
             style={styles.input}
@@ -272,7 +302,9 @@ export default function AddCallScreen({ navigation, route }) {
               </View>
             </View>
           ) : contact.trim() || number.trim() ? (
-            <Text style={styles.hint}>Not on your People list yet. Add them there if you want a link.</Text>
+            <Text style={styles.hint}>
+              Not on People — that’s fine. One-off callers and deliveries still save.
+            </Text>
           ) : null}
 
           {matched ? (
@@ -308,25 +340,32 @@ export default function AddCallScreen({ navigation, route }) {
             Shown as {date ? formatUk(date) : '—'} {time}
           </Text>
 
-          <Text style={styles.label}>Duration</Text>
-          <View style={styles.two}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={minutes}
-              onChangeText={setMinutes}
-              placeholder="Minutes"
-              placeholderTextColor="#64748b"
-              keyboardType="number-pad"
-            />
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={seconds}
-              onChangeText={setSeconds}
-              placeholder="Seconds"
-              placeholderTextColor="#64748b"
-              keyboardType="number-pad"
-            />
-          </View>
+          {direction !== 'missed' ? (
+            <>
+              <Text style={styles.label}>Length of call</Text>
+              <View style={styles.two}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={minutes}
+                  onChangeText={setMinutes}
+                  placeholder="Minutes"
+                  placeholderTextColor="#64748b"
+                  keyboardType="number-pad"
+                />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={seconds}
+                  onChangeText={setSeconds}
+                  placeholder="Seconds"
+                  placeholderTextColor="#64748b"
+                  keyboardType="number-pad"
+                />
+              </View>
+              <Text style={styles.hint}>Needed unless this is a missed call.</Text>
+            </>
+          ) : (
+            <Text style={styles.hint}>Missed calls have no duration.</Text>
+          )}
 
           <Text style={styles.label}>Location</Text>
           <View style={styles.row}>
