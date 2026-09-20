@@ -89,7 +89,7 @@ service cloud.firestore {
     }
 
     match /rewardsIndex/{email} {
-      allow read: if isAdmin();
+      allow read, write: if isAdmin();
       allow create, update: if isSignedIn()
         && request.resource.data.uid == request.auth.uid;
       allow delete: if isAdmin()

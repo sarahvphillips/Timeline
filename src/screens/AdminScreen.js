@@ -35,10 +35,11 @@ export default function AdminScreen({ navigation }) {
   const [blockEmail, setBlockEmail] = useState('');
   const [inviteNote, setInviteNote] = useState('');
   const [notice, setNotice] = useState('');
-  const [creditEmail, setCreditEmail] = useState('');
+  const [creditEmail, setCreditEmail] = useState(email);
   const [creditLookup, setCreditLookup] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditBusy, setCreditBusy] = useState(false);
+  const [creditStatus, setCreditStatus] = useState('');
 
   const notify = (title, message) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
@@ -127,13 +128,21 @@ export default function AdminScreen({ navigation }) {
 
   const loadCredits = async () => {
     setCreditBusy(true);
+    setCreditStatus('Looking up…');
     try {
-      const row = await adminGetRewardsByEmail(creditEmail);
+      const row = await adminGetRewardsByEmail(creditEmail || email);
       setCreditLookup(row);
-      if (row?.missing) setNotice('No rewards record yet for that email.');
-      else if (row?.rewards) setCreditAmount(String(row.rewards.credits));
+      if (row?.error && row?.missing) {
+        setCreditStatus(row.error);
+      } else if (row?.rewards) {
+        setCreditAmount(String(row.rewards.credits));
+        setCreditStatus(`${row.email} has ${row.rewards.credits} credits.`);
+      } else {
+        setCreditStatus('No rewards record for that email yet.');
+      }
     } catch (e) {
-      setNotice(e?.message || 'Could not load credits.');
+      setCreditLookup(null);
+      setCreditStatus(e?.message || 'Could not load credits.');
     } finally {
       setCreditBusy(false);
     }
@@ -141,14 +150,19 @@ export default function AdminScreen({ navigation }) {
 
   const saveCredits = async (value) => {
     setCreditBusy(true);
+    setCreditStatus('Saving…');
     try {
       const n = Math.max(0, Number(value));
-      const row = await adminSetRewards(creditEmail, { credits: n });
+      if (Number.isNaN(n)) {
+        setCreditStatus('Enter a number.');
+        return;
+      }
+      const row = await adminSetRewards(creditEmail || email, { credits: n });
       setCreditLookup(row);
       setCreditAmount(String(row.rewards.credits));
-      setNotice(`Credits for ${row.email} set to ${row.rewards.credits}.`);
+      setCreditStatus(`Credits for ${row.email} set to ${row.rewards.credits}.`);
     } catch (e) {
-      setNotice(e?.message || 'Could not save credits.');
+      setCreditStatus(e?.message || 'Could not save credits.');
     } finally {
       setCreditBusy(false);
     }
@@ -294,7 +308,8 @@ export default function AdminScreen({ navigation }) {
       <TouchableOpacity style={styles.primary} onPress={loadCredits} disabled={creditBusy}>
         <Text style={styles.primaryText}>{creditBusy ? 'Loading…' : 'Look up credits'}</Text>
       </TouchableOpacity>
-      {creditLookup && !creditLookup.missing && creditLookup.rewards ? (
+      {creditStatus ? <Text style={styles.notice}>{creditStatus}</Text> : null}
+      {creditLookup?.rewards ? (
         <View style={styles.card}>
           <Text style={styles.rowText}>{creditLookup.email}</Text>
           <Text style={styles.muted}>uid {creditLookup.uid}</Text>

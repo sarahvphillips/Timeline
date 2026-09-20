@@ -201,36 +201,88 @@ async function writeRewards(state) {
 /** Admin: look up credits by account email. */
 export async function adminGetRewardsByEmail(email) {
   const key = String(email || '').trim().toLowerCase();
-  if (!key) return null;
-  const idx = await getDoc(rewardsIndexDoc(key));
-  if (!idx.exists()) return { email: key, uid: null, rewards: null, missing: true };
-  const uid = idx.data()?.uid;
-  if (!uid) return { email: key, uid: null, rewards: normalizeRewards(idx.data()), missing: false };
-  const snap = await getDoc(rewardsDoc(uid));
-  const rewards = snap.exists() ? normalizeRewards(snap.data()) : normalizeRewards(idx.data());
-  return { email: key, uid, rewards, missing: false };
+  if (!key) {
+    return { email: '', uid: null, rewards: null, missing: true, error: 'Type an email first.' };
+  }
+  const me = String(auth.currentUser?.email || '').trim().toLowerCase();
+  const myUid = auth.currentUser?.uid || null;
+
+  try {
+    const idx = await getDoc(rewardsIndexDoc(key));
+    if (idx.exists()) {
+      const uid = idx.data()?.uid || (key === me ? myUid : null);
+      if (uid) {
+        const snap = await getDoc(rewardsDoc(uid));
+        const rewards = snap.exists()
+          ? normalizeRewards(snap.data())
+          : normalizeRewards(idx.data());
+        return { email: key, uid, rewards, missing: false };
+      }
+    }
+  } catch (e) {
+    if (key !== me) {
+      return {
+        email: key,
+        uid: null,
+        rewards: null,
+        missing: true,
+        error: e?.message || 'Firestore read failed. Publish firestore.rules if this is permission-denied.',
+      };
+    }
+  }
+
+  if (key === me && myUid) {
+    try {
+      const snap = await getDoc(rewardsDoc(myUid));
+      if (snap.exists()) {
+        return { email: key, uid: myUid, rewards: normalizeRewards(snap.data()), missing: false };
+      }
+    } catch {
+      /* use local */
+    }
+    const local = await getRewards();
+    return { email: key, uid: myUid, rewards: local, missing: false };
+  }
+
+  return {
+    email: key,
+    uid: null,
+    rewards: null,
+    missing: true,
+    error: 'No rewards record for that email yet. They need to open Timeline once while signed in.',
+  };
 }
 
 /** Admin: set credit balance (and optional extra perk) for an email. */
 export async function adminSetRewards(email, patch) {
   const found = await adminGetRewardsByEmail(email);
-  if (!found || found.missing || !found.uid) {
-    const err = new Error('No rewards record for that email yet. They need to open the app once while signed in.');
+  const me = String(auth.currentUser?.email || '').trim().toLowerCase();
+  const myUid = auth.currentUser?.uid || null;
+  let uid = found?.uid;
+  let base = found?.rewards || emptyRewards();
+  if (!uid && found?.email === me && myUid) {
+    uid = myUid;
+  }
+  if (!uid) {
+    const err = new Error(
+      found?.error ||
+        'No rewards record for that email yet. They need to open the app once while signed in.',
+    );
     err.code = 'MISSING';
     throw err;
   }
   const credits =
-    patch.credits == null ? found.rewards.credits : Math.max(0, Number(patch.credits) || 0);
-  let unlocked = [...(found.rewards.unlockedPerks || [])];
+    patch.credits == null ? base.credits : Math.max(0, Number(patch.credits) || 0);
+  let unlocked = [...(base.unlockedPerks || [])];
   if (patch.addPerk && !unlocked.includes(patch.addPerk)) unlocked.push(patch.addPerk);
   if (patch.removePerk) unlocked = unlocked.filter((p) => p !== patch.removePerk);
   const next = await persistRewards(
-    found.uid,
-    found.email,
-    { ...found.rewards, credits, unlockedPerks: unlocked },
-    { localToo: found.uid === auth.currentUser?.uid },
+    uid,
+    found.email || me,
+    { ...base, credits, unlockedPerks: unlocked },
+    { localToo: uid === myUid },
   );
-  return { email: found.email, uid: found.uid, rewards: next };
+  return { email: found.email || me, uid, rewards: next };
 }
 
 export function inviteStats(people) {
