@@ -50,6 +50,13 @@ export const STAMP_ROW_REWARD = {
 export const CALL_RECORDING_COST = 4;
 export const CALL_RECORDING_PERK = 'callRecording';
 
+/** Display-only packs until Play billing is wired. */
+export const CREDIT_PACKS = [
+  { id: 'pack-10', credits: 10, priceLabel: '£0.99', blurb: 'A few shop unlocks' },
+  { id: 'pack-30', credits: 30, priceLabel: '£1.99', blurb: 'Most used perks' },
+  { id: 'pack-80', credits: 80, priceLabel: '£3.99', blurb: 'Best value later' },
+];
+
 export const SHOP_ITEMS = [
   {
     id: 'deliveryPerk',

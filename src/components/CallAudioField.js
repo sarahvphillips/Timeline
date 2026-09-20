@@ -28,6 +28,7 @@ export default function CallAudioField({
   unlocking = false,
   onUnlock,
   onShop,
+  onNeedMore,
 }) {
   const [recording, setRecording] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -195,9 +196,9 @@ export default function CallAudioField({
                     : `Need ${cost} (have ${credits})`}
               </Text>
             </TouchableOpacity>
-            {onShop ? (
-              <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={onShop}>
-                <Text style={styles.ghostText}>Credits shop</Text>
+            {credits < cost && onNeedMore ? (
+              <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={onNeedMore}>
+                <Text style={styles.ghostText}>Need more credits</Text>
               </TouchableOpacity>
             ) : null}
           </View>

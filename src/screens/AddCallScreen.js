@@ -24,6 +24,8 @@ import {
   CALL_RECORDING_COST,
   CALL_RECORDING_PERK,
 } from '../services/rewardsService';
+import { auth } from '../services/firebase';
+import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
 
 const CATEGORIES = [
   { id: 'personal', label: 'Personal' },
@@ -104,6 +106,7 @@ export default function AddCallScreen({ navigation, route }) {
   const [matched, setMatched] = useState(null);
   const [rewards, setRewards] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [staff, setStaff] = useState(false);
 
   const load = useCallback(async () => {
     const [list, events, rew] = await Promise.all([getPeople(), getEvents(), getRewards()]);
@@ -119,6 +122,9 @@ export default function AddCallScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       load();
+      loadAdmin(auth.currentUser?.email)
+        .then((s) => setStaff(canSeeHomeAdmin(auth.currentUser?.email, s)))
+        .catch(() => setStaff(false));
     }, [load])
   );
 
@@ -410,7 +416,13 @@ export default function AddCallScreen({ navigation, route }) {
                 Alert.alert('Unlocked', `Call recordings are on. Credits left: ${next.credits}.`);
               } catch (e) {
                 if (e?.code === 'NEED_CREDITS') {
-                  Alert.alert('Not enough credits', e.message);
+                  Alert.alert('Not enough credits', e.message, [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: staff ? 'Admin' : 'Buy credits',
+                      onPress: () => navigation.navigate(staff ? 'Admin' : 'BuyCredits'),
+                    },
+                  ]);
                 } else if (e?.code === 'OWNED') {
                   Alert.alert('Already yours', 'Call recordings are already unlocked.');
                 } else {
@@ -421,6 +433,7 @@ export default function AddCallScreen({ navigation, route }) {
               }
             }}
             onShop={() => navigation.navigate('CreditsShop')}
+            onNeedMore={() => navigation.navigate(staff ? 'Admin' : 'BuyCredits')}
             onChange={({ uri, name, kind }) => {
               setAudioUri(uri || '');
               setAudioName(name || '');

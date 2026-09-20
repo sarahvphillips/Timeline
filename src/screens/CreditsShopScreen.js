@@ -10,10 +10,13 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import { getRewards, SHOP_ITEMS, spendShopItem, hasPerk, perkLabel } from '../services/rewardsService';
+import { auth } from '../services/firebase';
+import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
 
 export default function CreditsShopScreen({ navigation }) {
   const [rewards, setRewards] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [staff, setStaff] = useState(false);
 
   const load = useCallback(async () => {
     setRewards(await getRewards());
@@ -22,8 +25,15 @@ export default function CreditsShopScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       load();
+      loadAdmin(auth.currentUser?.email)
+        .then((s) => setStaff(canSeeHomeAdmin(auth.currentUser?.email, s)))
+        .catch(() => setStaff(false));
     }, [load])
   );
+
+  const needMore = () => {
+    navigation.navigate(staff ? 'Admin' : 'BuyCredits');
+  };
 
   const buy = async (item) => {
     if (busyId) return;
@@ -36,7 +46,10 @@ export default function CreditsShopScreen({ navigation }) {
       if (e?.code === 'OWNED') {
         Alert.alert('Already yours', item.title);
       } else if (e?.code === 'NEED_CREDITS') {
-        Alert.alert('Not enough credits', e.message);
+        Alert.alert('Not enough credits', e.message, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: staff ? 'Admin' : 'Buy credits', onPress: needMore },
+        ]);
       } else {
         Alert.alert('Shop', e?.message || 'Could not unlock this.');
       }
@@ -60,6 +73,9 @@ export default function CreditsShopScreen({ navigation }) {
         <View style={styles.balance}>
           <Text style={styles.balanceNum}>{credits}</Text>
           <Text style={styles.balanceLabel}>credits on this account</Text>
+          <TouchableOpacity style={styles.needBtn} onPress={needMore}>
+            <Text style={styles.needBtnText}>{staff ? 'Admin: add credits' : 'Buy credits'}</Text>
+          </TouchableOpacity>
         </View>
         {owned.length ? (
           <Text style={styles.ownedLine}>Unlocked: {owned.join(' · ')}</Text>
@@ -77,11 +93,19 @@ export default function CreditsShopScreen({ navigation }) {
               <Text style={styles.itemCost}>{item.cost} credits</Text>
               <TouchableOpacity
                 style={[styles.button, mine && styles.buttonOwned, !mine && !can && styles.buttonOff]}
-                onPress={() => buy(item)}
+                onPress={() => (can || mine ? buy(item) : needMore())}
                 disabled={mine || busyId === item.id}
               >
                 <Text style={styles.buttonText}>
-                  {mine ? 'Unlocked' : busyId === item.id ? 'Unlocking…' : can ? 'Unlock' : 'Need more credits'}
+                  {mine
+                    ? 'Unlocked'
+                    : busyId === item.id
+                      ? 'Unlocking…'
+                      : can
+                        ? 'Unlock'
+                        : staff
+                          ? 'Need more credits · Admin'
+                          : 'Need more credits · Buy'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -116,6 +140,14 @@ const styles = StyleSheet.create({
   },
   balanceNum: { color: '#c4b5fd', fontSize: 36, fontWeight: '800' },
   balanceLabel: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
+  needBtn: {
+    marginTop: 12,
+    backgroundColor: '#3b82f6',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  needBtnText: { color: '#fff', fontWeight: '700' },
   ownedLine: { color: '#a5b4fc', fontSize: 13, marginBottom: 16, lineHeight: 18 },
   card: {
     backgroundColor: '#1a1b36',
