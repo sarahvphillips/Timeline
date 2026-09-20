@@ -104,6 +104,13 @@ export const SHOP_ITEMS = [
     cost: 2,
     perk: 'checksumHome',
   },
+  {
+    id: 'openBanking',
+    title: 'Open Banking',
+    blurb: 'Optional bank link (sandbox now). Live Lloyds later via a regulated provider. Screenshots stay free.',
+    cost: 6,
+    perk: 'openBanking',
+  },
 ];
 
 function storeKey(uid) {
@@ -550,5 +557,6 @@ export function perkLabel(key) {
   if (key === 'callRecording') return 'Call recordings';
   if (key === 'customCategories') return 'Custom event categories';
   if (key === 'checksumHome') return 'Checksums on Home';
+  if (key === 'openBanking') return 'Open Banking';
   return key;
 }

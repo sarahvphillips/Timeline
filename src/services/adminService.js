@@ -35,7 +35,7 @@ export const FEATURES = [
   { key: 'gmailImport', title: 'Gmail import', blurb: 'Pull receipts and mail into events.', defaultAccess: 'admin' },
   { key: 'inviteCodes', title: 'Invite codes', blurb: 'Codes you issue so someone can join Timeline.', defaultAccess: 'admin' },
   { key: 'userBlock', title: 'Block a user', blurb: 'Stop an email from using this Timeline.', defaultAccess: 'admin' },
-  { key: 'auditLog', title: 'Admin audit log', blurb: 'Who granted admin, who changed a gate.', defaultAccess: 'admin' },
+  { key: 'openBanking', title: 'Open Banking', blurb: 'Sandbox bank import. Live AIS later. Screenshots stay.', defaultAccess: 'everyone' },
 ];
 
 export function defaultGates() {

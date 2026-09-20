@@ -770,6 +770,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   social: '#38bdf8',
   sms: '#22c55e',
   call: '#fb923c',
+  bank: '#22d3ee',
 };
 
 const YEAR_BUBBLE_KIND_ORDER = [
@@ -786,6 +787,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'social',
   'sms',
   'call',
+  'bank',
 ];
 
 /**
@@ -881,6 +883,14 @@ export function classifyYearBubbleKind(event) {
       label: 'Call',
       color: YEAR_BUBBLE_KIND_COLORS.call,
       filter: { source: 'call' },
+    };
+  }
+  if (source === 'bank' || category === 'banking') {
+    return {
+      kind: 'bank',
+      label: event?.bankKind || 'Banking',
+      color: YEAR_BUBBLE_KIND_COLORS.bank,
+      filter: { source: 'bank' },
     };
   }
   if (source === 'laundry' || category === 'household') {
@@ -1370,6 +1380,7 @@ export const TIMELINE_FILTERS = [
   { id: 'spotify', label: 'Spotify', color: '#1db954', itemView: true },
   { id: 'food', label: 'Food', color: '#f59e0b', itemView: true },
   { id: 'laundry', label: 'Wash', color: '#38bdf8', itemView: true },
+  { id: 'bank', label: 'Banking', color: '#22d3ee', itemView: true },
   ...CATEGORIES.map((c) => ({
     id: `cat:${c.id}`,
     label: c.label,
@@ -1393,6 +1404,7 @@ export function eventMatchesTimelineFilter(event, filterId) {
   if (filterId === 'spotify') return source === 'spotify';
   if (filterId === 'food') return source === 'food';
   if (filterId === 'laundry') return source === 'laundry';
+  if (filterId === 'bank') return source === 'bank' || category === 'banking';
   if (filterId.startsWith('cat:')) return category === filterId.slice(4);
   return true;
 }

@@ -45,6 +45,7 @@ import CreditsShopScreen from './src/screens/CreditsShopScreen';
 import BuyCreditsScreen from './src/screens/BuyCreditsScreen';
 import TransferCreditsScreen from './src/screens/TransferCreditsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import OpenBankingScreen from './src/screens/OpenBankingScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
 import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
@@ -377,6 +378,12 @@ function AppShell() {
                 name="Settings"
                 component={SettingsScreen}
                 options={{ title: 'Settings' }}
+              />
+
+              <Stack.Screen
+                name="OpenBanking"
+                component={OpenBankingScreen}
+                options={{ title: 'Open Banking' }}
               />
             </>
           )}

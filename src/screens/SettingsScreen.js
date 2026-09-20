@@ -537,6 +537,19 @@ export default function SettingsScreen({ navigation }) {
         <Text style={[styles.section, { color: colors.muted }]}>Sharing & mail</Text>
         <TouchableOpacity
           style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('OpenBanking')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuRowText}>
+            <Text style={[styles.menuRowLabel, { color: colors.text }]}>Open Banking</Text>
+            <Text style={[styles.hint, { color: colors.faint, marginTop: 4, marginBottom: 0 }]}>
+              Sandbox import now. Live Lloyds later. Screenshots stay.
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: colors.faint }]}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
           onPress={() => navigation.navigate('People')}
           activeOpacity={0.7}
         >
