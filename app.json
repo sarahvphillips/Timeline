@@ -75,7 +75,8 @@
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-iap"
     ],
     "icon": "./assets/icon.png",
     "owner": "sarahpoet6014",

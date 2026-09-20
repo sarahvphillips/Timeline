@@ -302,22 +302,25 @@ export async function adminSetRewards(email, patch) {
   return { email: found.email || me, uid, rewards: next };
 }
 
-/** Play SKU consume → add credits. Expo Go has no BillingClient; staff can tester-grant like a license tester. */
-export async function applyPurchasedPack(sku, { tester = false } = {}) {
+/** Play SKU consume → add credits. Same product ids as Mafia. */
+export async function applyPurchasedPack(sku, { tester = false, purchaseToken = '' } = {}) {
   const pack = CREDIT_PACKS.find((p) => p.sku === sku || p.id === sku);
   if (!pack) {
     const err = new Error('Unknown credit pack.');
     err.code = 'UNKNOWN_PACK';
     throw err;
   }
-  if (!tester) {
+  if (!tester && !purchaseToken) {
     const err = new Error(
-      `Google Play SKU "${pack.sku}" is the same as Mafia. Billing is not live in Expo Go yet — it will launch the Play purchase when Timeline is on the store.`,
+      `Google Play SKU "${pack.sku}" (package com.sarahphillips.timelineapp). Create that in-app product in Play Console, then buy from a store build.`,
     );
     err.code = 'NO_STORE';
     throw err;
   }
   const current = await getRewards();
+  if (purchaseToken && (current.purchases || []).some((p) => p.token === purchaseToken)) {
+    return current;
+  }
   return writeRewards({
     ...current,
     credits: current.credits + pack.credits,
@@ -327,7 +330,8 @@ export async function applyPurchasedPack(sku, { tester = false } = {}) {
         sku: pack.sku,
         credits: pack.credits,
         at: new Date().toISOString(),
-        source: 'tester',
+        source: tester ? 'tester' : 'play',
+        token: purchaseToken || null,
       },
     ],
   });

@@ -8,6 +8,12 @@ import {
   applyPurchasedPack,
   claimPendingTransfers,
 } from '../services/rewardsService';
+import {
+  playBillingSupported,
+  fetchPlayCreditProducts,
+  buyPlayCreditSku,
+  endPlayBilling,
+} from '../services/playBilling';
 import { auth } from '../services/firebase';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
 
@@ -24,6 +30,8 @@ export default function BuyCreditsScreen({ navigation }) {
   const [staff, setStaff] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [products, setProducts] = useState([]);
+  const [storeReady, setStoreReady] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -40,45 +48,93 @@ export default function BuyCreditsScreen({ navigation }) {
     } catch {
       setStaff(false);
     }
+    if (playBillingSupported()) {
+      try {
+        const list = await fetchPlayCreditProducts();
+        setProducts(list);
+        setStoreReady(list.some((p) => p.ready));
+      } catch (e) {
+        setStoreReady(false);
+        setStatus(e?.message || 'Play Billing not connected.');
+      }
+    }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       load();
+      return () => {
+        endPlayBilling();
+      };
     }, [load])
   );
 
-  const buy = (pack) => {
+  const packView = (pack) => products.find((p) => p.sku === pack.sku) || pack;
+
+  const buy = async (pack) => {
     if (busy) return;
-    if (staff) {
-      notify(
-        'Purchase credits',
-        `Grant ${pack.credits} credit${pack.credits === 1 ? '' : 's'} as a Play license tester? SKU ${pack.sku} (Mafia packs). This cannot be undone.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Buy!',
-            onPress: async () => {
-              setBusy(true);
-              try {
-                const next = await applyPurchasedPack(pack.sku, { tester: true });
-                setCredits(next.credits);
-                setStatus(`You now have ${next.credits} credits.`);
-              } catch (e) {
-                setStatus(e?.message || 'Purchase failed.');
-              } finally {
-                setBusy(false);
-              }
+    setBusy(true);
+    setStatus('');
+    try {
+      if (playBillingSupported()) {
+        const next = await buyPlayCreditSku(pack.sku);
+        setCredits(next.credits);
+        setStatus(`Play purchase of ${pack.sku} — you now have ${next.credits} credits.`);
+        return;
+      }
+      if (staff) {
+        notify(
+          'Purchase credits',
+          `Expo Go has no Play Billing. Grant ${pack.credits} credit${pack.credits === 1 ? '' : 's'} as a license tester for SKU ${pack.sku}? Same as Mafia tester accounts. This cannot be undone.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Buy!',
+              onPress: async () => {
+                try {
+                  const next = await applyPurchasedPack(pack.sku, { tester: true });
+                  setCredits(next.credits);
+                  setStatus(`Tester grant ${pack.sku} — you now have ${next.credits} credits.`);
+                } catch (e) {
+                  setStatus(e?.message || 'Purchase failed.');
+                }
+              },
             },
-          },
-        ],
+          ],
+        );
+        return;
+      }
+      notify(
+        'Google Play SKUs',
+        `Create these in-app products (consumable) on Play Console for ${'com.sarahphillips.timelineapp'}:\n\n1_credits\n10_credits\n25_credits\n100_credits\n\nSame ids as Mafia. Then install a store/dev build (not Expo Go) so Buy opens Google Play.`,
       );
-      return;
+    } catch (e) {
+      if (e?.code === 'NO_IAP_MODULE' && staff) {
+        notify(
+          'Purchase credits',
+          `Play Billing module is not in this build. Tester-grant ${pack.credits} for SKU ${pack.sku}?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Buy!',
+              onPress: async () => {
+                try {
+                  const next = await applyPurchasedPack(pack.sku, { tester: true });
+                  setCredits(next.credits);
+                  setStatus(`Tester grant ${pack.sku} — you now have ${next.credits} credits.`);
+                } catch (err) {
+                  setStatus(err?.message || 'Purchase failed.');
+                }
+              },
+            },
+          ],
+        );
+      } else {
+        setStatus(e?.message || 'Purchase failed.');
+      }
+    } finally {
+      setBusy(false);
     }
-    notify(
-      'Play Store',
-      `SKU "${pack.sku}" is the same pack as Mafia Mobile. Google Play billing is not live in Expo Go yet — when Timeline is on the store, this button will open the Play purchase.`,
-    );
   };
 
   return (
@@ -87,8 +143,10 @@ export default function BuyCreditsScreen({ navigation }) {
         <Text style={styles.kicker}>Credits shop</Text>
         <Text style={styles.heading}>Purchase credits</Text>
         <Text style={styles.intro}>
-          Credits are retained on your account. Same packs as Mafia: 1, 10, 25 and 100 credits
-          (Play SKUs 1_credits, 10_credits, 25_credits, 100_credits).
+          Google Play in-app products (consumable), same SKUs as Mafia. Package{' '}
+          com.sarahphillips.timelineapp — 1_credits, 10_credits, 25_credits, 100_credits. Play
+          prices show when this is a store build; Expo Go cannot talk to BillingClient.
+          {storeReady ? ' Play Billing is connected.' : ''}
         </Text>
         <View style={styles.balance}>
           <Text style={styles.balanceNum}>{credits}</Text>
@@ -96,17 +154,23 @@ export default function BuyCreditsScreen({ navigation }) {
         </View>
         {status ? <Text style={styles.status}>{status}</Text> : null}
 
-        {CREDIT_PACKS.map((pack) => (
-          <View key={pack.sku} style={styles.card}>
-            <Text style={styles.title}>
-              {pack.credits} credit{pack.credits === 1 ? '' : 's'}
-            </Text>
-            <Text style={styles.sku}>{pack.sku}</Text>
-            <TouchableOpacity style={styles.button} onPress={() => buy(pack)} disabled={busy}>
-              <Text style={styles.buttonText}>{busy ? 'Please wait…' : `Buy ${pack.credits}`}</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+        {CREDIT_PACKS.map((pack) => {
+          const view = packView(pack);
+          return (
+            <View key={pack.sku} style={styles.card}>
+              <Text style={styles.title}>
+                {view.title || `${pack.credits} credit${pack.credits === 1 ? '' : 's'}`}
+              </Text>
+              <Text style={styles.sku}>{pack.sku}</Text>
+              <Text style={styles.price}>{view.priceLabel || 'Play Store'}</Text>
+              <TouchableOpacity style={styles.button} onPress={() => buy(pack)} disabled={busy}>
+                <Text style={styles.buttonText}>
+                  {busy ? 'Please wait…' : `Buy ${pack.credits}`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
 
         <TouchableOpacity
           style={styles.ghost}
@@ -155,7 +219,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   title: { color: '#f8fafc', fontSize: 18, fontWeight: '700' },
-  sku: { color: '#64748b', fontSize: 12, marginTop: 4, marginBottom: 10 },
+  sku: { color: '#64748b', fontSize: 12, marginTop: 4 },
+  price: { color: '#c4b5fd', fontSize: 16, fontWeight: '800', marginTop: 6, marginBottom: 10 },
   button: {
     backgroundColor: '#3b82f6',
     borderRadius: 10,
