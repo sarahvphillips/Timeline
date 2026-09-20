@@ -88,6 +88,14 @@ service cloud.firestore {
         && request.auth.uid == resource.data.fromUid;
     }
 
+    match /rewardsIndex/{email} {
+      allow read: if isAdmin();
+      allow create, update: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
     match /joinInvites/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
