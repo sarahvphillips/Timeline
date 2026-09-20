@@ -476,52 +476,9 @@ export default function TimelineScreen({ navigation, route }) {
         title="Events year design (temp)"
       />
       <HomeFab navigation={navigation} />
-      <TouchableOpacity style={styles.fab} onPress={() => setMenuOpen(true)}>
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('AddEvent')}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
-
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
-          <View style={styles.menu}>
-            <Text style={styles.menuTitle}>Add</Text>
-            {[
-              { label: 'Event', action: () => navigation.navigate('AddEvent') },
-              { label: 'Add from email', action: () => navigation.navigate('AddEvent', { fromEmail: true, source: 'email' }) },
-              { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
-              { label: 'Poem', action: () => navigation.navigate('AddPoem') },
-              { label: 'Games', action: () => navigation.navigate('Games') },
-              { label: 'Social media', action: () => navigation.navigate('Social') },
-              { label: 'YouTube', action: () => navigation.navigate('YouTube') },
-              { label: 'Spotify', action: () => navigation.navigate('Spotify') },
-              { label: 'SMS', action: () => navigation.navigate('AddSms') },
-              { label: 'Phone call', action: () => navigation.navigate('AddCall') },
-              { label: 'QR link', action: () => navigation.navigate('AddQr') },
-              ...(showFoodInMenu
-                ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]
-                : []),
-              ...(showWashInMenu
-                ? [{ label: 'Wash load', action: () => navigation.navigate('AddWashLoad') }]
-                : []),
-              { label: 'Word to Int', action: () => navigation.navigate('WordToInt') },
-              { label: 'Days between dates', action: () => navigation.navigate('DateSpan') },
-            ].map((opt) => (
-              <TouchableOpacity
-                key={opt.label}
-                style={styles.menuItem}
-                onPress={() => {
-                  setMenuOpen(false);
-                  opt.action();
-                }}
-              >
-                <Text style={styles.menuItemText}>{opt.label}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.menuCancel} onPress={() => setMenuOpen(false)}>
-              <Text style={styles.menuCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
 
       {toastMessage ? (
         <Animated.View style={[styles.toast, { opacity: toastOpacity }]}>

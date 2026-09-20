@@ -535,6 +535,19 @@ export default function SettingsScreen({ navigation }) {
         {renderSoonRow("Widgets", "Home screen widgets")}
 
         <Text style={[styles.section, { color: colors.muted }]}>Sharing & mail</Text>
+        <TouchableOpacity
+          style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('People')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuRowText}>
+            <Text style={[styles.menuRowLabel, { color: colors.text }]}>People</Text>
+            <Text style={[styles.hint, { color: colors.faint, marginTop: 4, marginBottom: 0 }]}>
+              Friends list, invites, auto-share. Also under Add event → Person.
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: colors.faint }]}>›</Text>
+        </TouchableOpacity>
         {renderSoonRow("Pick from Gmail", "Pick from Gmail")}
         {renderSoonRow("Share whole timeline", "Sharing the whole timeline")}
         {renderSoonRow("Notifications", "Notifications")}

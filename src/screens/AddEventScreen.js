@@ -40,12 +40,25 @@ import {
   declineEditSuggestion,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
+import { ADD_KINDS } from '../constants/addKinds';
+import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
 export default function AddEventScreen({ navigation, route }) {
   const existing = route.params?.event || null;
   const isEditing = !!existing;
-  const fromEmail = route.params?.fromEmail || route.params?.source === 'email' || false;
+  const fromEmail = route.params?.fromEmail || route.params?.source === 'email' || route.params?.kind === 'email' || false;
   const fromHobby = route.params?.fromHobby || false;
+  const skipPicker =
+    isEditing ||
+    fromEmail ||
+    fromHobby ||
+    route.params?.kind === 'event' ||
+    route.params?.source === 'share' ||
+    route.params?.source === 'image' ||
+    !!route.params?.shareKey;
+  const [showPicker, setShowPicker] = useState(!skipPicker);
+  const [showFoodInMenu, setShowFoodInMenu] = useState(true);
+  const [showWashInMenu, setShowWashInMenu] = useState(true);
 
   const initialSource = existing?.source
     || route.params?.source
@@ -114,6 +127,15 @@ export default function AddEventScreen({ navigation, route }) {
     };
   }, []);
   const [syncedExisting, setSyncedExisting] = useState(existing);
+
+  useEffect(() => {
+    getShowFoodInMenu()
+      .then(setShowFoodInMenu)
+      .catch(() => setShowFoodInMenu(true));
+    getShowWashInMenu()
+      .then((on) => setShowWashInMenu(on !== false))
+      .catch(() => setShowWashInMenu(true));
+  }, []);
 
   useEffect(() => {
     if (route.params?.event) return;
@@ -480,6 +502,47 @@ export default function AddEventScreen({ navigation, route }) {
 
   const isPoetry = source === 'hobby' && hobbyType === 'poetry';
 
+  if (showPicker) {
+    const kinds = ADD_KINDS.filter((k) => {
+      if (k.needsFood && !showFoodInMenu) return false;
+      if (k.needsWash && !showWashInMenu) return false;
+      return true;
+    });
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={styles.sectionTitle}>Add</Text>
+          <Text style={styles.intro}>
+            Pick a type. Event types live here so Home stays short.
+          </Text>
+          {kinds.map((k) => (
+            <TouchableOpacity
+              key={k.id}
+              style={styles.kindRow}
+              onPress={() => {
+                if (!k.screen) {
+                  setSource('manual');
+                  setShowPicker(false);
+                  return;
+                }
+                if (k.screen === 'AddEvent' && k.params) {
+                  setSource(k.params.source || 'email');
+                  setCategory(k.params.source === 'email' ? 'personal' : category);
+                  setShowPicker(false);
+                  return;
+                }
+                navigation.navigate(k.screen, k.params);
+              }}
+            >
+              <Text style={styles.kindLabel}>{k.label}</Text>
+              {k.blurb ? <Text style={styles.kindBlurb}>{k.blurb}</Text> : null}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -508,6 +571,11 @@ export default function AddEventScreen({ navigation, route }) {
                 ? 'Edit event'
                 : 'New event'}
         </Text>
+        {!isEditing ? (
+          <TouchableOpacity onPress={() => setShowPicker(true)}>
+            <Text style={styles.changeType}>‹ Change type</Text>
+          </TouchableOpacity>
+        ) : null}
         <Text style={styles.intro}>
           Choose a type, add a title and date, then save it onto your timeline.
         </Text>
@@ -958,6 +1026,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 6,
   },
+  changeType: {
+    color: '#a5b4fc',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  kindRow: {
+    backgroundColor: '#1a1b36',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+  },
+  kindLabel: { color: '#f8fafc', fontSize: 17, fontWeight: '700' },
+  kindBlurb: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
   friendSource: {
     color: '#34d399',
     fontSize: 13,

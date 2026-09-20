@@ -114,6 +114,7 @@ Product map:
 - [x] **Call recordings credits perk** (19 Sep 2026): attach/record/screen-recording on phone calls locked until `callRecording` shop item (4 credits). Call log itself stays free.
 - [x] **Call recordings credits perk** (19 Sep 2026): attach/record/screen-recording on phone calls locked until `callRecording` shop item (4 credits). Call log itself stays free.
 - [x] **Social media** (20 Sep 2026): paste X / Instagram / Facebook / TikTok / Threads / Reddit / LinkedIn / Bluesky link (or type a title). Posted/Shared/Saved/Liked/Replied. Timeline + **Social** filter chip (item bubbles). No live feed login.
+- [x] Home slim (20 Sep 2026): SMS, calls, People, Gmail, social, games, YouTube, etc. live under **Add event** picker. Timeline **+** opens the same picker. People also in Settings.
 - [ ] User add friends photos from social media
 - [ ] User add social media feeds (live import — later; APIs are locked down)
 

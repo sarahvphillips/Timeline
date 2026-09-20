@@ -320,18 +320,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Events with friends</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('People')}>
-        <Text style={styles.buttonText}>People</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('AddSms')}>
-        <Text style={styles.buttonText}>SMS</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('AddCall')}>
-        <Text style={styles.buttonText}>Phone calls</Text>
-      </TouchableOpacity>
-
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditsShop')}>
         <Text style={styles.buttonText}>Credits shop</Text>
       </TouchableOpacity>
@@ -354,55 +342,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: colors.blue }]}
-        onPress={() => navigation.navigate('AddEvent', { fromEmail: true, source: 'email' })}
-      >
-        <Text style={styles.buttonText}>Add from email</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.blue }]}
-        onPress={() => navigation.navigate('PickFromGmail')}
-      >
-        <Text style={styles.buttonText}>Pick from Gmail</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.blue }]}
-        onPress={() => navigation.navigate('AddWatched')}
-      >
-        <Text style={styles.buttonText}>TV & films</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.blue }]}
-        onPress={() => navigation.navigate('YouTube')}
-      >
-        <Text style={styles.buttonText}>YouTube</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: '#1db954' }]}
-        onPress={() => navigation.navigate('Spotify')}
-      >
-        <Text style={styles.buttonText}>Spotify</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: '#6366f1' }]}
-        onPress={() => navigation.navigate('Games')}
-      >
-        <Text style={styles.buttonText}>Games</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: '#38bdf8' }]}
-        onPress={() => navigation.navigate('Social')}
-      >
-        <Text style={styles.buttonText}>Social media</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.blue }]}
         onPress={() => navigation.navigate('Utilities')}
       >
         <Text style={styles.buttonText}>Utilities</Text>
@@ -420,30 +359,20 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Date circle</Text>
       </TouchableOpacity>
 
-      {showWash ? (
-        <>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.blue }]}
-            onPress={() => navigation.navigate('AddWashLoad')}
-          >
-            <Text style={styles.buttonText}>Wash loads</Text>
-          </TouchableOpacity>
-          {latestWash ? (
-            <TouchableOpacity
-              style={[styles.latestWash, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
-              onPress={() => navigation.navigate('AddWashLoad', { event: latestWash })}
-            >
-              <Text style={[styles.latestLabel, { color: colors.muted }]}>Latest wash</Text>
-              <Text style={[styles.latestTitle, { color: colors.text }]} numberOfLines={2}>
-                {latestWash.title}
-              </Text>
-              <Text style={[styles.latestMeta, { color: colors.faint }]}>
-                {washStatusLabel(latestWash.washStatus) || 'Wash'}
-                {latestWash.date ? ` · ${String(latestWash.date).slice(0, 10)}` : ''}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-        </>
+      {showWash && latestWash ? (
+        <TouchableOpacity
+          style={[styles.latestWash, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('AddWashLoad', { event: latestWash })}
+        >
+          <Text style={[styles.latestLabel, { color: colors.muted }]}>Latest wash</Text>
+          <Text style={[styles.latestTitle, { color: colors.text }]} numberOfLines={2}>
+            {latestWash.title}
+          </Text>
+          <Text style={[styles.latestMeta, { color: colors.faint }]}>
+            {washStatusLabel(latestWash.washStatus) || 'Wash'}
+            {latestWash.date ? ` · ${String(latestWash.date).slice(0, 10)}` : ''}
+          </Text>
+        </TouchableOpacity>
       ) : null}
 
       <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
