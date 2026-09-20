@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth } from './firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 
 const KEY_PREFIX = '@timeline_rewards_v1_';
 
@@ -94,9 +95,28 @@ export const SHOP_ITEMS = [
   },
 ];
 
-function storeKey() {
-  const uid = auth.currentUser?.uid;
-  return uid ? `${KEY_PREFIX}${uid}` : `${KEY_PREFIX}guest`;
+function storeKey(uid) {
+  const id = uid || auth.currentUser?.uid;
+  return id ? `${KEY_PREFIX}${id}` : `${KEY_PREFIX}guest`;
+}
+
+function rewardsDoc(uid) {
+  return doc(db, 'users', uid, 'settings', 'rewards');
+}
+
+function rewardsIndexDoc(email) {
+  return doc(db, 'rewardsIndex', String(email || '').trim().toLowerCase());
+}
+
+function normalizeRewards(raw) {
+  const parsed = raw && typeof raw === 'object' ? raw : {};
+  return {
+    ...emptyRewards(),
+    ...parsed,
+    unlockedPerks: Array.isArray(parsed.unlockedPerks) ? parsed.unlockedPerks : [],
+    claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : [],
+    credits: Number(parsed.credits) || 0,
+  };
 }
 
 export function emptyRewards() {
@@ -109,26 +129,108 @@ export function emptyRewards() {
 }
 
 export async function getRewards() {
+  let local = emptyRewards();
   try {
     const raw = await AsyncStorage.getItem(storeKey());
-    if (!raw) return emptyRewards();
-    const parsed = JSON.parse(raw);
-    return {
-      ...emptyRewards(),
-      ...parsed,
-      unlockedPerks: Array.isArray(parsed.unlockedPerks) ? parsed.unlockedPerks : [],
-      claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : [],
-      credits: Number(parsed.credits) || 0,
-    };
+    if (raw) local = normalizeRewards(JSON.parse(raw));
   } catch {
-    return emptyRewards();
+    local = emptyRewards();
   }
+
+  const uid = auth.currentUser?.uid;
+  const email = String(auth.currentUser?.email || '').trim().toLowerCase();
+  if (!uid) return local;
+
+  try {
+    const snap = await getDoc(rewardsDoc(uid));
+    if (snap.exists()) {
+      const cloud = normalizeRewards(snap.data());
+      await AsyncStorage.setItem(storeKey(uid), JSON.stringify({ ...cloud, updatedAt: cloud.updatedAt || new Date().toISOString() }));
+      return cloud;
+    }
+    return persistRewards(uid, email, local, { localToo: true });
+  } catch (e) {
+    console.warn('Rewards cloud load failed; using device copy.', e?.message || e);
+  }
+  return local;
+}
+
+async function persistRewards(uid, email, state, { localToo = false } = {}) {
+  const next = {
+    ...emptyRewards(),
+    ...state,
+    credits: Math.max(0, Number(state?.credits) || 0),
+    unlockedPerks: Array.isArray(state?.unlockedPerks) ? state.unlockedPerks : [],
+    claimedMilestones: Array.isArray(state?.claimedMilestones) ? state.claimedMilestones : [],
+    updatedAt: new Date().toISOString(),
+    uid: uid || null,
+    email: String(email || '').trim().toLowerCase() || null,
+  };
+  if (localToo) {
+    await AsyncStorage.setItem(storeKey(uid), JSON.stringify(next));
+  }
+  if (uid) {
+    try {
+      await setDoc(rewardsDoc(uid), next, { merge: true });
+      if (next.email) {
+        await setDoc(
+          rewardsIndexDoc(next.email),
+          {
+            uid,
+            email: next.email,
+            credits: next.credits,
+            unlockedPerks: next.unlockedPerks,
+            updatedAt: next.updatedAt,
+          },
+          { merge: true },
+        );
+      }
+    } catch (e) {
+      console.warn('Rewards cloud save failed; kept on device.', e?.message || e);
+    }
+  }
+  return next;
 }
 
 async function writeRewards(state) {
-  const next = { ...emptyRewards(), ...state, updatedAt: new Date().toISOString() };
-  await AsyncStorage.setItem(storeKey(), JSON.stringify(next));
-  return next;
+  const uid = auth.currentUser?.uid;
+  const email = String(auth.currentUser?.email || '').trim().toLowerCase();
+  return persistRewards(uid, email, state, { localToo: true });
+}
+
+/** Admin: look up credits by account email. */
+export async function adminGetRewardsByEmail(email) {
+  const key = String(email || '').trim().toLowerCase();
+  if (!key) return null;
+  const idx = await getDoc(rewardsIndexDoc(key));
+  if (!idx.exists()) return { email: key, uid: null, rewards: null, missing: true };
+  const uid = idx.data()?.uid;
+  if (!uid) return { email: key, uid: null, rewards: normalizeRewards(idx.data()), missing: false };
+  const snap = await getDoc(rewardsDoc(uid));
+  const rewards = snap.exists() ? normalizeRewards(snap.data()) : normalizeRewards(idx.data());
+  return { email: key, uid, rewards, missing: false };
+}
+
+/** Admin: set credit balance (and optional extra perk) for an email. */
+export async function adminSetRewards(email, patch) {
+  const found = await adminGetRewardsByEmail(email);
+  if (!found || found.missing || !found.uid) {
+    const err = new Error('No rewards record for that email yet. They need to open the app once while signed in.');
+    err.code = 'MISSING';
+    throw err;
+  }
+  const credits =
+    patch.credits == null ? found.rewards.credits : Math.max(0, Number(patch.credits) || 0);
+  let unlocked = [...(found.rewards.unlockedPerks || [])];
+  if (patch.addPerk && !unlocked.includes(patch.addPerk)) unlocked.push(patch.addPerk);
+  if (patch.removePerk) unlocked = unlocked.filter((p) => p !== patch.removePerk);
+  const next = await persistRewards(
+    found.uid,
+    found.email,
+    { ...found.rewards, credits, unlockedPerks: unlocked },
+    { localToo: found.uid === auth.currentUser?.uid },
+  );
+  return { email: found.email, uid: found.uid, rewards: next };
 }
 
 export function inviteStats(people) {

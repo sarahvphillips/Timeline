@@ -26,6 +26,7 @@ import {
   isOwnerEmail,
   isStaff,
 } from '../services/adminService';
+import { adminGetRewardsByEmail, adminSetRewards, perkLabel } from '../services/rewardsService';
 
 export default function AdminScreen({ navigation }) {
   const email = (auth.currentUser?.email || '').toLowerCase();
@@ -34,6 +35,10 @@ export default function AdminScreen({ navigation }) {
   const [blockEmail, setBlockEmail] = useState('');
   const [inviteNote, setInviteNote] = useState('');
   const [notice, setNotice] = useState('');
+  const [creditEmail, setCreditEmail] = useState('');
+  const [creditLookup, setCreditLookup] = useState(null);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditBusy, setCreditBusy] = useState(false);
 
   const notify = (title, message) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
@@ -118,6 +123,35 @@ export default function AdminScreen({ navigation }) {
     await commit(r.state);
     setInviteNote('');
     setNotice(`Invite code ${r.state.invites[0]?.code}`);
+  };
+
+  const loadCredits = async () => {
+    setCreditBusy(true);
+    try {
+      const row = await adminGetRewardsByEmail(creditEmail);
+      setCreditLookup(row);
+      if (row?.missing) setNotice('No rewards record yet for that email.');
+      else if (row?.rewards) setCreditAmount(String(row.rewards.credits));
+    } catch (e) {
+      setNotice(e?.message || 'Could not load credits.');
+    } finally {
+      setCreditBusy(false);
+    }
+  };
+
+  const saveCredits = async (value) => {
+    setCreditBusy(true);
+    try {
+      const n = Math.max(0, Number(value));
+      const row = await adminSetRewards(creditEmail, { credits: n });
+      setCreditLookup(row);
+      setCreditAmount(String(row.rewards.credits));
+      setNotice(`Credits for ${row.email} set to ${row.rewards.credits}.`);
+    } catch (e) {
+      setNotice(e?.message || 'Could not save credits.');
+    } finally {
+      setCreditBusy(false);
+    }
   };
 
   return (
@@ -242,6 +276,65 @@ export default function AdminScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       ))}
+
+      <Text style={styles.section}>Credits</Text>
+      <Text style={styles.intro}>
+        Stored in Firestore at users/{'{uid}'}/settings/rewards. Look up by email, then set the
+        balance. Device copy updates the next time they open the app.
+      </Text>
+      <TextInput
+        style={styles.input}
+        placeholder="user@example.com"
+        placeholderTextColor="#64748b"
+        value={creditEmail}
+        onChangeText={setCreditEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+      <TouchableOpacity style={styles.primary} onPress={loadCredits} disabled={creditBusy}>
+        <Text style={styles.primaryText}>{creditBusy ? 'Loading…' : 'Look up credits'}</Text>
+      </TouchableOpacity>
+      {creditLookup && !creditLookup.missing && creditLookup.rewards ? (
+        <View style={styles.card}>
+          <Text style={styles.rowText}>{creditLookup.email}</Text>
+          <Text style={styles.muted}>uid {creditLookup.uid}</Text>
+          <Text style={styles.rowText}>Balance: {creditLookup.rewards.credits}</Text>
+          {(creditLookup.rewards.unlockedPerks || []).length ? (
+            <Text style={styles.muted}>
+              Perks: {creditLookup.rewards.unlockedPerks.map(perkLabel).join(', ')}
+            </Text>
+          ) : (
+            <Text style={styles.muted}>No shop perks unlocked.</Text>
+          )}
+          <TextInput
+            style={styles.input}
+            placeholder="New balance"
+            placeholderTextColor="#64748b"
+            value={creditAmount}
+            onChangeText={setCreditAmount}
+            keyboardType="number-pad"
+          />
+          <TouchableOpacity
+            style={styles.primary}
+            onPress={() => saveCredits(creditAmount)}
+            disabled={creditBusy}
+          >
+            <Text style={styles.primaryText}>Set credits</Text>
+          </TouchableOpacity>
+          <View style={styles.row}>
+            <TouchableOpacity
+              onPress={() => saveCredits((creditLookup.rewards.credits || 0) + 5)}
+            >
+              <Text style={styles.link}>+5</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => saveCredits(Math.max(0, (creditLookup.rewards.credits || 0) - 5))}
+            >
+              <Text style={styles.link}>−5</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {state.audit.length ? (
         <>
