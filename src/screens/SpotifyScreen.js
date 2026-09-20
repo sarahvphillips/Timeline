@@ -154,8 +154,8 @@ export default function SpotifyScreen({ navigation, route }) {
         <Text style={styles.kicker}>Hobby</Text>
         <Text style={styles.heading}>Spotify</Text>
         <Text style={styles.intro}>
-          Paste a track, album, or playlist. Not a live Spotify login — you log what you listened to
-          or saved.
+          Paste a Spotify share link. Log listened / saved / playlist. No Spotify login — the link is
+          the record.
         </Text>
 
         <Text style={styles.label}>Spotify link</Text>
