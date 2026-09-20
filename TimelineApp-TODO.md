@@ -176,7 +176,7 @@ Product map:
 - [x] Filter timeline by category (20 Sep 2026): chips on Years + list. **Poems** (and Games/SMS/…) puts every matching item on the spine as its own bubble, grouped by year — same idea as the poems-chip design.
 - [ ] Mark next-action as done from the list
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
-- [ ] Custom Firebase password-reset email template (needs Blaze plan)
+- [x] **Privacy policy + user manual** (20 Sep 2026): Settings screens + docs/PRIVACY.md + docs/USER-MANUAL.md. Public URL still needed for Play Store. Export/delete account still later.
 - [ ] Android development / Play Store build (share sheet for text and images, and widgets, need this)
 - [ ] **Play Store credit SKUs** (parked until listing is ready). Package `com.sarahphillips.timelineapp`. Consumable one-time products, same ids as Mafia: `1_credits`, `10_credits`, `25_credits`, `100_credits`. Browser must not sell credits.
   1. Play Console app + Payments profile.

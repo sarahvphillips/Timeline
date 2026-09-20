@@ -566,6 +566,19 @@ export default function SettingsScreen({ navigation }) {
         {renderSoonRow("Notifications", "Notifications")}
 
         <Text style={[styles.section, { color: colors.muted }]}>Privacy</Text>
+        <TouchableOpacity
+          style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('PrivacyPolicy')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuRowText}>
+            <Text style={[styles.menuRowLabel, { color: colors.text }]}>Privacy policy</Text>
+            <Text style={[styles.hint, { color: colors.faint, marginTop: 4, marginBottom: 0 }]}>
+              What Timeline stores, and what it does not.
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: colors.faint }]}>›</Text>
+        </TouchableOpacity>
         {renderSoonRow("Who can see shared events", "Privacy controls for shared events")}
         {renderSoonRow("Export data", "Exporting your data")}
         {renderSoonRow("Purchases security", "2-factor auth and similar checks before in-app purchases")}
@@ -585,6 +598,19 @@ export default function SettingsScreen({ navigation }) {
         </TouchableOpacity>
 
         <Text style={[styles.section, { color: colors.muted }]}>About</Text>
+        <TouchableOpacity
+          style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('UserManual')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuRowText}>
+            <Text style={[styles.menuRowLabel, { color: colors.text }]}>User manual</Text>
+            <Text style={[styles.hint, { color: colors.faint, marginTop: 4, marginBottom: 0 }]}>
+              How to use Timeline while we are still building.
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: colors.faint }]}>›</Text>
+        </TouchableOpacity>
         <View style={[styles.aboutCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
           <Text style={[styles.aboutName, { color: colors.text }]}>{about.name}</Text>
           <Text style={[styles.aboutLine, { color: colors.muted }]}>Version {about.version}</Text>

@@ -46,6 +46,7 @@ import BuyCreditsScreen from './src/screens/BuyCreditsScreen';
 import TransferCreditsScreen from './src/screens/TransferCreditsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OpenBankingScreen from './src/screens/OpenBankingScreen';
+import LegalScreen from './src/screens/LegalScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
 import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
@@ -384,6 +385,20 @@ function AppShell() {
                 name="OpenBanking"
                 component={OpenBankingScreen}
                 options={{ title: 'Open Banking' }}
+              />
+
+              <Stack.Screen
+                name="PrivacyPolicy"
+                component={LegalScreen}
+                initialParams={{ doc: 'privacy' }}
+                options={{ title: 'Privacy policy' }}
+              />
+
+              <Stack.Screen
+                name="UserManual"
+                component={LegalScreen}
+                initialParams={{ doc: 'manual' }}
+                options={{ title: 'User manual' }}
               />
             </>
           )}
