@@ -177,6 +177,12 @@ Product map:
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
 - [ ] Custom Firebase password-reset email template (needs Blaze plan)
 - [ ] Android development / Play Store build (share sheet for text and images, and widgets, need this)
+- [ ] **Play Store credit SKUs** (parked until listing is ready). Package `com.sarahphillips.timelineapp`. Consumable one-time products, same ids as Mafia: `1_credits`, `10_credits`, `25_credits`, `100_credits`. Browser must not sell credits.
+  1. Play Console app + Payments profile.
+  2. Upload an `.aab` to Internal testing (Expo Go does not count).
+  3. License tester: `sarah.v.phillips@googlemail.com`.
+  4. Monetize with Play → Products → One-time products → Create each SKU (Buy, not Rent/subscription) → price → Activate.
+  5. App consumes after grant (`finishTransaction` / `isConsumable: true`) then Firestore credits. No extra rules text for SKUs.
 - [ ] Firebase Storage for event photos (imageUri/coverImageUri currently local-only / web AsyncStorage-split; compress+separate keys is a stopgap - Storage is the real fix)
 
 ---
