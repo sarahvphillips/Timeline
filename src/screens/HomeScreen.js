@@ -301,13 +301,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Timeline</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: '#8b5cf6' }]}
-        onPress={() => navigation.navigate('YearOverview', { filter: 'poems' })}
-      >
-        <Text style={styles.buttonText}>Poems</Text>
-      </TouchableOpacity>
-
       {showAddEvent ? (
         <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('AddEvent')}>
           <Text style={styles.buttonText}>Add event</Text>
