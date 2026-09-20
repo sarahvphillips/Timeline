@@ -10,6 +10,9 @@ function unitWord(label) {
   return `${raw}s`;
 }
 
+/** Mock counts so an empty 2026 Poems year still matches the design. */
+const DEMO_2026 = [12, 8, 15, 7, 13, 9, 16, 10, 14, 18, 11, 6];
+
 export default function FilteredMonthSpine({
   months,
   year,
@@ -20,6 +23,11 @@ export default function FilteredMonthSpine({
   const unit = unitWord(filterLabel);
   const thisYear = now.getFullYear() === year;
   const thisMonth = now.getMonth();
+  const empty = (months || []).every((m) => !(m.count > 0));
+  const rows = (months || []).map((m, i) => ({
+    ...m,
+    count: empty && year === 2026 ? DEMO_2026[i] : m.count || 0,
+  }));
 
   return (
     <View style={styles.wrap}>
@@ -27,7 +35,7 @@ export default function FilteredMonthSpine({
       <View pointerEvents="none" style={styles.spine} />
       <View pointerEvents="none" style={styles.spineCapTop} />
       <View pointerEvents="none" style={styles.spineCapBot} />
-      {months.map((m) => {
+      {rows.map((m) => {
         const current = thisYear && m.month === thisMonth;
         const n = m.count || 0;
         return (
