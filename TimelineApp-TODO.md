@@ -113,8 +113,9 @@ Product map:
 - [x] **Spotify** (19–20 Sep 2026): share-link only. Paste track/album/playlist/artist/episode URL, title, artist, listened/saved/playlist, note, optional timeline + share view. **No live Spotify login / Web API** for now (50-play cap, 5-user dev mode, Premium owner). Parked until asked again.
 - [x] **Call recordings credits perk** (19 Sep 2026): attach/record/screen-recording on phone calls locked until `callRecording` shop item (4 credits). Call log itself stays free.
 - [x] **Call recordings credits perk** (19 Sep 2026): attach/record/screen-recording on phone calls locked until `callRecording` shop item (4 credits). Call log itself stays free.
+- [x] **Social media** (20 Sep 2026): paste X / Instagram / Facebook / TikTok / Threads / Reddit / LinkedIn / Bluesky link (or type a title). Posted/Shared/Saved/Liked/Replied. Timeline + **Social** filter chip (item bubbles). No live feed login.
 - [ ] User add friends photos from social media
-- [ ] User add social media feeds
+- [ ] User add social media feeds (live import — later; APIs are locked down)
 
 ### Communication
 

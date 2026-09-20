@@ -30,6 +30,7 @@ function openTimelineEvent(navigation, item) {
   else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
   else if (item.source === 'spotify') navigation.navigate('Spotify', { event: item });
   else if (item.source === 'game') navigation.navigate('Games', { event: item });
+  else if (item.source === 'social') navigation.navigate('Social', { event: item });
   else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
   else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
   else if (item.hobbyType === 'poetry' || item.source === 'poem') {

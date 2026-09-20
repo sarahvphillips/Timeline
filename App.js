@@ -27,6 +27,7 @@ import AddWatchedScreen from './src/screens/AddWatchedScreen';
 import YouTubeScreen from './src/screens/YouTubeScreen';
 import SpotifyScreen from './src/screens/SpotifyScreen';
 import GamesScreen from './src/screens/GamesScreen';
+import SocialScreen from './src/screens/SocialScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import UtilitiesScreen from './src/screens/UtilitiesScreen';
@@ -272,6 +273,12 @@ function AppShell() {
                 name="Games"
                 component={GamesScreen}
                 options={{ title: 'Games' }}
+              />
+
+              <Stack.Screen
+                name="Social"
+                component={SocialScreen}
+                options={{ title: 'Social media' }}
               />
 
               <Stack.Screen

@@ -395,6 +395,13 @@ export default function HomeScreen({ navigation, user, onLogout }) {
       </TouchableOpacity>
 
       <TouchableOpacity
+        style={[styles.button, { backgroundColor: '#38bdf8' }]}
+        onPress={() => navigation.navigate('Social')}
+      >
+        <Text style={styles.buttonText}>Social media</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={[styles.button, { backgroundColor: colors.blue }]}
         onPress={() => navigation.navigate('Utilities')}
       >

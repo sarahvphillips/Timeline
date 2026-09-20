@@ -767,6 +767,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   youtube: '#f87171',
   spotify: '#1db954',
   game: '#818cf8',
+  social: '#38bdf8',
   sms: '#22c55e',
   call: '#fb923c',
 };
@@ -782,6 +783,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'youtube',
   'spotify',
   'game',
+  'social',
   'sms',
   'call',
 ];
@@ -855,6 +857,14 @@ export function classifyYearBubbleKind(event) {
       label: 'Games',
       color: YEAR_BUBBLE_KIND_COLORS.game,
       filter: { source: 'game' },
+    };
+  }
+  if (source === 'social') {
+    return {
+      kind: 'social',
+      label: 'Social',
+      color: YEAR_BUBBLE_KIND_COLORS.social,
+      filter: { source: 'social' },
     };
   }
   if (source === 'sms') {
@@ -1352,6 +1362,7 @@ export const TIMELINE_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'poems', label: 'Poems', color: '#8b5cf6', itemView: true },
   { id: 'games', label: 'Games', color: '#818cf8', itemView: true },
+  { id: 'social', label: 'Social', color: '#38bdf8', itemView: true },
   { id: 'sms', label: 'SMS', color: '#22c55e', itemView: true },
   { id: 'call', label: 'Calls', color: '#fb923c', itemView: true },
   { id: 'email', label: 'Email', color: '#14b8a6', itemView: true },
@@ -1374,6 +1385,7 @@ export function eventMatchesTimelineFilter(event, filterId) {
   const category = String(event?.category || '').toLowerCase();
   if (filterId === 'poems') return hobby === 'poetry' || source === 'poem';
   if (filterId === 'games') return source === 'game';
+  if (filterId === 'social') return source === 'social';
   if (filterId === 'sms') return source === 'sms';
   if (filterId === 'call') return source === 'call';
   if (filterId === 'email') return source === 'email';

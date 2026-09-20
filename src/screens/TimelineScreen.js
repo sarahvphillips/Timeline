@@ -358,6 +358,7 @@ export default function TimelineScreen({ navigation, route }) {
                 else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
                 else if (item.source === 'spotify') navigation.navigate('Spotify', { event: item });
                 else if (item.source === 'game') navigation.navigate('Games', { event: item });
+                else if (item.source === 'social') navigation.navigate('Social', { event: item });
                 else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
                 else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
                 else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
@@ -489,6 +490,7 @@ export default function TimelineScreen({ navigation, route }) {
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
               { label: 'Games', action: () => navigation.navigate('Games') },
+              { label: 'Social media', action: () => navigation.navigate('Social') },
               { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'Spotify', action: () => navigation.navigate('Spotify') },
               { label: 'SMS', action: () => navigation.navigate('AddSms') },
