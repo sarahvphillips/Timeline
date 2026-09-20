@@ -16,6 +16,24 @@ export function playBillingSupported() {
   return Platform.OS === 'android' && !!loadIap();
 }
 
+/** Browser never sells credits. Only the Google Play Android app does. */
+export function canPurchaseCreditsOnThisBuild() {
+  return Platform.OS === 'android';
+}
+
+export function playPurchaseBlockedReason() {
+  if (Platform.OS === 'web') {
+    return 'Credits are only sold in the Google Play app, not in a browser.';
+  }
+  if (Platform.OS === 'ios') {
+    return 'Credits are sold on the Google Play Android app for now.';
+  }
+  if (!loadIap()) {
+    return 'This Android build cannot open Google Play Billing yet. Install Timeline from Play, or a development build with expo-iap.';
+  }
+  return '';
+}
+
 export async function connectPlayBilling() {
   const iap = loadIap();
   if (!iap?.initConnection) {

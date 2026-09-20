@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
@@ -37,7 +38,18 @@ export default function CreditsShopScreen({ navigation }) {
   );
 
   const needMore = () => {
-    navigation.navigate(staff ? 'Admin' : 'BuyCredits');
+    if (staff) {
+      navigation.navigate('Admin');
+      return;
+    }
+    if (Platform.OS !== 'android') {
+      Alert.alert(
+        'Google Play only',
+        'Credits are purchased in the Timeline app on Google Play, not in a browser.',
+      );
+      return;
+    }
+    navigation.navigate('BuyCredits');
   };
 
   const buy = async (item) => {
@@ -53,7 +65,7 @@ export default function CreditsShopScreen({ navigation }) {
       } else if (e?.code === 'NEED_CREDITS') {
         Alert.alert('Not enough credits', `You haven't got enough credits, you need ${item.cost - credits} more!`, [
           { text: 'Cancel', style: 'cancel' },
-          { text: staff ? 'Admin' : 'Buy credits', onPress: needMore },
+          { text: staff ? 'Admin' : Platform.OS === 'android' ? 'Buy credits' : 'Play app only', onPress: needMore },
         ]);
       } else {
         Alert.alert('Shop', e?.message || 'Could not unlock this.');

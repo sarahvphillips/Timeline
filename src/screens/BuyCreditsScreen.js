@@ -13,6 +13,8 @@ import {
   fetchPlayCreditProducts,
   buyPlayCreditSku,
   endPlayBilling,
+  canPurchaseCreditsOnThisBuild,
+  playPurchaseBlockedReason,
 } from '../services/playBilling';
 import { auth } from '../services/firebase';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
@@ -70,9 +72,21 @@ export default function BuyCreditsScreen({ navigation }) {
   );
 
   const packView = (pack) => products.find((p) => p.sku === pack.sku) || pack;
+  const onPlayApp = canPurchaseCreditsOnThisBuild();
+  const blocked = playPurchaseBlockedReason();
+
+  const testerGrant = async (pack) => {
+    const next = await applyPurchasedPack(pack.sku, { tester: true });
+    setCredits(next.credits);
+    setStatus(`Tester grant ${pack.sku} — you now have ${next.credits} credits.`);
+  };
 
   const buy = async (pack) => {
     if (busy) return;
+    if (!onPlayApp) {
+      notify('Google Play only', blocked);
+      return;
+    }
     setBusy(true);
     setStatus('');
     try {
@@ -85,19 +99,13 @@ export default function BuyCreditsScreen({ navigation }) {
       if (staff) {
         notify(
           'Purchase credits',
-          `Expo Go has no Play Billing. Grant ${pack.credits} credit${pack.credits === 1 ? '' : 's'} as a license tester for SKU ${pack.sku}? Same as Mafia tester accounts. This cannot be undone.`,
+          `This Android build is not the Play Store listing yet. Grant ${pack.credits} credit${pack.credits === 1 ? '' : 's'} as a license tester for SKU ${pack.sku}? Same as Mafia tester accounts. This cannot be undone.`,
           [
             { text: 'Cancel', style: 'cancel' },
             {
               text: 'Buy!',
-              onPress: async () => {
-                try {
-                  const next = await applyPurchasedPack(pack.sku, { tester: true });
-                  setCredits(next.credits);
-                  setStatus(`Tester grant ${pack.sku} — you now have ${next.credits} credits.`);
-                } catch (e) {
-                  setStatus(e?.message || 'Purchase failed.');
-                }
+              onPress: () => {
+                testerGrant(pack).catch((e) => setStatus(e?.message || 'Purchase failed.'));
               },
             },
           ],
@@ -105,26 +113,20 @@ export default function BuyCreditsScreen({ navigation }) {
         return;
       }
       notify(
-        'Google Play SKUs',
-        `Create these in-app products (consumable) on Play Console for ${'com.sarahphillips.timelineapp'}:\n\n1_credits\n10_credits\n25_credits\n100_credits\n\nSame ids as Mafia. Then install a store/dev build (not Expo Go) so Buy opens Google Play.`,
+        'Google Play only',
+        'Buy credits in the Timeline app from Google Play. SKUs: 1_credits, 10_credits, 25_credits, 100_credits.',
       );
     } catch (e) {
       if (e?.code === 'NO_IAP_MODULE' && staff) {
         notify(
           'Purchase credits',
-          `Play Billing module is not in this build. Tester-grant ${pack.credits} for SKU ${pack.sku}?`,
+          `Play Billing is not in this build. Tester-grant ${pack.credits} for SKU ${pack.sku}?`,
           [
             { text: 'Cancel', style: 'cancel' },
             {
               text: 'Buy!',
-              onPress: async () => {
-                try {
-                  const next = await applyPurchasedPack(pack.sku, { tester: true });
-                  setCredits(next.credits);
-                  setStatus(`Tester grant ${pack.sku} — you now have ${next.credits} credits.`);
-                } catch (err) {
-                  setStatus(err?.message || 'Purchase failed.');
-                }
+              onPress: () => {
+                testerGrant(pack).catch((err) => setStatus(err?.message || 'Purchase failed.'));
               },
             },
           ],
@@ -143,11 +145,14 @@ export default function BuyCreditsScreen({ navigation }) {
         <Text style={styles.kicker}>Credits shop</Text>
         <Text style={styles.heading}>Purchase credits</Text>
         <Text style={styles.intro}>
-          Google Play in-app products (consumable), same SKUs as Mafia. Package{' '}
-          com.sarahphillips.timelineapp — 1_credits, 10_credits, 25_credits, 100_credits. Play
-          prices show when this is a store build; Expo Go cannot talk to BillingClient.
-          {storeReady ? ' Play Billing is connected.' : ''}
+          Timeline is a Google Play app. Credits are sold only there (consumable SKUs 1_credits,
+          10_credits, 25_credits, 100_credits — same as Mafia). The browser can show your balance
+          and transfers, not a card checkout.
+          {storeReady ? ' Play Billing is connected on this Android build.' : ''}
         </Text>
+        {!onPlayApp ? (
+          <Text style={styles.status}>{blocked}</Text>
+        ) : null}
         <View style={styles.balance}>
           <Text style={styles.balanceNum}>{credits}</Text>
           <Text style={styles.balanceLabel}>You currently have {credits} credits</Text>
@@ -163,9 +168,13 @@ export default function BuyCreditsScreen({ navigation }) {
               </Text>
               <Text style={styles.sku}>{pack.sku}</Text>
               <Text style={styles.price}>{view.priceLabel || 'Play Store'}</Text>
-              <TouchableOpacity style={styles.button} onPress={() => buy(pack)} disabled={busy}>
+              <TouchableOpacity
+                style={[styles.button, !onPlayApp && styles.buttonOff]}
+                onPress={() => buy(pack)}
+                disabled={busy || !onPlayApp}
+              >
                 <Text style={styles.buttonText}>
-                  {busy ? 'Please wait…' : `Buy ${pack.credits}`}
+                  {onPlayApp ? (busy ? 'Please wait…' : `Buy ${pack.credits}`) : 'Play app only'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -228,6 +237,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: { color: '#fff', fontWeight: '700' },
+  buttonOff: { backgroundColor: '#334155' },
   ghost: {
     borderWidth: 1,
     borderColor: '#475569',
