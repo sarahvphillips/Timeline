@@ -19,6 +19,7 @@ import {
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
 import SpineKindBlock from '../components/SpineKindBlock';
+import FilteredMonthSpine from '../components/FilteredMonthSpine';
 import EventLabelChips from '../components/EventLabelChips';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
@@ -116,6 +117,11 @@ export default function MonthOverviewScreen({ navigation, route }) {
   }, [months, startYear]);
 
   const chipText = filterLabel || activeFilter?.kind || 'Filter';
+  const filtered = !!activeFilter;
+  const chipIcon =
+    /poem/i.test(chipText) || activeFilter?.hobbyType === 'poetry' || activeFilter?.kind === 'poem'
+      ? '📖'
+      : '●';
 
   const clearFilter = () => {
     setActiveFilter(null);
@@ -175,41 +181,59 @@ export default function MonthOverviewScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.yearHeading}>{startYear}</Text>
-        <Text style={styles.intro}>
-          Same as years: month on the spine, type-bubbles on spokes. Tap a bubble, then zoom in to the weeks.
+      <ScrollView contentContainerStyle={[styles.scroll, filtered && styles.scrollFiltered]}>
+        <Text style={[styles.yearHeading, filtered && styles.yearHeadingFiltered]}>
+          {filtered ? `${startYear} Months` : String(startYear)}
         </Text>
+        {filtered ? null : (
+          <Text style={styles.intro}>
+            Same as years: month on the spine, type-bubbles on spokes. Tap a bubble, then zoom in to the weeks.
+          </Text>
+        )}
         {activeFilter ? (
-          <View style={styles.chipRow}>
+          <View style={[styles.chipRow, styles.chipRowFiltered]}>
             <TouchableOpacity
-              style={styles.clearChip}
+              style={styles.poemsChip}
               onPress={clearFilter}
               accessibilityLabel={`Clear filter ${chipText}`}
               activeOpacity={0.85}
             >
-              <Text style={styles.clearChipText}>{chipText} ×</Text>
+              <Text style={styles.poemsChipIcon}>{chipIcon}</Text>
+              <Text style={styles.poemsChipText}>{chipText}</Text>
+              <Text style={styles.poemsChipX}>×</Text>
             </TouchableOpacity>
           </View>
         ) : null}
-        <View style={styles.spine} />
-        {months.map((m, index) => (
-          <SpineKindBlock
-            key={`${startYear}-${m.month}`}
-            id={`${startYear}-${m.month}`}
-            label={m.short}
-            current={startYear === now.getFullYear() && m.month === now.getMonth()}
-            bubbles={m.bubbles}
-            blockIndex={index}
-            glowKey={glowKey}
-            boxedLabel
-            onOpenLabel={() => openMonth(m.month)}
-            onOpenBubble={(bubble) => openBubble(m, bubble)}
+        {filtered ? (
+          <FilteredMonthSpine
+            months={months}
+            year={startYear}
+            now={now}
+            filterLabel={chipText}
+            onOpenMonth={openMonth}
           />
-        ))}
+        ) : (
+          <>
+            <View style={styles.spine} />
+            {months.map((m, index) => (
+              <SpineKindBlock
+                key={`${startYear}-${m.month}`}
+                id={`${startYear}-${m.month}`}
+                label={m.short}
+                current={startYear === now.getFullYear() && m.month === now.getMonth()}
+                bubbles={m.bubbles}
+                blockIndex={index}
+                glowKey={glowKey}
+                boxedLabel
+                onOpenLabel={() => openMonth(m.month)}
+                onOpenBubble={(bubble) => openBubble(m, bubble)}
+              />
+            ))}
+          </>
+        )}
       </ScrollView>
 
-      <HomeFab navigation={navigation} />
+      <HomeFab navigation={navigation} besidePlus={false} />
       <DesignTargetButton
         imageSource={require('../../assets/design-month-poems.jpg')}
         title="Month poems-chip design (temp)"
@@ -313,6 +337,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingBottom: 100,
   },
+  scrollFiltered: {
+    paddingHorizontal: 18,
+    paddingBottom: 140,
+  },
   yearHeading: {
     textAlign: 'center',
     color: '#f8fafc',
@@ -320,6 +348,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 6,
     zIndex: 2,
+  },
+  yearHeadingFiltered: {
+    textAlign: 'left',
+    color: '#c4b5fd',
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    marginBottom: 14,
+    paddingLeft: 6,
   },
   intro: {
     textAlign: 'center',
@@ -335,6 +372,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     zIndex: 2,
   },
+  chipRowFiltered: {
+    alignItems: 'flex-start',
+    paddingLeft: 6,
+    marginBottom: 18,
+  },
   clearChip: {
     backgroundColor: '#1a1b36',
     borderWidth: 1.5,
@@ -348,6 +390,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  poemsChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46, 16, 80, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(196, 181, 253, 0.45)',
+    borderRadius: 22,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  poemsChipIcon: { fontSize: 16, marginRight: 8 },
+  poemsChipText: { color: '#e9d5ff', fontSize: 16, fontWeight: '600' },
+  poemsChipX: { color: '#c4b5fd', fontSize: 18, marginLeft: 10, marginTop: -1 },
   spine: {
     position: 'absolute',
     top: 0,
@@ -361,13 +416,18 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 24,
-    bottom: 32,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#3b82f6',
+    bottom: 96,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#7c3aed',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 21,
+    shadowColor: '#c4b5fd',
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
+    elevation: 8,
   },
   fabText: {
     color: '#fff',

@@ -84,6 +84,16 @@ export default function YearOverviewScreen({ navigation, route }) {
   }, [years]);
 
   const openYear = (year) => {
+    if (filterId && filterId !== 'all') {
+      navigation.navigate('MonthOverview', {
+        year,
+        kind: filterId === 'poems' ? 'poem' : activeFilter.id,
+        label: activeFilter.label,
+        source: filterId === 'poems' ? undefined : filterId,
+        hobbyType: filterId === 'poems' ? 'poetry' : undefined,
+      });
+      return;
+    }
     navigation.navigate('MonthOverview', { year });
   };
 
