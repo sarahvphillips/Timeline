@@ -105,7 +105,7 @@ Product map:
 
 - [x] User add image (camera, gallery, or files; Google Photos appears via the Android system gallery - no separate OAuth)
 - [ ] Full audio file attach for singing/music
-- [ ] Labels shown on expanded timeline card
+- [x] Labels shown on expanded timeline card (20 Sep 2026): Settings labels picker on Add Event / Poem / SMS / Calls. Purple chips on expanded Timeline cards and year/month/week bubble sheets.
 - [x] Customisable poem types (Settings UI says Type; AsyncStorage/Firestore key poemCategories unchanged)
 - [x] Label / tag system basics (Settings can edit labels list locally; showing on expanded cards still open)
 - [ ] User add tv or films watched (description + score /10)

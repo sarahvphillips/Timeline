@@ -19,6 +19,7 @@ import {
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
 import SpineKindBlock from '../components/SpineKindBlock';
+import EventLabelChips from '../components/EventLabelChips';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
 function buildBubbleFilterFromParams(params) {
@@ -276,6 +277,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
                       {b.title}
                     </Text>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
+                    <EventLabelChips labels={b.labels} />
                   </View>
                 ))
               )}

@@ -21,6 +21,7 @@ import {
   buildGrokReplyPrompt,
 } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
+import LabelPicker from '../components/LabelPicker';
 import DesignTargetButton from '../components/DesignTargetButton';
 import {
   getEventFriendSourceLabel,
@@ -75,6 +76,7 @@ export default function AddEventScreen({ navigation, route }) {
   const [photoNote, setPhotoNote] = useState(existing?.photoNote || route.params?.photoNote || '');
   const [imageUri, setImageUri] = useState(existing?.imageUri || route.params?.imageUri || '');
   const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
+  const [labels, setLabels] = useState(Array.isArray(existing?.labels) ? existing.labels : []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saveNotice, setSaveNotice] = useState('');
@@ -251,6 +253,7 @@ export default function AddEventScreen({ navigation, route }) {
             : undefined,
         imageUri: imageUri || undefined,
         photoNote: photoNote.trim() || undefined,
+        labels,
         shareId: existing?.shareId,
         isShared: existing?.isShared,
         sharedFrom: existing?.sharedFrom,
@@ -720,6 +723,8 @@ export default function AddEventScreen({ navigation, route }) {
             );
           })}
         </View>
+
+        <LabelPicker value={labels} onChange={setLabels} editable={!coreReadOnly} />
 
         {isPoetry && (
           <>

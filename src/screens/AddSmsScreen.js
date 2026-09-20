@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
+import LabelPicker from '../components/LabelPicker';
 import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { getPeople, findPerson, patchPerson } from '../services/peopleService';
 import { formatUk } from '../services/dateSpanService';
@@ -55,6 +56,9 @@ export default function AddSmsScreen({ navigation, route }) {
   const [category, setCategory] = useState(existing?.category || 'personal');
   const [location, setLocation] = useState(existing?.smsLocation || '');
   const [shareThis, setShareThis] = useState(!!existing?.sharedWithFriend);
+  const [labels, setLabels] = useState(
+    Array.isArray(existing?.labels) ? existing.labels.filter((l) => l !== 'SMS') : []
+  );
   const [people, setPeople] = useState([]);
   const [logged, setLogged] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -96,6 +100,7 @@ export default function AddSmsScreen({ navigation, route }) {
     setCategory('personal');
     setLocation('');
     setShareThis(false);
+    setLabels([]);
   };
 
   const handleSave = async () => {
@@ -116,7 +121,7 @@ export default function AddSmsScreen({ navigation, route }) {
         date: new Date(iso).toISOString(),
         category,
         source: 'sms',
-        labels: ['SMS'],
+        labels: Array.from(new Set(['SMS', ...labels])),
         nextAction: 'none',
         smsDirection: direction,
         smsContact: who,
@@ -306,6 +311,8 @@ export default function AddSmsScreen({ navigation, route }) {
               </TouchableOpacity>
             ))}
           </View>
+
+          <LabelPicker value={labels} onChange={setLabels} />
 
           <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
             <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save to timeline'}</Text>

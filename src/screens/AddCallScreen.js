@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import CallAudioField from '../components/CallAudioField';
+import LabelPicker from '../components/LabelPicker';
 import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { getPeople, findPerson, patchPerson } from '../services/peopleService';
 import { formatUk } from '../services/dateSpanService';
@@ -91,6 +92,9 @@ export default function AddCallScreen({ navigation, route }) {
   const [category, setCategory] = useState(existing?.category || 'personal');
   const [location, setLocation] = useState(existing?.callLocation || '');
   const [shareThis, setShareThis] = useState(!!existing?.sharedWithFriend);
+  const [labels, setLabels] = useState(
+    Array.isArray(existing?.labels) ? existing.labels.filter((l) => l !== 'Call') : []
+  );
   const [audioUri, setAudioUri] = useState(existing?.audioUri || existing?.videoUri || '');
   const [audioName, setAudioName] = useState(existing?.audioName || '');
   const [audioKind, setAudioKind] = useState(existing?.audioKind || (existing?.videoUri ? 'video' : 'audio'));
@@ -139,6 +143,7 @@ export default function AddCallScreen({ navigation, route }) {
     setCategory('personal');
     setLocation('');
     setShareThis(false);
+    setLabels([]);
     setAudioUri('');
     setAudioName('');
     setAudioKind('audio');
@@ -171,7 +176,7 @@ export default function AddCallScreen({ navigation, route }) {
         date: new Date(iso).toISOString(),
         category,
         source: 'call',
-        labels: ['Call'],
+        labels: Array.from(new Set(['Call', ...labels])),
         nextAction: 'none',
         callDirection: direction,
         callContact: who,
@@ -445,6 +450,8 @@ export default function AddCallScreen({ navigation, route }) {
               </TouchableOpacity>
             ))}
           </View>
+
+          <LabelPicker value={labels} onChange={setLabels} />
 
           <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
             <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save to timeline'}</Text>

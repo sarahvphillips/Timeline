@@ -20,6 +20,7 @@ import {
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 import SpineKindBlock from '../components/SpineKindBlock';
+import EventLabelChips from '../components/EventLabelChips';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
 function buildBubbleFilterFromParams(params) {
@@ -345,6 +346,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
                       {b.title}
                     </Text>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
+                    <EventLabelChips labels={b.labels} />
                   </TouchableOpacity>
                 ))
               )}

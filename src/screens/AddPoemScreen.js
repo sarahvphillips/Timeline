@@ -12,11 +12,7 @@ import {
 } from 'react-native';
 import { saveEvent, CATEGORIES } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
-
-const DEFAULT_LABELS = [
-  'Nature', 'Love', 'Family', 'Work', 'Norse', 'Greek',
-  'Space', 'Programming', 'Life problems', 'Money',
-];
+import LabelPicker from '../components/LabelPicker';
 
 export default function AddPoemScreen({ navigation, route }) {
   const existing = route.params?.event || null;
@@ -33,12 +29,6 @@ export default function AddPoemScreen({ navigation, route }) {
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
   const [labels, setLabels] = useState(existing?.labels || []);
   const [saving, setSaving] = useState(false);
-
-  const toggleLabel = (lab) => {
-    setLabels((prev) =>
-      prev.includes(lab) ? prev.filter((l) => l !== lab) : [...prev, lab]
-    );
-  };
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -145,21 +135,7 @@ export default function AddPoemScreen({ navigation, route }) {
           captionPlaceholder="Optional caption"
         />
 
-        <Text style={styles.label}>Labels</Text>
-        <View style={styles.row}>
-          {DEFAULT_LABELS.map((lab) => {
-            const selected = labels.includes(lab);
-            return (
-              <TouchableOpacity
-                key={lab}
-                style={[styles.chip, selected && styles.chipOn]}
-                onPress={() => toggleLabel(lab)}
-              >
-                <Text style={[styles.chipText, selected && styles.chipOnText]}>{lab}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <LabelPicker value={labels} onChange={setLabels} />
 
         <Text style={styles.label}>Poem text</Text>
         <TextInput

@@ -19,6 +19,7 @@ import {
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
 import SpineKindBlock from '../components/SpineKindBlock';
+import EventLabelChips from '../components/EventLabelChips';
 
 export default function YearOverviewScreen({ navigation }) {
   const [years, setYears] = useState([]);
@@ -155,6 +156,7 @@ export default function YearOverviewScreen({ navigation }) {
                       {b.title}
                     </Text>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
+                    <EventLabelChips labels={b.labels} />
                   </View>
                 ))
               )}
