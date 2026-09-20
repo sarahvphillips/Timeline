@@ -14,6 +14,8 @@ import {
   getEvents,
   getYearBubbleSummaries,
   getYearBubblePreviewBlurbs,
+  getItemBubblesByYear,
+  TIMELINE_FILTERS,
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
@@ -21,22 +23,44 @@ import DesignTargetButton from '../components/DesignTargetButton';
 import SpineKindBlock from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
 
-export default function YearOverviewScreen({ navigation }) {
+function openTimelineEvent(navigation, item) {
+  if (!item) return;
+  if (item.source === 'food') navigation.navigate('AddFood', { event: item });
+  else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
+  else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
+  else if (item.source === 'spotify') navigation.navigate('Spotify', { event: item });
+  else if (item.source === 'game') navigation.navigate('Games', { event: item });
+  else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
+  else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
+  else if (item.hobbyType === 'poetry' || item.source === 'poem') {
+    navigation.navigate('AddPoem', { event: item });
+  } else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
+  else navigation.navigate('AddEvent', { event: item });
+}
+
+export default function YearOverviewScreen({ navigation, route }) {
   const [years, setYears] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState(null);
+  const [filterId, setFilterId] = useState(route.params?.filter || 'all');
+  const activeFilter = TIMELINE_FILTERS.find((f) => f.id === filterId) || TIMELINE_FILTERS[0];
+  const itemView = !!activeFilter.itemView;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getEvents();
       setEvents(data);
-      setYears(getYearBubbleSummaries(data));
+      setYears(
+        (filterId && filterId !== 'all'
+          ? getItemBubblesByYear(data, filterId)
+          : getYearBubbleSummaries(data))
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -63,6 +87,26 @@ export default function YearOverviewScreen({ navigation }) {
   };
 
   const openBubble = (year, bubble) => {
+    if (bubble?.event) {
+      const e = bubble.event;
+      const d = new Date(e.date);
+      setPreview({
+        year,
+        bubble,
+        item: e,
+        blurbs: [
+          {
+            id: e.id,
+            title: e.title || 'Untitled',
+            dateLabel: Number.isNaN(d.getTime())
+              ? ''
+              : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}`,
+            labels: e.labels || [],
+          },
+        ],
+      });
+      return;
+    }
     const filter = {
       kind: bubble.kind,
       ...(bubble.filter || {}),
@@ -75,8 +119,12 @@ export default function YearOverviewScreen({ navigation }) {
 
   const zoomInFromPreview = () => {
     if (!preview) return;
-    const { year, bubble } = preview;
+    const { year, bubble, item } = preview;
     setPreview(null);
+    if (item) {
+      openTimelineEvent(navigation, item);
+      return;
+    }
     navigation.navigate('MonthOverview', {
       year,
       kind: bubble.kind,
@@ -105,21 +153,44 @@ export default function YearOverviewScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        {TIMELINE_FILTERS.map((f) => {
+          const on = filterId === f.id;
+          return (
+            <TouchableOpacity
+              key={f.id}
+              style={[styles.filterChip, on && styles.filterChipOn]}
+              onPress={() => setFilterId(f.id)}
+            >
+              <Text style={[styles.filterText, on && styles.filterTextOn]}>{f.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      {itemView ? (
+        <Text style={styles.filterHint}>
+          {activeFilter.label} on the timeline — each bubble is one item, grouped by year.
+        </Text>
+      ) : null}
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.spine} />
-        {years.map((item, index) => (
+        {years.length === 0 ? (
+          <Text style={styles.empty}>Nothing in {activeFilter.label} yet.</Text>
+        ) : (
+          years.map((item, index) => (
           <SpineKindBlock
             key={item.year}
             id={item.year}
             label={String(item.year)}
             bubbles={item.bubbles}
             blockIndex={index}
-            glowKey={glowKey}
+            glowKey={itemView ? null : glowKey}
             boxedLabel
             onOpenLabel={() => openYear(item.year)}
             onOpenBubble={(bubble) => openBubble(item.year, bubble)}
           />
-        ))}
+          ))
+        )}
       </ScrollView>
       <DesignTargetButton
         imageSource={require('../../assets/design-year-bubbles.png')}
@@ -167,7 +238,7 @@ export default function YearOverviewScreen({ navigation }) {
               accessibilityLabel="Zoom in to month view"
               activeOpacity={0.85}
             >
-              <Text style={styles.zoomBtnText}>Zoom in</Text>
+              <Text style={styles.zoomBtnText}>{preview?.item ? 'Open' : 'Zoom in'}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -180,6 +251,38 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f1024',
+  },
+  filters: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+    gap: 8,
+    alignItems: 'center',
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterChipOn: {
+    backgroundColor: '#8b5cf6',
+    borderColor: '#8b5cf6',
+  },
+  filterText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  filterTextOn: { color: '#fff' },
+  filterHint: {
+    color: '#94a3b8',
+    fontSize: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  empty: {
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 48,
+    fontSize: 14,
   },
   center: {
     flex: 1,

@@ -1347,3 +1347,72 @@ export function buildWashTitle(washStatus, washItems, washSetting) {
   const short = bit.length > 42 ? bit.slice(0, 39).trim() + '…' : bit;
   return `Wash: ${short} · ${status}`;
 }
+
+export const TIMELINE_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'poems', label: 'Poems', color: '#8b5cf6', itemView: true },
+  { id: 'games', label: 'Games', color: '#818cf8', itemView: true },
+  { id: 'sms', label: 'SMS', color: '#22c55e', itemView: true },
+  { id: 'call', label: 'Calls', color: '#fb923c', itemView: true },
+  { id: 'email', label: 'Email', color: '#14b8a6', itemView: true },
+  { id: 'youtube', label: 'YouTube', color: '#f87171', itemView: true },
+  { id: 'spotify', label: 'Spotify', color: '#1db954', itemView: true },
+  { id: 'food', label: 'Food', color: '#f59e0b', itemView: true },
+  { id: 'laundry', label: 'Wash', color: '#38bdf8', itemView: true },
+  ...CATEGORIES.map((c) => ({
+    id: `cat:${c.id}`,
+    label: c.label,
+    color: c.color,
+    itemView: true,
+  })),
+];
+
+export function eventMatchesTimelineFilter(event, filterId) {
+  if (!filterId || filterId === 'all') return true;
+  const source = String(event?.source || '').toLowerCase();
+  const hobby = String(event?.hobbyType || '').toLowerCase();
+  const category = String(event?.category || '').toLowerCase();
+  if (filterId === 'poems') return hobby === 'poetry' || source === 'poem';
+  if (filterId === 'games') return source === 'game';
+  if (filterId === 'sms') return source === 'sms';
+  if (filterId === 'call') return source === 'call';
+  if (filterId === 'email') return source === 'email';
+  if (filterId === 'youtube') return source === 'youtube';
+  if (filterId === 'spotify') return source === 'spotify';
+  if (filterId === 'food') return source === 'food';
+  if (filterId === 'laundry') return source === 'laundry';
+  if (filterId.startsWith('cat:')) return category === filterId.slice(4);
+  return true;
+}
+
+function shortBubbleTitle(title) {
+  const t = String(title || 'Untitled').trim() || 'Untitled';
+  return t.length > 16 ? `${t.slice(0, 15)}…` : t;
+}
+
+/** One bubble per matching event, grouped by year — all poems (etc.) on one spine. */
+export function getItemBubblesByYear(events, filterId) {
+  const matched = (events || [])
+    .filter((e) => eventMatchesTimelineFilter(e, filterId))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const byYear = {};
+  matched.forEach((event) => {
+    const d = new Date(event.date);
+    if (Number.isNaN(d.getTime())) return;
+    const year = d.getFullYear();
+    if (!byYear[year]) byYear[year] = [];
+    const meta = classifyYearBubbleKind(event);
+    byYear[year].push({
+      kind: `item:${event.id}`,
+      label: shortBubbleTitle(event.title),
+      color: meta.color,
+      count: String(d.getDate()),
+      filter: { eventId: event.id },
+      event,
+    });
+  });
+  return Object.keys(byYear)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((year) => ({ year, bubbles: byYear[year] }));
+}

@@ -169,7 +169,7 @@ Product map:
 
 - [ ] Google Sign-In (re-enable fully if needed)
 - [ ] Better date picker (calendar UI)
-- [ ] Filter timeline by category
+- [x] Filter timeline by category (20 Sep 2026): chips on Years + list. **Poems** (and Games/SMS/…) puts every matching item on the spine as its own bubble, grouped by year — same idea as the poems-chip design.
 - [ ] Mark next-action as done from the list
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
 - [ ] Custom Firebase password-reset email template (needs Blaze plan)

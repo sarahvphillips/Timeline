@@ -15,6 +15,7 @@ import {
   Pressable,
   Image,
   useWindowDimensions,
+  ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -31,6 +32,8 @@ import {
   EVENTS_FIRESTORE_SYNC_ENABLED,
   washStatusLabel,
   washTumbleLabel,
+  TIMELINE_FILTERS,
+  eventMatchesTimelineFilter,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
@@ -48,16 +51,16 @@ import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService
 const GROK_URL = 'https://grok.x.ai';
 
 export default function TimelineScreen({ navigation, route }) {
+  const { width } = useWindowDimensions();
   const year = route.params?.year;
   const month = route.params?.month;
-  const { width } = useWindowDimensions();
-  const useSpine = year != null && month != null && width >= 400;
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(!!route.params?.openMenu);
+  const [filterId, setFilterId] = useState(route.params?.filter || 'all');
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
   const [showWashInMenu, setShowWashInMenu] = useState(true);
   const [shareNotices, setShareNotices] = useState({});
@@ -123,15 +126,25 @@ export default function TimelineScreen({ navigation, route }) {
     }, [loadEvents])
   );
 
-  const events =
+  const scoped =
     year != null && month != null
       ? filterEventsByYearMonth(allEvents, year, month)
       : allEvents;
+  const events = scoped
+    .filter((e) => eventMatchesTimelineFilter(e, filterId))
+    .slice()
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const activeFilter = TIMELINE_FILTERS.find((f) => f.id === filterId) || TIMELINE_FILTERS[0];
+  const useSpine =
+    (year != null && month != null && width >= 400) ||
+    (activeFilter.itemView && width >= 360);
 
   const heading =
     year != null && month != null
-      ? `${getMonthName(month)} ${year}`
-      : 'All events';
+      ? `${getMonthName(month)} ${year}${filterId !== 'all' ? ` · ${activeFilter.label}` : ''}`
+      : filterId === 'all'
+        ? 'All events'
+        : `All ${activeFilter.label}`;
 
   const handleDelete = async (event) => {
     const myUid = auth.currentUser?.uid;
@@ -344,6 +357,7 @@ export default function TimelineScreen({ navigation, route }) {
                 else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
                 else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
                 else if (item.source === 'spotify') navigation.navigate('Spotify', { event: item });
+                else if (item.source === 'game') navigation.navigate('Games', { event: item });
                 else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
                 else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
                 else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
@@ -374,17 +388,35 @@ export default function TimelineScreen({ navigation, route }) {
   };
 
   const renderItem = ({ item, index }) => {
-    if (!useSpine) return renderCard(item);
+    const d = new Date(item.date);
+    const showYear =
+      activeFilter.itemView &&
+      (!events[index - 1] || new Date(events[index - 1].date).getFullYear() !== d.getFullYear());
+    const yearMark = showYear ? (
+      <Text style={styles.yearMark}>{d.getFullYear()}</Text>
+    ) : null;
+
+    if (!useSpine) {
+      return (
+        <View>
+          {yearMark}
+          {renderCard(item)}
+        </View>
+      );
+    }
 
     const left = index % 2 === 0;
     return (
-      <View style={styles.spineRow}>
-        {left ? <View style={styles.spineCard}>{renderCard(item)}</View> : <View style={styles.spineGap} />}
-        <View style={styles.spineDotCol}>
-          <View style={styles.itemDot} />
-          <Text style={styles.dayMark}>{new Date(item.date).getDate()}</Text>
+      <View>
+        {yearMark}
+        <View style={styles.spineRow}>
+          {left ? <View style={styles.spineCard}>{renderCard(item)}</View> : <View style={styles.spineGap} />}
+          <View style={styles.spineDotCol}>
+            <View style={styles.itemDot} />
+            <Text style={styles.dayMark}>{d.getDate()}</Text>
+          </View>
+          {!left ? <View style={styles.spineCard}>{renderCard(item)}</View> : <View style={styles.spineGap} />}
         </View>
-        {!left ? <View style={styles.spineCard}>{renderCard(item)}</View> : <View style={styles.spineGap} />}
       </View>
     );
   };
@@ -403,6 +435,20 @@ export default function TimelineScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>{heading}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        {TIMELINE_FILTERS.map((f) => {
+          const on = filterId === f.id;
+          return (
+            <TouchableOpacity
+              key={f.id}
+              style={[styles.filterChip, on && styles.filterChipOn]}
+              onPress={() => setFilterId(f.id)}
+            >
+              <Text style={[styles.filterText, on && styles.filterTextOn]}>{f.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
       {events.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>No items yet</Text>
@@ -442,6 +488,7 @@ export default function TimelineScreen({ navigation, route }) {
               { label: 'Add from email', action: () => navigation.navigate('AddEvent', { fromEmail: true, source: 'email' }) },
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
+              { label: 'Games', action: () => navigation.navigate('Games') },
               { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'Spotify', action: () => navigation.navigate('Spotify') },
               { label: 'SMS', action: () => navigation.navigate('AddSms') },
@@ -497,6 +544,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     paddingHorizontal: 20,
     paddingTop: 12,
+  },
+  filters: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 8,
+    gap: 8,
+    alignItems: 'center',
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterChipOn: { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' },
+  filterText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  filterTextOn: { color: '#fff' },
+  yearMark: {
+    color: '#c4b5fd',
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+    marginTop: 8,
   },
   list: { padding: 16, paddingBottom: 120 },
   listWrap: { flex: 1 },
