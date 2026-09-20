@@ -123,7 +123,8 @@ Product map:
 
 ### Daily life & tracking
 
-- [ ] Time playing games (Steam / PlayStation / Android)
+- [x] **Games** (20 Sep 2026): manual log + paste Steam / PlayStation / Play Store link. Platform, session time, Playing/Finished/Dropped/Backlog, optional score, timeline. **No live APIs:** PSN unofficial (NPSSO = password, ban risk); Android UsageStats needs a native build; Steam Web API needs a secret key (not in the phone app). Parked like Spotify login.
+- [ ] Time playing games live import (Steam API key server-side / Android usage stats native / PSN unofficial — not doing unofficial)
 - [x] User add purchases (preview mock 10 Sep 2026): manual / email / Amazon / Uber Eats / website / **notification screenshot** (easy path — no bank login) / bank screenshot. **Uber Eats Gmail import**. Driver details perk.
 - [x] **Banking section** (preview 10 Sep 2026): own hub, not mixed with poems/life. Event kinds: Direct debit, Standing order, Rent, Credit card, Large spend, Incoming. Monthly repeat, pin to timeline, 6-month spend bars from purchases + these events.
 - [ ] **Open Banking** (after screenshot/notification flow is solid). Optional connect for Lloyds and other UK banks so payments can import without photos. Not all users will want this; screenshots stay. Needs FCA-regulated provider (TrueLayer / Plaid / Moneyhub etc.), consent, and a perk/credits discussion. Could feed the Banking hub (upcoming DDs, rent, cards) as well as purchases.

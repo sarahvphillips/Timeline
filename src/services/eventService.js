@@ -766,6 +766,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   event: '#3b82f6',
   youtube: '#f87171',
   spotify: '#1db954',
+  game: '#818cf8',
   sms: '#22c55e',
   call: '#fb923c',
 };
@@ -780,6 +781,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'household',
   'youtube',
   'spotify',
+  'game',
   'sms',
   'call',
 ];
@@ -845,6 +847,14 @@ export function classifyYearBubbleKind(event) {
       label: 'Spotify',
       color: YEAR_BUBBLE_KIND_COLORS.spotify,
       filter: { source: 'spotify' },
+    };
+  }
+  if (source === 'game') {
+    return {
+      kind: 'game',
+      label: 'Games',
+      color: YEAR_BUBBLE_KIND_COLORS.game,
+      filter: { source: 'game' },
     };
   }
   if (source === 'sms') {
