@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 const KEY_PREFIX = '@timeline_rewards_v1_';
@@ -50,12 +50,16 @@ export const STAMP_ROW_REWARD = {
 export const CALL_RECORDING_COST = 4;
 export const CALL_RECORDING_PERK = 'callRecording';
 
-/** Display-only packs until Play billing is wired. */
+/** Same SKUs as Mafia PurchasesActivity — consumable Play packs. */
 export const CREDIT_PACKS = [
-  { id: 'pack-10', credits: 10, priceLabel: '£0.99', blurb: 'A few shop unlocks' },
-  { id: 'pack-30', credits: 30, priceLabel: '£1.99', blurb: 'Most used perks' },
-  { id: 'pack-80', credits: 80, priceLabel: '£3.99', blurb: 'Best value later' },
+  { id: '1_credits', sku: '1_credits', credits: 1, priceLabel: 'Play Store', blurb: '1 credit' },
+  { id: '10_credits', sku: '10_credits', credits: 10, priceLabel: 'Play Store', blurb: '10 credits' },
+  { id: '25_credits', sku: '25_credits', credits: 25, priceLabel: 'Play Store', blurb: '25 credits' },
+  { id: '100_credits', sku: '100_credits', credits: 100, priceLabel: 'Play Store', blurb: '100 credits' },
 ];
+
+export const MAX_CREDIT_TRANSFER = 100;
+export const TRANSFER_COOLDOWN_MS = 10000;
 
 export const SHOP_ITEMS = [
   {
@@ -122,6 +126,8 @@ function normalizeRewards(raw) {
     ...parsed,
     unlockedPerks: Array.isArray(parsed.unlockedPerks) ? parsed.unlockedPerks : [],
     claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : [],
+    purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
+    lastTransferAt: parsed.lastTransferAt || null,
     credits: Number(parsed.credits) || 0,
   };
 }
@@ -131,6 +137,8 @@ export function emptyRewards() {
     credits: 0,
     unlockedPerks: [],
     claimedMilestones: [],
+    purchases: [],
+    lastTransferAt: null,
     updatedAt: null,
   };
 }
@@ -169,6 +177,8 @@ async function persistRewards(uid, email, state, { localToo = false } = {}) {
     credits: Math.max(0, Number(state?.credits) || 0),
     unlockedPerks: Array.isArray(state?.unlockedPerks) ? state.unlockedPerks : [],
     claimedMilestones: Array.isArray(state?.claimedMilestones) ? state.claimedMilestones : [],
+    purchases: Array.isArray(state?.purchases) ? state.purchases.slice(-50) : [],
+    lastTransferAt: state?.lastTransferAt || null,
     updatedAt: new Date().toISOString(),
     uid: uid || null,
     email: String(email || '').trim().toLowerCase() || null,
@@ -290,6 +300,132 @@ export async function adminSetRewards(email, patch) {
     { localToo: uid === myUid },
   );
   return { email: found.email || me, uid, rewards: next };
+}
+
+/** Play SKU consume → add credits. Expo Go has no BillingClient; staff can tester-grant like a license tester. */
+export async function applyPurchasedPack(sku, { tester = false } = {}) {
+  const pack = CREDIT_PACKS.find((p) => p.sku === sku || p.id === sku);
+  if (!pack) {
+    const err = new Error('Unknown credit pack.');
+    err.code = 'UNKNOWN_PACK';
+    throw err;
+  }
+  if (!tester) {
+    const err = new Error(
+      `Google Play SKU "${pack.sku}" is the same as Mafia. Billing is not live in Expo Go yet — it will launch the Play purchase when Timeline is on the store.`,
+    );
+    err.code = 'NO_STORE';
+    throw err;
+  }
+  const current = await getRewards();
+  return writeRewards({
+    ...current,
+    credits: current.credits + pack.credits,
+    purchases: [
+      ...(current.purchases || []),
+      {
+        sku: pack.sku,
+        credits: pack.credits,
+        at: new Date().toISOString(),
+        source: 'tester',
+      },
+    ],
+  });
+}
+
+async function lookupRewardsByEmail(email) {
+  const key = String(email || '').trim().toLowerCase();
+  if (!key) return null;
+  const idx = await getDoc(rewardsIndexDoc(key));
+  if (!idx.exists() || !idx.data()?.uid) return null;
+  return { email: key, uid: idx.data().uid };
+}
+
+export async function claimPendingTransfers() {
+  const uid = auth.currentUser?.uid;
+  const email = String(auth.currentUser?.email || '').trim().toLowerCase();
+  if (!uid || !email) return 0;
+  let added = 0;
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'creditTransfers'), where('toUid', '==', uid)),
+    );
+    const current = await getRewards();
+    let credits = current.credits;
+    const purchases = [...(current.purchases || [])];
+    const ops = [];
+    snap.forEach((row) => {
+      const data = row.data() || {};
+      if (data.status && data.status !== 'pending') return;
+      const n = Math.max(0, Number(data.amount) || 0);
+      if (!n) return;
+      added += n;
+      credits += n;
+      purchases.push({
+        sku: 'transfer',
+        credits: n,
+        at: new Date().toISOString(),
+        source: 'transfer',
+        from: data.fromEmail || '',
+      });
+      ops.push(updateDoc(row.ref, { status: 'claimed', claimedAt: new Date().toISOString() }));
+    });
+    if (added) {
+      await writeRewards({ ...current, credits, purchases });
+      await Promise.all(ops);
+    }
+  } catch (e) {
+    console.warn('Credit transfer claim failed.', e?.message || e);
+  }
+  return added;
+}
+
+/** Mafia TransferCredits: max 100, 10s cooldown, not to yourself. Recipient claims on next open. */
+export async function transferCredits(toEmail, amount) {
+  const n = Math.floor(Number(amount));
+  const me = String(auth.currentUser?.email || '').trim().toLowerCase();
+  const myUid = auth.currentUser?.uid;
+  const destEmail = String(toEmail || '').trim().toLowerCase();
+  if (!myUid || !me) throw new Error('Sign in first.');
+  if (!destEmail) throw new Error('Please enter an email.');
+  if (destEmail === me) throw new Error("You can't transfer credits to yourself!");
+  if (!n || n <= 0) throw new Error('Please enter an amount.');
+  if (n > MAX_CREDIT_TRANSFER) throw new Error('That number is too large!');
+  const current = await getRewards();
+  const last = current.lastTransferAt ? new Date(current.lastTransferAt).getTime() : 0;
+  if (Date.now() - last < TRANSFER_COOLDOWN_MS) {
+    throw new Error("You can't try to transfer that often!");
+  }
+  if (n > current.credits) throw new Error("You don't have enough credits for that!");
+  const dest = await lookupRewardsByEmail(destEmail);
+  if (!dest) {
+    throw new Error('That email was not found, please try again.');
+  }
+  await writeRewards({
+    ...current,
+    credits: current.credits - n,
+    lastTransferAt: new Date().toISOString(),
+    purchases: [
+      ...(current.purchases || []),
+      {
+        sku: 'transfer-out',
+        credits: -n,
+        at: new Date().toISOString(),
+        source: 'transfer',
+        to: destEmail,
+      },
+    ],
+  });
+  await addDoc(collection(db, 'creditTransfers'), {
+    fromUid: myUid,
+    fromEmail: me,
+    toEmail: destEmail,
+    toUid: dest.uid,
+    amount: n,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  });
+  return n;
 }
 
 export function inviteStats(people) {

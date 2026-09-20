@@ -43,6 +43,7 @@ import AddSmsScreen from './src/screens/AddSmsScreen';
 import AddCallScreen from './src/screens/AddCallScreen';
 import CreditsShopScreen from './src/screens/CreditsShopScreen';
 import BuyCreditsScreen from './src/screens/BuyCreditsScreen';
+import TransferCreditsScreen from './src/screens/TransferCreditsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
@@ -334,6 +335,12 @@ function AppShell() {
                 name="BuyCredits"
                 component={BuyCreditsScreen}
                 options={{ title: 'Buy credits' }}
+              />
+
+              <Stack.Screen
+                name="TransferCredits"
+                component={TransferCreditsScreen}
+                options={{ title: 'Transfer credits' }}
               />
 
               <Stack.Screen

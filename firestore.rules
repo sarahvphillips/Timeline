@@ -89,11 +89,29 @@ service cloud.firestore {
     }
 
     match /rewardsIndex/{email} {
-      allow read, write: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
       allow create, update: if isSignedIn()
         && request.resource.data.uid == request.auth.uid;
       allow delete: if isAdmin()
         || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    match /creditTransfers/{id} {
+      allow create: if isSignedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 100;
+      allow read: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid
+        || resource.data.toUid == request.auth.uid
+      );
+      allow update: if isSignedIn()
+        && resource.data.toUid == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'claimed';
+      allow delete: if isAdmin();
     }
 
     match /joinInvites/{id} {

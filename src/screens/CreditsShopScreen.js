@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
-import { getRewards, SHOP_ITEMS, spendShopItem, hasPerk, perkLabel } from '../services/rewardsService';
+import { getRewards, SHOP_ITEMS, spendShopItem, hasPerk, perkLabel, claimPendingTransfers } from '../services/rewardsService';
 import { auth } from '../services/firebase';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
 
@@ -19,6 +19,11 @@ export default function CreditsShopScreen({ navigation }) {
   const [staff, setStaff] = useState(false);
 
   const load = useCallback(async () => {
+    try {
+      await claimPendingTransfers();
+    } catch {
+      /* pending transfers optional */
+    }
     setRewards(await getRewards());
   }, []);
 
@@ -46,7 +51,7 @@ export default function CreditsShopScreen({ navigation }) {
       if (e?.code === 'OWNED') {
         Alert.alert('Already yours', item.title);
       } else if (e?.code === 'NEED_CREDITS') {
-        Alert.alert('Not enough credits', e.message, [
+        Alert.alert('Not enough credits', `You haven't got enough credits, you need ${item.cost - credits} more!`, [
           { text: 'Cancel', style: 'cancel' },
           { text: staff ? 'Admin' : 'Buy credits', onPress: needMore },
         ]);
