@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { auth } from '../services/firebase';
 import {
@@ -28,6 +29,8 @@ const SPINE_COLOUR = '#94a3b8';
 const CARD_W = Math.min(138, Math.floor(SCREEN_W * 0.36));
 const CENTRE_CARD_W = Math.min(190, Math.floor(SCREEN_W * 0.5));
 const CURVE = 34;
+const PRIVATE_KEY = '@timeline_friends_show_private';
+const PRIVATE_COLOUR = '#94a3b8';
 
 function formatDateLabel(iso) {
   if (!iso) return '';
@@ -245,12 +248,61 @@ function SharedCard({ item, meLabel, myEmail, colour, onPress }) {
   );
 }
 
+function PersonalCard({ event, colour, onPress }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={[styles.personalCard, { borderColor: colour + '99' }]}
+    >
+      <View style={styles.personalHead}>
+        <Text style={{ color: colour, fontSize: 16 }}>{cardGlyph(event)}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {event.title || 'Untitled'}
+          </Text>
+          <Text style={[styles.cardDate, { color: colour }]}>{formatDateLabel(event.date)}</Text>
+        </View>
+      </View>
+      {event.description ? (
+        <Text style={styles.cardSub} numberOfLines={1}>
+          {event.description}
+        </Text>
+      ) : null}
+      <View style={styles.cardFooter}>
+        <Text style={{ color: colour, fontSize: 11 }}>🔒</Text>
+        <Text style={[styles.cardFooterText, { color: colour }]}>Personal only</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function EventsWithFriendsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [sharedEvents, setSharedEvents] = useState([]);
+  const [personalEvents, setPersonalEvents] = useState([]);
   const [localByShareId, setLocalByShareId] = useState({});
   const [me, setMe] = useState({ displayName: 'You', photoUri: null, initial: 'Y', email: '' });
+  const [friendFilter, setFriendFilter] = useState('all');
+  const [showPrivate, setShowPrivate] = useState(false);
   const myUid = auth.currentUser?.uid;
+
+  useEffect(() => {
+    AsyncStorage.getItem(PRIVATE_KEY)
+      .then((v) => {
+        if (v === '1') setShowPrivate(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const togglePrivate = () => {
+    setShowPrivate((on) => {
+      const next = !on;
+      if (next) setFriendFilter('all');
+      AsyncStorage.setItem(PRIVATE_KEY, next ? '1' : '0').catch(() => {});
+      return next;
+    });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -280,12 +332,23 @@ export default function EventsWithFriendsScreen({ navigation }) {
         if (ev?.shareId) byShare[ev.shareId] = ev;
       });
       setLocalByShareId(byShare);
-      setSharedEvents(
-        sharedList.filter((s) => hasActiveOtherParticipants(s, auth.currentUser?.uid)),
+      const visibleShared = sharedList.filter((s) =>
+        hasActiveOtherParticipants(s, auth.currentUser?.uid),
+      );
+      setSharedEvents(visibleShared);
+      const sharedIds = new Set(visibleShared.map((s) => s.id));
+      setPersonalEvents(
+        localList.filter((ev) => {
+          if (!ev) return false;
+          if (ev.shareId && sharedIds.has(ev.shareId)) return false;
+          if (ev.isShared) return false;
+          return true;
+        }),
       );
     } catch (e) {
       console.warn('Events with friends load failed', e);
       setSharedEvents([]);
+      setPersonalEvents([]);
       setLocalByShareId({});
     } finally {
       setLoading(false);
@@ -298,30 +361,52 @@ export default function EventsWithFriendsScreen({ navigation }) {
     }, [load]),
   );
 
-  const friendRoster = useMemo(() => {
+  const allFriends = useMemo(() => {
     const map = {};
     sharedEvents.forEach((ev) => {
       listOtherParticipants(ev, myUid).forEach((f) => {
         if (!map[f.uid]) map[f.uid] = f;
       });
     });
-    return Object.values(map).slice(0, 2);
+    return Object.values(map);
   }, [sharedEvents, myUid]);
+
+  const friendRoster = allFriends.slice(0, 4);
 
   const primaryFriendColour =
     (friendRoster[0] && friendRoster[0].colour) || FRIEND_COLOURS[1] || FRIEND_PINK;
 
-  const rows = useMemo(() => {
-    const sorted = [...sharedEvents].sort(
-      (a, b) => new Date(a.date || 0) - new Date(b.date || 0),
+  const filteredShared = useMemo(() => {
+    if (friendFilter === 'all') return sharedEvents;
+    return sharedEvents.filter((s) =>
+      listOtherParticipants(s, myUid).some((f) => f.uid === friendFilter),
     );
+  }, [sharedEvents, friendFilter, myUid]);
+
+  const filteredPersonal = friendFilter === 'all' && showPrivate ? personalEvents : [];
+
+  const rows = useMemo(() => {
+    const mixed = [
+      ...filteredShared.map((shared) => ({
+        kind: 'shared',
+        date: shared.date || '',
+        shared,
+        friends: listOtherParticipants(shared, myUid),
+      })),
+      ...filteredPersonal.map((event) => ({
+        kind: 'personal',
+        date: event.date || '',
+        event,
+      })),
+    ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+
     const out = [];
     let lastYear = null;
     let lastMonth = null;
     let lastWeek = null;
     let side = 'left';
-    sorted.forEach((shared) => {
-      const d = parseDate(shared.date) || new Date();
+    mixed.forEach((entry) => {
+      const d = parseDate(entry.date) || new Date();
       const year = d.getFullYear();
       const month = `${year}-${d.getMonth()}`;
       const week = weekKey(d);
@@ -340,23 +425,25 @@ export default function EventsWithFriendsScreen({ navigation }) {
         out.push({ type: 'week', label: weekLabel(d) });
         lastWeek = week;
       }
+      const colour =
+        entry.kind === 'personal'
+          ? PRIVATE_COLOUR
+          : side === 'left'
+            ? ME_COLOUR
+            : primaryFriendColour;
       out.push({
         type: 'event',
+        kind: entry.kind,
         side,
-        colour: side === 'left' ? ME_COLOUR : FRIEND_PINK,
-        item: {
-          kind: 'shared',
-          date: shared.date || '',
-          shared,
-          friends: listOtherParticipants(shared, myUid),
-        },
+        colour,
+        item: entry,
       });
       side = side === 'left' ? 'right' : 'left';
     });
     return out;
-  }, [sharedEvents, myUid]);
+  }, [filteredShared, filteredPersonal, myUid, primaryFriendColour]);
 
-  const spanText = useMemo(() => friendshipSpan(sharedEvents), [sharedEvents]);
+  const spanText = useMemo(() => friendshipSpan(filteredShared), [filteredShared]);
 
   const openShared = useCallback(
     (item) => {
@@ -377,6 +464,11 @@ export default function EventsWithFriendsScreen({ navigation }) {
     [navigation, localByShareId],
   );
 
+  const openPersonal = useCallback(
+    (event) => navigateToEvent(navigation, event),
+    [navigation],
+  );
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -385,7 +477,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
     );
   }
 
-  const isEmpty = sharedEvents.length === 0;
+  const isEmpty = filteredShared.length === 0 && filteredPersonal.length === 0;
   const friendInitial =
     (friendRoster[0] && (friendRoster[0].displayName || 'F').charAt(0).toUpperCase()) || 'F';
 
@@ -419,6 +511,39 @@ export default function EventsWithFriendsScreen({ navigation }) {
           ) : null}
         </View>
 
+        {allFriends.length > 1 ? (
+          <View style={styles.chipRow}>
+            <TouchableOpacity
+              style={[styles.filterChip, friendFilter === 'all' && styles.filterChipOn]}
+              onPress={() => setFriendFilter('all')}
+            >
+              <Text style={[styles.filterChipText, friendFilter === 'all' && styles.filterChipTextOn]}>
+                All friends
+              </Text>
+            </TouchableOpacity>
+            {allFriends.map((f) => {
+              const on = friendFilter === f.uid;
+              const label = f.displayName || f.initial || 'Friend';
+              return (
+                <TouchableOpacity
+                  key={f.uid}
+                  style={[styles.filterChip, on && styles.filterChipOn]}
+                  onPress={() => setFriendFilter(f.uid)}
+                >
+                  <Text style={[styles.filterChipText, on && styles.filterChipTextOn]} numberOfLines={1}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <TouchableOpacity style={styles.privateToggle} onPress={togglePrivate}>
+          <Text style={styles.tick}>{showPrivate ? '☑' : '☐'}</Text>
+          <Text style={styles.privateToggleText}>Show private items on this screen</Text>
+        </TouchableOpacity>
+
         <View style={styles.timeline}>
           <View style={styles.spineCapTop} />
           <View style={styles.centreSpine} />
@@ -426,10 +551,13 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
           {isEmpty ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyTitle}>No shared events yet</Text>
+              <Text style={styles.emptyTitle}>
+                {friendFilter !== 'all' ? 'Nothing shared with this friend yet' : 'No shared events yet'}
+              </Text>
               <Text style={styles.emptyBody}>
-                Private timeline items stay on Timeline. Share an event with a friend, or enter an
-                invite code, to see it here.
+                {showPrivate
+                  ? 'No items match this view.'
+                  : 'Private items stay off this screen unless you tick Show private. Share an event or enter an invite code.'}
               </Text>
             </View>
           ) : (
@@ -460,18 +588,32 @@ export default function EventsWithFriendsScreen({ navigation }) {
                 );
               }
               const left = row.side === 'left';
+              const card =
+                row.kind === 'personal' ? (
+                  <PersonalCard
+                    event={row.item.event}
+                    colour={row.colour}
+                    onPress={() => openPersonal(row.item.event)}
+                  />
+                ) : (
+                  <SharedCard
+                    item={row.item}
+                    meLabel={me.initial}
+                    myEmail={me.email}
+                    colour={row.colour}
+                    onPress={() => openShared(row.item)}
+                  />
+                );
+              const key =
+                row.kind === 'personal'
+                  ? `p-${row.item.event.id || idx}`
+                  : row.item.shared.id || `e-${idx}`;
               return (
-                <View key={row.item.shared.id || `e-${idx}`} style={styles.pairRow}>
+                <View key={key} style={styles.pairRow}>
                   <View style={styles.sideSlot}>
                     {left ? (
                       <View style={styles.personalWrap}>
-                        <SharedCard
-                          item={row.item}
-                          meLabel={me.initial}
-                          myEmail={me.email}
-                          colour={row.colour}
-                          onPress={() => openShared(row.item)}
-                        />
+                        {card}
                         <Curve colour={row.colour} side="left" />
                       </View>
                     ) : null}
@@ -481,13 +623,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
                     {!left ? (
                       <View style={[styles.personalWrap, styles.personalWrapRight]}>
                         <Curve colour={row.colour} side="right" />
-                        <SharedCard
-                          item={row.item}
-                          meLabel={me.initial}
-                          myEmail={me.email}
-                          colour={row.colour}
-                          onPress={() => openShared(row.item)}
-                        />
+                        {card}
                       </View>
                     ) : null}
                   </View>
@@ -562,6 +698,34 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    maxWidth: 140,
+  },
+  filterChipOn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  filterChipText: { color: '#94a3b8', fontSize: 13, fontWeight: '700' },
+  filterChipTextOn: { color: '#fff' },
+  privateToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 8,
+    paddingVertical: 6,
+  },
+  tick: { color: '#c4b5fd', fontSize: 18 },
+  privateToggleText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
   timeline: {
     position: 'relative',
     minHeight: 260,
