@@ -376,6 +376,12 @@ export default function SettingsScreen({ navigation }) {
         >
           <Text style={[styles.saveBtnText, { color: colors.text }]}>Share profile link / QR</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder }]}
+          onPress={() => navigation.navigate('Welcome', { fromSettings: true })}
+        >
+          <Text style={[styles.saveBtnText, { color: colors.text }]}>Welcome email</Text>
+        </TouchableOpacity>
 
         <Text style={[styles.section, { color: colors.muted }]}>Light / dark</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>

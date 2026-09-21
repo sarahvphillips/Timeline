@@ -52,6 +52,8 @@ import ShareEventScreen from './src/screens/ShareEventScreen';
 import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
 import ShareProfileScreen from './src/screens/ShareProfileScreen';
 import PublicProfileScreen from './src/screens/PublicProfileScreen';
+import WelcomeScreen from './src/screens/WelcomeScreen';
+import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
 import { ThemeProvider, useTheme } from './src/themeContext';
 
 const Stack = createNativeStackNavigator();
@@ -62,6 +64,7 @@ function AppShell() {
   const [user, setUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
   const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [welcomePending, setWelcomePending] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -74,6 +77,18 @@ function AppShell() {
           beginAuthScope(uid);
           beginWordNumbersAuthScope(uid);
           beginSpansAuthScope(uid);
+          AsyncStorage.multiGet([welcomePendingKey(uid), WELCOME_NEXT_KEY])
+            .then((pairs) => {
+              const map = Object.fromEntries(pairs || []);
+              const pending =
+                map[welcomePendingKey(uid)] === '1' || map[WELCOME_NEXT_KEY] === '1';
+              if (map[WELCOME_NEXT_KEY] === '1') {
+                AsyncStorage.setItem(welcomePendingKey(uid), '1').catch(() => {});
+                AsyncStorage.removeItem(WELCOME_NEXT_KEY).catch(() => {});
+              }
+              setWelcomePending(pending);
+            })
+            .catch(() => setWelcomePending(false));
           const waitForCloud =
             EVENTS_FIRESTORE_SYNC_ENABLED || WORD_NUMBERS_FIRESTORE_SYNC_ENABLED;
           if (waitForCloud) setCloudSyncing(true);
@@ -110,6 +125,7 @@ function AppShell() {
           beginWordNumbersAuthScope(null);
           beginSpansAuthScope(null);
           setCloudSyncing(false);
+          setWelcomePending(false);
           setInitializing(false);
           readLocalEvents(null).catch(() => {});
           syncWordNumbersFromCloud(null).catch(() => {});
@@ -161,7 +177,10 @@ function AppShell() {
     <ShareToTimeline navigationRef={navigationRef} user={user}>
       <NavigationContainer ref={navigationRef} linking={shareLinking}>
         <ThemedStatusBar />
-        <ThemedNavigator navKey={user?.uid || 'logged-out'}>
+        <ThemedNavigator
+          navKey={`${user?.uid || 'logged-out'}-${welcomePending ? 'welcome' : 'app'}`}
+          initialRouteName={!user ? 'Login' : welcomePending ? 'Welcome' : 'Home'}
+        >
           {!user ? (
             <Stack.Screen
               name="Login"
@@ -170,6 +189,17 @@ function AppShell() {
             />
           ) : (
             <>
+              <Stack.Screen
+                name="Welcome"
+                options={{ title: 'Welcome', headerBackVisible: false }}
+              >
+                {(props) => (
+                  <WelcomeScreen
+                    {...props}
+                    onFinished={() => setWelcomePending(false)}
+                  />
+                )}
+              </Stack.Screen>
               <Stack.Screen name="Home" options={{ title: 'Home' }}>
                 {(props) => (
                   <HomeScreen {...props} user={user} onLogout={handleLogout} />
@@ -446,11 +476,12 @@ function ThemedStatusBar() {
   return <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />;
 }
 
-function ThemedNavigator({ children, navKey }) {
+function ThemedNavigator({ children, navKey, initialRouteName }) {
   const { colors, scheme } = useTheme();
   return (
     <Stack.Navigator
       key={navKey}
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: true,
         headerStyle: { backgroundColor: colors.headerBg },

@@ -19,7 +19,7 @@
 - [x] App running in browser on HP laptop
 - [x] User login with email and password
 - [x] User register as new account (basic)  
-  *(Welcome email with next steps still open)*
+  *(Welcome letter in-app after register; inbox send still Blaze)*
 - [x] User add things like hobbies (MVP)  
   Poetry (title + poem text), Singing/Music (title + description + file note), Reading (progress). Full audio file attach still open.
 - [x] Add poem â own screen (`AddPoemScreen`)
@@ -82,7 +82,7 @@
 - [x] Share to Timeline (wired; needs Android/iOS dev build to test from Gmail or photo apps)
 - [x] Add from email in-app (Home â Add Event with From + body)
 - [x] **In-app Pick from Gmail** (working in preview + Expo picker). Live Gmail API list still later if wanted.
-- [ ] Welcome email on register
+- [x] **Welcome email on register (21 Sep 2026):** letter from Sarah after Create account. Settings → Welcome email to re-read. Copy to clipboard. Real inbox send still needs Blaze / Trigger Email.
 
 ---
 

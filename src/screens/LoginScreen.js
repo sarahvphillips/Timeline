@@ -10,12 +10,14 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   auth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from '../services/firebase';
+import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -45,7 +47,13 @@ export default function LoginScreen() {
 
     try {
       if (isRegisterMode) {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await AsyncStorage.setItem(WELCOME_NEXT_KEY, '1');
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const uid = cred?.user?.uid;
+        if (uid) {
+          await AsyncStorage.setItem(welcomePendingKey(uid), '1');
+          await AsyncStorage.removeItem(WELCOME_NEXT_KEY);
+        }
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
