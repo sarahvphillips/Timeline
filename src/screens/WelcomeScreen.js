@@ -56,11 +56,18 @@ export default function WelcomeScreen({ navigation, route, onFinished }) {
         <Text style={styles.kicker}>A letter from Sarah</Text>
         <Text style={styles.subject}>{letter.subject}</Text>
         <Text style={styles.meta}>From {letter.from}</Text>
-        {letter.paragraphs.map((p) => (
-          <Text key={p.slice(0, 24)} style={styles.body}>
-            {p}
-          </Text>
-        ))}
+        {letter.sections.map((block, i) =>
+          block.type === 'poem' ? (
+            <View key="poem" style={styles.poemBox}>
+              <Text style={styles.poemKicker}>A poem for Timeline</Text>
+              <Text style={styles.poem}>{block.text}</Text>
+            </View>
+          ) : (
+            <Text key={`p-${i}`} style={styles.body}>
+              {block.text}
+            </Text>
+          ),
+        )}
         <TouchableOpacity style={styles.primary} onPress={continueOn}>
           <Text style={styles.primaryText}>{fromSettings ? 'Back to Settings' : 'Start Timeline'}</Text>
         </TouchableOpacity>
@@ -89,6 +96,27 @@ const styles = StyleSheet.create({
   subject: { color: '#f8fafc', fontSize: 24, fontWeight: '800', marginTop: 8, lineHeight: 30 },
   meta: { color: '#94a3b8', fontSize: 13, marginTop: 8, marginBottom: 18 },
   body: { color: '#e2e8f0', fontSize: 16, lineHeight: 24, marginBottom: 14 },
+  poemBox: {
+    borderLeftWidth: 2,
+    borderLeftColor: '#c4b5fd',
+    paddingLeft: 14,
+    marginBottom: 18,
+    marginTop: 4,
+  },
+  poemKicker: {
+    color: '#c4b5fd',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  poem: {
+    color: '#f1f5f9',
+    fontSize: 16,
+    lineHeight: 26,
+    fontStyle: 'italic',
+  },
   primary: {
     backgroundColor: '#3b82f6',
     borderRadius: 12,
