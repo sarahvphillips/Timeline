@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 17 Sep 2026 (People screen)
+**Last updated:** 21 Sep 2026 (profile privacy + people share)
 
 ---
 
@@ -69,6 +69,9 @@
 - [x] Shared edit suggestions MVP: invitee Suggest a note (core fields read-only); persist \editSuggestions\ on \sharedEvents/{shareId}\; creator Approve/Decline on Share screen; approve appends attributed note to description + syncs creator copy; invitee copies refresh via \syncLocalEventFromShared\; ecentSuggestion\ banner / pending count
 - [x] Creator notices on Edit Event (AddEventScreen): load sharedEvents when creator opens Edit; banner for friend left + pending suggest-notes with Approve/Decline; Timeline light "Friend left" / "Note suggested" flags; leave invite cleanup by inviteCode (no collection query / no LogBox warn); Events with friends filters out shares with no other active participant
 - [x] Accept invite **Scan QR** (`AcceptInviteScreen` + `expo-camera` CameraView on native; parses raw code / `timelineapp://share/CODE` / https share links; web keeps paste-only note). Share QR enlarged for coffee-table scan.
+- [x] **Events with friends layout (21 Sep 2026):** year/month/week on the centre axis; shared cards left/right with curves. Filter chips per friend + All friends. **Show private items** off by default (personal cards grey, Personal only).
+- [x] **People invite share (21 Sep 2026):** Copy, Gmail, SMS, WhatsApp, More (OS share sheet). After Add person, optional Invite.
+- [x] **Profile privacy (21 Sep 2026):** Settings Totally private (default) vs Searchable. Public handle, share link + QR. People → Find a public profile. Publish `publicProfiles` + `profileHandles` rules.
 - [ ] Share whole timeline with another Timeline user (still later)
 - [ ] Add another account (alert: log out and sign in with a different email)
 
@@ -78,8 +81,7 @@
 
 - [x] Share to Timeline (wired; needs Android/iOS dev build to test from Gmail or photo apps)
 - [x] Add from email in-app (Home â Add Event with From + body)
-- [ ] **In-app Pick from Gmail**  
-  List recent emails via Gmail API; tap â Add Event pre-filled
+- [x] **In-app Pick from Gmail** (working in preview + Expo picker). Live Gmail API list still later if wanted.
 - [ ] Welcome email on register
 
 ---
@@ -94,7 +96,7 @@ Product map:
 - [x] **Add Food** form (`AddFoodScreen`): photo + items (text) + date + planned/eaten -> Timeline event `source: 'food'` (`foodStatus`, `foodItems`, optional `imageUri`)
 - [x] Web photo quota: compress/resize on pick (`expo-image-manipulator`, max width ~1280, JPEG ~0.7; canvas fallback for blob:/data:); heavy `data:` payloads stored under `@timeline_img_{eventId}` with short refs in events list; QuotaExceededError -> clear message. **Firebase Storage still the real long-term fix.**
 - [x] + menus (Timeline / Month / Week) show Food only when toggle is on
-- [ ] **Cupboard** (bought list / inventory UI) - later
+- [x] **Cupboard** (preview bought list / use in a meal). Expo cupboard still thin vs preview.
 - [ ] Calories / structured nutrition - not in this pass
 
 ---
@@ -152,7 +154,7 @@ Product map:
 - [ ] Broader friend graph / whole-timeline link (later)
 - [ ] **Friend usernames (privacy)** - some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
 - [ ] **Friend avatars on sharedEvents** - do not write local photoUri (data:/blob:/asref:) to participants; use Firebase Storage download URLs later. Until then friends view falls back to initial. (participantForCloud)
-- [ ] **Polish Events with friends timeline display** - curved coloured friend lines, avatars on lines; current intersecting view is MVP/first cut, refine later (do not block on this). Discuss more friends-view features with Sarah before polish.
+- [ ] **Polish Events with friends timeline display** - first cut done 21 Sep (curves, friend filter, optional private). Avatars on lines / extra friends-view ideas still later. Remove TEMP Design button when it matches the sketch.
 - [ ] **TEMP: Design button on Events with friends** - top-right corner opens `assets/friends-design-target.jpg` modal preview. Remove when friends view polish matches the sketch.
 - [x] User specify date of birth (Settings, local for now)
 
