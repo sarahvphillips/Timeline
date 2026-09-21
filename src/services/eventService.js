@@ -1056,6 +1056,7 @@ export function getYearBubblePreviewBlurbs(events, year, filter, limit = 6) {
       title: e.title || 'Untitled',
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],
+      imageUri: e.imageUri || '',
     };
   });
 }
@@ -1153,6 +1154,7 @@ export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit =
       title: e.title || 'Untitled',
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],
+      imageUri: e.imageUri || '',
     };
   });
 }
@@ -1199,6 +1201,7 @@ export function getDayBubblePreviewBlurbs(events, date, filter, limit = 6) {
       title: e.title || 'Untitled',
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],
+      imageUri: e.imageUri || '',
     };
   });
 }

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
 } from 'react-native';
@@ -17,7 +18,9 @@ import {
   getItemBubblesByYear,
   TIMELINE_FILTERS,
   EVENTS_FIRESTORE_SYNC_ENABLED,
+  saveEvent,
 } from '../services/eventService';
+import { pickFromGallery } from '../services/imagePicker';
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
 import SpineKindBlock from '../components/SpineKindBlock';
@@ -114,6 +117,7 @@ export default function YearOverviewScreen({ navigation, route }) {
               ? ''
               : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}`,
             labels: e.labels || [],
+            imageUri: e.imageUri || '',
           },
         ],
       });
@@ -128,6 +132,27 @@ export default function YearOverviewScreen({ navigation, route }) {
   };
 
   const closePreview = () => setPreview(null);
+
+  const addPhotoToPreview = async (blurb) => {
+    const uri = await pickFromGallery();
+    if (!uri) return;
+    const ev =
+      (blurb?.id && events.find((e) => e.id === blurb.id)) || preview?.item || null;
+    if (!ev) return;
+    await saveEvent({ ...ev, imageUri: uri });
+    setPreview((cur) =>
+      cur
+        ? {
+            ...cur,
+            item: cur.item?.id === ev.id ? { ...cur.item, imageUri: uri } : cur.item,
+            blurbs: (cur.blurbs || []).map((b) =>
+              b.id === ev.id ? { ...b, imageUri: uri } : b
+            ),
+          }
+        : cur
+    );
+    load();
+  };
 
   const zoomInFromPreview = () => {
     if (!preview) return;
@@ -239,7 +264,13 @@ export default function YearOverviewScreen({ navigation, route }) {
                       {b.title}
                     </Text>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
+                    {b.imageUri ? (
+                      <Image source={{ uri: b.imageUri }} style={styles.blurbImage} />
+                    ) : null}
                     <EventLabelChips labels={b.labels} />
+                    <TouchableOpacity onPress={() => addPhotoToPreview(b)}>
+                      <Text style={styles.addPhoto}>{b.imageUri ? 'Change photo' : 'Add photo'}</Text>
+                    </TouchableOpacity>
                   </View>
                 ))
               )}
@@ -386,6 +417,19 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 12,
     marginTop: 4,
+  },
+  blurbImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 10,
+    marginTop: 8,
+    backgroundColor: '#0f1024',
+  },
+  addPhoto: {
+    color: '#a5b4fc',
+    fontWeight: '700',
+    marginTop: 8,
+    fontSize: 14,
   },
   blurbEmpty: {
     color: '#94a3b8',
