@@ -49,8 +49,6 @@ export default function UtilitiesScreen({ navigation }) {
         >
           <Text style={styles.buttonText}>Starlink check</Text>
         </TouchableOpacity>
-          <Text style={styles.buttonText}>Starlink check</Text>
-        </TouchableOpacity>
         <Text style={[styles.hint, { color: colors.muted }]}>
           Whether this device is on Starlink (public IP ASN) and optional dish at 192.168.100.1.
         </Text>
