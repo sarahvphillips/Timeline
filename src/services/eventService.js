@@ -771,6 +771,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   sms: '#22c55e',
   call: '#fb923c',
   bank: '#22d3ee',
+  watched: '#f472b6',
 };
 
 const YEAR_BUBBLE_KIND_ORDER = [
@@ -788,6 +789,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'sms',
   'call',
   'bank',
+  'watched',
 ];
 
 /**
@@ -835,6 +837,14 @@ export function classifyYearBubbleKind(event) {
       label: 'Food',
       color: YEAR_BUBBLE_KIND_COLORS.food,
       filter: { source: 'food' },
+    };
+  }
+  if (source === 'watched' || event?.watchKind || hobbyType === 'watching') {
+    return {
+      kind: 'watched',
+      label: event?.watchKind || 'Watched',
+      color: YEAR_BUBBLE_KIND_COLORS.watched,
+      filter: { source: 'watched' },
     };
   }
   if (source === 'youtube' || category === 'youtube') {
@@ -1378,6 +1388,7 @@ export const TIMELINE_FILTERS = [
   { id: 'email', label: 'Email', color: '#14b8a6', itemView: true },
   { id: 'youtube', label: 'YouTube', color: '#f87171', itemView: true },
   { id: 'spotify', label: 'Spotify', color: '#1db954', itemView: true },
+  { id: 'watched', label: 'TV & films', color: '#f472b6', itemView: true },
   { id: 'food', label: 'Food', color: '#f59e0b', itemView: true },
   { id: 'laundry', label: 'Wash', color: '#38bdf8', itemView: true },
   { id: 'bank', label: 'Banking', color: '#22d3ee', itemView: true },
@@ -1402,6 +1413,9 @@ export function eventMatchesTimelineFilter(event, filterId) {
   if (filterId === 'email') return source === 'email';
   if (filterId === 'youtube') return source === 'youtube';
   if (filterId === 'spotify') return source === 'spotify';
+  if (filterId === 'watched') {
+    return source === 'watched' || hobby === 'watching' || !!event?.watchKind;
+  }
   if (filterId === 'food') return source === 'food';
   if (filterId === 'laundry') return source === 'laundry';
   if (filterId === 'bank') return source === 'bank' || category === 'banking';
