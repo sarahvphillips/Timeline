@@ -17,7 +17,7 @@ import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { getPeople } from '../services/peopleService';
 import { formatUk } from '../services/dateSpanService';
 import { createEventShare } from '../services/shareService';
-import { PLACE_PRESETS, parseMapsLink, mapsSearchUrl } from '../services/placesService';
+import { PLACE_PRESETS, parseMapsLink, mapsSearchUrl, getCurrentPlace } from '../services/placesService';
 
 const CATEGORIES = [
   { id: 'travel', label: 'Travel' },
@@ -56,6 +56,12 @@ export default function AddLocationScreen({ navigation, route }) {
   const [people, setPeople] = useState([]);
   const [logged, setLogged] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [coords, setCoords] = useState(
+    existing?.placeLat != null && existing?.placeLng != null
+      ? { lat: existing.placeLat, lng: existing.placeLng }
+      : null,
+  );
 
   const load = useCallback(async () => {
     const [list, events] = await Promise.all([getPeople(), getEvents()]);
@@ -78,6 +84,7 @@ export default function AddLocationScreen({ navigation, route }) {
     setAddress('');
     setMapsLink('');
     setFromGoogle(false);
+    setCoords(null);
     setDate(todayIso());
     setArrived(nowClock());
     setLeft('');
@@ -102,6 +109,29 @@ export default function AddLocationScreen({ navigation, route }) {
     setAddress(p.address);
     setFromGoogle(false);
     setMapsLink('');
+    setCoords(null);
+  };
+
+  const useGps = async () => {
+    setLocating(true);
+    try {
+      const place = await getCurrentPlace();
+      setName(place.name);
+      setAddress(place.address);
+      setMapsLink(place.url);
+      setCoords({ lat: place.latitude, lng: place.longitude });
+      setFromGoogle(false);
+    } catch (e) {
+      const denied = e?.code === 'denied';
+      Alert.alert(
+        denied ? 'Location off' : 'GPS',
+        denied
+          ? 'Allow location for Expo Go (or Timeline) while using the app, then tap Use current GPS again. Timeline does not track you in the background.'
+          : e?.message || 'Could not read GPS.',
+      );
+    } finally {
+      setLocating(false);
+    }
   };
 
   const handleSave = async () => {
@@ -132,6 +162,9 @@ export default function AddLocationScreen({ navigation, route }) {
         placeLeft: left.trim(),
         placeNote: note.trim(),
         fromGoogle,
+        fromGps: Boolean(coords),
+        placeLat: coords?.lat,
+        placeLng: coords?.lng,
         placeWithIds: withIds,
         sharedWithFriend: Boolean(shareThis && tagged.length),
       });
@@ -172,9 +205,19 @@ export default function AddLocationScreen({ navigation, route }) {
         <Text style={styles.kicker}>Places</Text>
         <Text style={styles.heading}>{existing ? 'Edit location' : 'Add location'}</Text>
         <Text style={styles.intro}>
-          Home, Internet, or a named high-street place do not need Google. Paste a Maps share link
-          if you have one. Google Maps Timeline history cannot be imported — Google closed that.
+          Home, Internet, or a named high-street place do not need Google. Use current GPS fills this
+          spot (permission only when you tap it). Paste a Maps share link if you have one. Google Maps
+          Timeline history cannot be imported.
         </Text>
+
+        <TouchableOpacity style={styles.gpsBtn} onPress={useGps} disabled={locating}>
+          <Text style={styles.gpsText}>{locating ? 'Finding you…' : 'Use current GPS'}</Text>
+        </TouchableOpacity>
+        {coords ? (
+          <Text style={styles.accent}>
+            {Number(coords.lat).toFixed(5)}, {Number(coords.lng).toFixed(5)}
+          </Text>
+        ) : null}
 
         <Text style={styles.label}>Quick places</Text>
         <View style={styles.row}>
@@ -320,6 +363,7 @@ export default function AddLocationScreen({ navigation, route }) {
                   {formatUk(item.date)}
                   {item.placeArrived ? ` · ${item.placeArrived}` : ''}
                   {item.fromGoogle ? ' · from Google' : ''}
+                  {item.fromGps ? ' · GPS' : ''}
                 </Text>
                 {item.placeAddress ? <Text style={styles.meta}>{item.placeAddress}</Text> : null}
               </TouchableOpacity>
@@ -364,6 +408,16 @@ const styles = StyleSheet.create({
   },
   heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800', marginTop: 4 },
   intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  gpsBtn: {
+    backgroundColor: '#134e4a',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#2dd4bf',
+  },
+  gpsText: { color: '#ccfbf1', fontWeight: '800', fontSize: 16 },
   label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
   hint: { color: '#94a3b8', fontSize: 13, marginBottom: 8 },
   accent: { color: '#2dd4bf', fontSize: 13, fontWeight: '700', marginBottom: 8 },

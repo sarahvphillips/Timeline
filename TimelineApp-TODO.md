@@ -137,7 +137,7 @@ Product map:
 - [ ] **Purchases: Delivery tracking perk** (credits or subscription — not all users want this). Driver name / reg / photo / phone from a delivery screenshot. Later: doorbell clip of arrival, phone screen recording, phone camera of drop-off. Off by default. Preview toggle on Add purchase.
 - [x] **Clip points without editing the original** (preview 10 Sep 2026): pick video, show size + length, user sets start/end. **Checksum the trimmed copy** (what the user verifies). Also store the original file checksum. Preview downloads a new WebM copy (does not overwrite gallery). Expo later: save clip to gallery (`MediaLibrary`). Re-encode in browser; native can stream-copy.
 - [x] **App checksums** (preview): Home section + `/checksums`. Events get a checksum on create; each edit adds a new checksum row (edit-list). Videos checksummed too.
-- [x] **Locations / Places (21 Sep 2026):** Add event → Location. Presets Home / Internet / high street. Paste Google Maps share link. Date, arrived/left, People, optional share. Timeline **Places** filter. Generic events can also take a location. Maps Timeline history cannot be imported (Google closed it).
+- [x] **Locations / Places (21 Sep 2026):** Add event → Location. Presets Home / Internet / high street. Paste Google Maps share link. **Use current GPS** (foreground only, Expo Go permission). Date, arrived/left, People, optional share. Timeline **Places** filter. Generic events can also take a location. Maps Timeline history cannot be imported (Google closed it).
 - [ ] User add household chores
 
 ### Life & people
