@@ -251,7 +251,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
         <Text style={styles.intro}>
-          Same spine as years and months: one week, days in boxes, type-bubbles on the sides.
+          Same central axis as years and months: one week, days in boxes, type-bubbles on the sides.
         </Text>
         {activeFilter ? (
           <View style={styles.chipRow}>

@@ -18,7 +18,7 @@ Home: Timeline, Add event, Credits, Utilities, latest wash. Add event is one pic
 
 ## Timeline
 
-Years → months → weeks. Centre spine, bubbles left and right. Filter chips for Poems, Games, SMS, Banking, and so on. Home icon next to + goes Home.
+Years → months → weeks. Central axis, bubbles left and right. Filter chips for Poems, Games, SMS, Banking, and so on. Home icon next to + goes Home.
 
 ## People
 

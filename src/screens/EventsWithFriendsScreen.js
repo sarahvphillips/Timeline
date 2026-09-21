@@ -426,8 +426,8 @@ export default function EventsWithFriendsScreen({ navigation }) {
               <Text style={styles.emptyTitle}>No events yet</Text>
               <Text style={styles.emptyBody}>
                 Add moments on your timeline, or share an event and accept an invite from a
-                friend. Personal memories stay on the left; shared moments meet on the centre
-                spine.
+                friend. Personal memories stay on the left; shared moments meet on the central
+                axis.
               </Text>
             </View>
           ) : (

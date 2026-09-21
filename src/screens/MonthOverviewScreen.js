@@ -187,7 +187,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
         </Text>
         {filtered ? null : (
           <Text style={styles.intro}>
-            Same as years: month on the spine, type-bubbles on spokes. Tap a bubble, then zoom in to the weeks.
+            Same as years: month on the central axis, type-bubbles on spokes. Tap a bubble, then zoom in to the weeks.
           </Text>
         )}
         {activeFilter ? (

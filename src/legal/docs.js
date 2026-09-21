@@ -82,7 +82,7 @@ export const MANUAL_SECTIONS = [
   },
   {
     heading: 'Timeline views',
-    body: 'Years → months → weeks, with a centre spine and bubbles left and right. Tap a year or month to zoom in. Filter chips (Poems, Games, SMS, Banking, and so on) show matching items on one spine. Home icon next to + returns to Home.',
+    body: 'Years → months → weeks, with a central axis and bubbles left and right. Tap a year or month to zoom in. Filter chips (Poems, Games, SMS, Banking, and so on) show matching items on one central axis. Home icon next to + returns to Home.',
   },
   {
     heading: 'People and sharing',
