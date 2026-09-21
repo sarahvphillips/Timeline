@@ -27,6 +27,7 @@ import {
   saveShowFoodInMenu,
   getShowWashInMenu,
   saveShowWashInMenu,
+  normalizeHandle,
 } from '../services/profileService';
 import { clearThisAccountLocalCache } from '../services/localCache';
 import { auth } from '../services/firebase';
@@ -70,6 +71,8 @@ export default function SettingsScreen({ navigation }) {
   const { mode, palette, scheme, colors, setMode, setPalette } = useTheme();
   const [displayName, setDisplayName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [handle, setHandle] = useState('');
+  const [visibility, setVisibility] = useState('private');
   const [labels, setLabels] = useState([]);
   const [poemCats, setPoemCats] = useState([]);
   const [newLabel, setNewLabel] = useState('');
@@ -98,6 +101,8 @@ export default function SettingsScreen({ navigation }) {
     ]);
     setDisplayName(profile.displayName);
     setDateOfBirth(profile.dateOfBirth);
+    setHandle(profile.handle || '');
+    setVisibility(profile.visibility === 'public' ? 'public' : 'private');
     setLabels(labs);
     setPoemCats(cats);
     setShowFoodInMenu(!!foodOn);
@@ -153,10 +158,23 @@ export default function SettingsScreen({ navigation }) {
     }
     setSavingProfile(true);
     try {
-      await saveProfile({ displayName, dateOfBirth });
-      Alert.alert('Saved', 'Profile basics are saved on this device.');
-    } catch {
-      Alert.alert('Error', 'Could not save profile.');
+      await saveProfile({
+        displayName,
+        dateOfBirth,
+        handle: normalizeHandle(handle),
+        visibility,
+      });
+      Alert.alert(
+        'Saved',
+        visibility === 'public'
+          ? 'Your profile is searchable. Share it with a link or QR.'
+          : 'Your profile is private. Only people you invite can find you.',
+      );
+    } catch (e) {
+      Alert.alert(
+        e?.code === 'HANDLE_TAKEN' || e?.code === 'HANDLE_REQUIRED' ? 'Handle' : 'Error',
+        e?.message || 'Could not save profile.',
+      );
     } finally {
       setSavingProfile(false);
     }
@@ -312,6 +330,52 @@ export default function SettingsScreen({ navigation }) {
         <Text style={[styles.hint, { color: colors.faint }]}>
           Profile photo is still changed from Home (tap the circle at the top).
         </Text>
+
+        <Text style={[styles.section, { color: colors.muted }]}>Who can find you</Text>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Private is the default. Searchable lets other Timeline users open your profile without
+          adding you as a friend first. Events stay private unless you share them.
+        </Text>
+        <View style={styles.row}>
+          {[
+            { id: 'private', label: 'Totally private' },
+            { id: 'public', label: 'Searchable' },
+          ].map((item) => {
+            const on = visibility === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.chip,
+                  { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                  on && { backgroundColor: colors.blue, borderColor: colors.blue },
+                ]}
+                onPress={() => setVisibility(item.id)}
+              >
+                <Text style={[styles.chipText, { color: on ? '#fff' : colors.text }]}>{item.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={[styles.label, { color: colors.muted }]}>Public handle</Text>
+        <TextInput
+          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
+          value={handle}
+          onChangeText={(t) => setHandle(normalizeHandle(t))}
+          placeholder="e.g. sarahv"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholderTextColor={colors.faint}
+        />
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Letters, numbers, dots. Needed if you want a QR or social link. Save profile after changing.
+        </Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder }]}
+          onPress={() => navigation.navigate('ShareProfile')}
+        >
+          <Text style={[styles.saveBtnText, { color: colors.text }]}>Share profile link / QR</Text>
+        </TouchableOpacity>
 
         <Text style={[styles.section, { color: colors.muted }]}>Light / dark</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>

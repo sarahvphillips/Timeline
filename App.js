@@ -50,6 +50,8 @@ import LegalScreen from './src/screens/LegalScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
 import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
+import ShareProfileScreen from './src/screens/ShareProfileScreen';
+import PublicProfileScreen from './src/screens/PublicProfileScreen';
 import { ThemeProvider, useTheme } from './src/themeContext';
 
 const Stack = createNativeStackNavigator();
@@ -373,6 +375,18 @@ function AppShell() {
                 name="AcceptInvite"
                 component={AcceptInviteScreen}
                 options={{ title: 'Enter invite code' }}
+              />
+
+              <Stack.Screen
+                name="ShareProfile"
+                component={ShareProfileScreen}
+                options={{ title: 'Share my profile' }}
+              />
+
+              <Stack.Screen
+                name="PublicProfile"
+                component={PublicProfileScreen}
+                options={{ title: 'Public profile' }}
               />
 
               <Stack.Screen

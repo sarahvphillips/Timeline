@@ -42,6 +42,21 @@ service cloud.firestore {
       }
     }
 
+    match /publicProfiles/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.visibility == 'public';
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /profileHandles/{handle} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     match /sharedEvents/{id} {
       // Signed-in read so invitees can preview before accept (MVP).
       // Tighten later to creator/participant OR pending-invite holder.

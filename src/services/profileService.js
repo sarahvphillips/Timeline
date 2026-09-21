@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from '../theme';
+import { buildProfileLink } from '../utils/inviteCode';
 
 const LEGACY_PROFILE_KEY = '@timeline_profile';
 const LEGACY_LABELS_KEY = '@timeline_labels';
@@ -122,29 +123,65 @@ async function pushSettingsDoc(docId, payload) {
   await setDoc(settingsDoc(uid, docId), stripUndefined(payload));
 }
 
+export function emptyProfile() {
+  return {
+    displayName: '',
+    dateOfBirth: '',
+    handle: '',
+    visibility: 'private',
+  };
+}
+
+export function normalizeHandle(raw) {
+  return String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '')
+    .slice(0, 24);
+}
+
+export function normalizeProfile(raw) {
+  const parsed = raw && typeof raw === 'object' ? raw : {};
+  const visibility = parsed.visibility === 'public' ? 'public' : 'private';
+  return {
+    displayName: parsed.displayName || '',
+    dateOfBirth: parsed.dateOfBirth || '',
+    handle: normalizeHandle(parsed.handle),
+    visibility,
+    updatedAt: parsed.updatedAt || undefined,
+  };
+}
+
 export async function getProfile() {
   const uid = getUid();
   try {
     if (uid) await migrateLegacySettingsOnce(uid);
     const raw = await AsyncStorage.getItem(profileKey(uid));
-    if (!raw) return { displayName: '', dateOfBirth: '' };
-    const parsed = JSON.parse(raw);
-    return {
-      displayName: parsed.displayName || '',
-      dateOfBirth: parsed.dateOfBirth || '',
-    };
+    if (!raw) return emptyProfile();
+    return normalizeProfile(JSON.parse(raw));
   } catch {
-    return { displayName: '', dateOfBirth: '' };
+    return emptyProfile();
   }
 }
 
 export async function saveProfile(profile) {
   const uid = getUid();
-  const next = {
-    displayName: String(profile.displayName || '').trim(),
-    dateOfBirth: String(profile.dateOfBirth || '').trim(),
+  const current = await getProfile();
+  const next = normalizeProfile({
+    ...current,
+    ...profile,
     updatedAt: new Date().toISOString(),
-  };
+  });
+  if (next.visibility === 'public') {
+    if (next.handle.length < 3) {
+      const err = new Error('Pick a handle of at least 3 letters or numbers to be searchable.');
+      err.code = 'HANDLE_REQUIRED';
+      throw err;
+    }
+    await claimPublicProfile(uid, current.handle, next);
+  } else {
+    await releasePublicProfile(uid, current.handle);
+  }
   await AsyncStorage.setItem(profileKey(uid), JSON.stringify(next));
   if (uid) {
     try {
@@ -154,6 +191,87 @@ export async function saveProfile(profile) {
     }
   }
   return next;
+}
+
+async function claimPublicProfile(uid, previousHandle, profile) {
+  if (!uid) throw new Error('Sign in to make your profile searchable.');
+  const handle = profile.handle;
+  const taken = await getDoc(doc(db, 'profileHandles', handle));
+  if (taken.exists() && taken.data()?.uid && taken.data().uid !== uid) {
+    const err = new Error('That handle is already in use. Try another.');
+    err.code = 'HANDLE_TAKEN';
+    throw err;
+  }
+  if (previousHandle && previousHandle !== handle) {
+    try {
+      const old = await getDoc(doc(db, 'profileHandles', previousHandle));
+      if (old.exists() && old.data()?.uid === uid) {
+        await deleteDoc(doc(db, 'profileHandles', previousHandle));
+      }
+    } catch (e) {
+      console.warn('Could not free old handle', e);
+    }
+  }
+  const publicRow = stripUndefined({
+    uid,
+    handle,
+    displayName: profile.displayName || handle,
+    visibility: 'public',
+    updatedAt: profile.updatedAt || new Date().toISOString(),
+  });
+  await setDoc(doc(db, 'profileHandles', handle), { uid, updatedAt: publicRow.updatedAt });
+  await setDoc(doc(db, 'publicProfiles', uid), publicRow);
+}
+
+async function releasePublicProfile(uid, handle) {
+  if (!uid) return;
+  try {
+    if (handle) {
+      const snap = await getDoc(doc(db, 'profileHandles', handle));
+      if (snap.exists() && snap.data()?.uid === uid) {
+        await deleteDoc(doc(db, 'profileHandles', handle));
+      }
+    }
+    await deleteDoc(doc(db, 'publicProfiles', uid));
+  } catch (e) {
+    console.warn('Could not take profile private in the cloud', e);
+  }
+}
+
+export async function lookupPublicProfile(handleOrLink) {
+  const handle = normalizeHandle(
+    String(handleOrLink || '').replace(/^profile:/i, '').replace(/^.*profile\//i, ''),
+  );
+  if (handle.length < 3) return null;
+  const snap = await getDoc(doc(db, 'profileHandles', handle));
+  if (!snap.exists()) return null;
+  const uid = snap.data()?.uid;
+  if (!uid) return null;
+  const profile = await getDoc(doc(db, 'publicProfiles', uid));
+  if (!profile.exists()) return null;
+  const data = profile.data() || {};
+  if (data.visibility !== 'public') return null;
+  return {
+    uid,
+    handle: data.handle || handle,
+    displayName: data.displayName || handle,
+    visibility: 'public',
+    link: buildProfileLink(data.handle || handle),
+  };
+}
+
+export function profileShareText(profile) {
+  const handle = profile?.handle || '';
+  const link = buildProfileLink(handle);
+  const name = profile?.displayName || handle || 'me';
+  return [
+    `Find ${name} on Timeline`,
+    handle ? `@${handle}` : '',
+    link ? `Open: ${link}` : '',
+    'Home → People → Find a public profile, then type the handle.',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 async function loadList(key, fallback) {
@@ -335,11 +453,13 @@ async function syncProfileFromCloud(uid, local) {
     return local;
   }
   const data = snap.data() || {};
-  const cloud = {
+  const cloud = normalizeProfile({
     displayName: data.displayName || '',
     dateOfBirth: data.dateOfBirth || '',
+    handle: data.handle || '',
+    visibility: data.visibility,
     updatedAt: toIso(data.updatedAt) || new Date().toISOString(),
-  };
+  });
   await AsyncStorage.setItem(profileKey(uid), JSON.stringify(cloud));
   return cloud;
 }
@@ -474,11 +594,7 @@ export async function syncSettingsFromCloud(uid) {
     const raw = await AsyncStorage.getItem(profileKey(uid));
     if (raw) {
       const parsed = JSON.parse(raw);
-      profile = {
-        displayName: parsed.displayName || '',
-        dateOfBirth: parsed.dateOfBirth || '',
-        updatedAt: parsed.updatedAt,
-      };
+      profile = normalizeProfile(JSON.parse(raw));
     }
   } catch (_) {}
 

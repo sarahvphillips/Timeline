@@ -8,6 +8,14 @@ export function buildJoinLink(code) {
   return `timelineapp://join/${String(code || '').toUpperCase()}`;
 }
 
+export function buildProfileLink(handle) {
+  const h = String(handle || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '');
+  return h ? `timelineapp://profile/${h}` : '';
+}
+
 /** Extract invite code from raw QR / pasted link text. Matches Share QR (timelineapp://share/CODE) and join links (timelineapp://join/CODE). */
 export function parseInviteCodeFromScan(raw) {
   const text = String(raw || '').trim();
@@ -15,6 +23,9 @@ export function parseInviteCodeFromScan(raw) {
 
   const scheme = text.match(/timelineapp:\/\/(?:\/)?(?:share|join)\/([A-Za-z0-9]+)/i);
   if (scheme && scheme[1]) return scheme[1].toUpperCase();
+
+  const profile = text.match(/timelineapp:\/\/(?:\/)?profile\/([A-Za-z0-9._-]+)/i);
+  if (profile && profile[1]) return `profile:${profile[1].toLowerCase()}`;
 
   const httpsPath = text.match(/https?:\/\/[^\s]+\/(?:share|join)\/([A-Za-z0-9]+)/i);
   if (httpsPath && httpsPath[1]) return httpsPath[1].toUpperCase();

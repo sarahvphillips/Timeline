@@ -9,6 +9,7 @@ import {
   Alert,
   Share,
   Platform,
+  Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
@@ -25,9 +26,37 @@ import {
 import { daysUntilNext, formatUk } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
 import { applyJoinRewards } from '../services/rewardsService';
+import { copyTextToClipboard } from '../services/shareService';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function waDigits(phone) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('0') && d.length >= 10) d = `44${d.slice(1)}`;
+  return d;
+}
+
+function smsHref(phone, body) {
+  const text = encodeURIComponent(body);
+  const n = String(phone || '').replace(/\s/g, '');
+  if (Platform.OS === 'ios') return n ? `sms:${n}&body=${text}` : `sms:&body=${text}`;
+  return n ? `sms:${n}?body=${text}` : `sms:?body=${text}`;
+}
+
+function mailHref(email, subject, body) {
+  const s = encodeURIComponent(subject);
+  const b = encodeURIComponent(body);
+  const to = String(email || '').trim();
+  return to ? `mailto:${to}?subject=${s}&body=${b}` : `mailto:?subject=${s}&body=${b}`;
+}
+
+function whatsappHref(phone, body) {
+  const t = encodeURIComponent(body);
+  const d = waDigits(phone);
+  return d ? `https://wa.me/${d}?text=${t}` : `https://wa.me/?text=${t}`;
 }
 
 export default function PeopleScreen({ navigation }) {
@@ -40,6 +69,9 @@ export default function PeopleScreen({ navigation }) {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [shareForId, setShareForId] = useState(null);
+  const [sharePayload, setSharePayload] = useState(null);
+  const [findHandle, setFindHandle] = useState('');
   const [rewardNote, setRewardNote] = useState('');
   const [stats, setStats] = useState(null);
   const [credits, setCredits] = useState(0);
@@ -107,7 +139,14 @@ export default function PeopleScreen({ navigation }) {
       });
       await load();
       reset();
-      Alert.alert(editingId ? 'Saved' : 'Added', `${saved.name} is on your people list.`);
+      if (editingId) {
+        Alert.alert('Saved', `${saved.name} is on your people list.`);
+      } else {
+        Alert.alert('Added', `${saved.name} is on your people list.`, [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Invite', onPress: () => handleInvite(saved) },
+        ]);
+      }
     } catch (e) {
       Alert.alert(
         e?.code === 'DUPLICATE_PERSON' ? 'Already listed' : 'Error',
@@ -135,20 +174,70 @@ export default function PeopleScreen({ navigation }) {
   };
 
   const handleInvite = async (p) => {
+    if (shareForId === p.id) {
+      setShareForId(null);
+      return;
+    }
     try {
       const result = await createJoinInvite(p);
-      try {
-        await Share.share({ message: result.text });
-      } catch {
-        Alert.alert('Join code', result.text);
-      }
-      setCopiedId(p.id);
+      setSharePayload({
+        personId: p.id,
+        name: p.name,
+        phone: p.phone || '',
+        email: p.email || '',
+        text: result.text,
+        code: result.code,
+        link: result.link,
+      });
+      setShareForId(p.id);
       await load();
     } catch (e) {
       Alert.alert(
         'Invite not ready',
         e?.message || 'Could not create a join code. Check you are signed in and online, then try again.'
       );
+    }
+  };
+
+  const openShareUrl = async (url) => {
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.open(url, '_blank');
+        return;
+      }
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('App not found', 'That app isn’t installed. Try Copy or More.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Could not open', 'Try Copy or More instead.');
+    }
+  };
+
+  const copyInvite = async () => {
+    if (!sharePayload?.text) return;
+    const ok = await copyTextToClipboard(sharePayload.text);
+    setCopiedId(sharePayload.personId);
+    if (ok) {
+      Alert.alert('Copied', 'Invite text is on the clipboard. Paste into Gmail, Messages, or WhatsApp.');
+    } else {
+      Alert.alert('Invite', sharePayload.text);
+    }
+  };
+
+  const shareMore = async () => {
+    if (!sharePayload?.text) return;
+    try {
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { message: sharePayload.text, url: sharePayload.link || undefined }
+          : { message: sharePayload.text, title: `Invite ${sharePayload.name} to Timeline` },
+      );
+    } catch (e) {
+      if (e?.message && /share.*cancel/i.test(e.message)) return;
+      Alert.alert('Share', sharePayload.text);
     }
   };
 
@@ -290,6 +379,33 @@ export default function PeopleScreen({ navigation }) {
           <Text style={styles.secondaryText}>Import from date circle</Text>
         </TouchableOpacity>
 
+        <Text style={styles.listTitle}>Find a public profile</Text>
+        <Text style={styles.empty}>
+          Handles of people who chose Searchable. Private profiles will not appear.
+        </Text>
+        <TextInput
+          style={styles.input}
+          value={findHandle}
+          onChangeText={setFindHandle}
+          placeholder="@handle"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholderTextColor="#64748b"
+        />
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => {
+            const h = String(findHandle || '').replace(/^@/, '').trim();
+            if (h.length < 3) {
+              Alert.alert('Handle', 'Type a public handle of at least 3 characters.');
+              return;
+            }
+            navigation.navigate('PublicProfile', { handle: h });
+          }}
+        >
+          <Text style={styles.buttonText}>Look up</Text>
+        </TouchableOpacity>
+
         <Text style={styles.listTitle}>Your people</Text>
         {people.length === 0 ? (
           <Text style={styles.empty}>Nobody yet. Add someone, or import the date-circle wheel.</Text>
@@ -351,7 +467,9 @@ export default function PeopleScreen({ navigation }) {
                     <Text style={styles.link}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleInvite(p)}>
-                    <Text style={styles.link}>{copiedId === p.id ? 'Code sent' : p.joinCode ? 'Resend code' : 'Invite'}</Text>
+                    <Text style={styles.link}>
+                      {shareForId === p.id ? 'Hide share' : p.joinCode ? 'Share invite' : 'Invite'}
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleToWheel(p)}>
                     <Text style={styles.link}>Date circle</Text>
@@ -363,6 +481,45 @@ export default function PeopleScreen({ navigation }) {
                     <Text style={styles.delete}>Remove</Text>
                   </TouchableOpacity>
                 </View>
+                {shareForId === p.id && sharePayload?.personId === p.id ? (
+                  <View style={styles.shareBox}>
+                    <Text style={styles.shareHint}>
+                      Copy, or send with Gmail, Messages, WhatsApp. More opens every app on the phone.
+                    </Text>
+                    <View style={styles.shareRow}>
+                      <TouchableOpacity style={styles.shareChip} onPress={copyInvite}>
+                        <Text style={styles.shareChipText}>
+                          {copiedId === p.id ? 'Copied' : 'Copy'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.shareChip}
+                        onPress={() =>
+                          openShareUrl(
+                            mailHref(p.email, 'Join me on Timeline', sharePayload.text),
+                          )
+                        }
+                      >
+                        <Text style={styles.shareChipText}>Gmail</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.shareChip}
+                        onPress={() => openShareUrl(smsHref(p.phone, sharePayload.text))}
+                      >
+                        <Text style={styles.shareChipText}>SMS</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.shareChip}
+                        onPress={() => openShareUrl(whatsappHref(p.phone, sharePayload.text))}
+                      >
+                        <Text style={styles.shareChipText}>WhatsApp</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.shareChip, styles.shareChipOn]} onPress={shareMore}>
+                        <Text style={styles.shareChipTextOn}>More</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : null}
               </View>
             );
           })
@@ -477,4 +634,22 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
   link: { color: '#60a5fa', fontWeight: '700', fontSize: 13 },
   delete: { color: '#f87171', fontWeight: '700', fontSize: 13 },
+  shareBox: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#2e2f55',
+  },
+  shareHint: { color: '#94a3b8', fontSize: 12, lineHeight: 16, marginBottom: 8 },
+  shareRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  shareChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  shareChipOn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  shareChipText: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
+  shareChipTextOn: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

@@ -23,6 +23,12 @@ export function buildAppLinking() {
           code: (code) => String(code || '').toUpperCase(),
         },
       },
+      PublicProfile: {
+        path: 'profile/:handle',
+        parse: {
+          handle: (handle) => String(handle || '').toLowerCase(),
+        },
+      },
       // Share-intent entry (native share sheet); keep for Add Event deep link.
       AddEvent: 'shareintent',
     },
@@ -37,6 +43,14 @@ export function buildAppLinking() {
         return {
           routes: [
             { name: 'AcceptInvite', params: { code: join[1].toUpperCase() } },
+          ],
+        };
+      }
+      const profile = String(path || '').match(/(?:^|\/)profile\/([A-Za-z0-9._-]+)/i);
+      if (profile) {
+        return {
+          routes: [
+            { name: 'PublicProfile', params: { handle: profile[1].toLowerCase() } },
           ],
         };
       }
