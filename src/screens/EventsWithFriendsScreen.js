@@ -113,6 +113,7 @@ function cardGlyph(ev) {
   if (/gratitude|love|heart/.test(blob)) return '♡';
   if (/sms|text/.test(blob)) return '💬';
   if (/call|phone/.test(blob)) return '📞';
+  if (/place|location|maps|visit/.test(blob)) return '📍';
   if (/game/.test(blob)) return '🎮';
   if (/social|post/.test(blob)) return '✦';
   return '◆';
@@ -186,6 +187,9 @@ function navigateToEvent(navigation, event) {
   if (event.source === 'food') navigation.navigate('AddFood', { event });
   else if (event.source === 'laundry') navigation.navigate('AddWashLoad', { event });
   else if (event.hobbyType === 'poetry') navigation.navigate('AddPoem', { event });
+  if (event.source === 'sms') navigation.navigate('AddSms', { event });
+  else if (event.source === 'call') navigation.navigate('AddCall', { event });
+  else if (event.source === 'location') navigation.navigate('AddLocation', { event });
   else if (event.source === 'qr') navigation.navigate('AddQr', { event });
   else navigation.navigate('AddEvent', { event });
 }

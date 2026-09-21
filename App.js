@@ -53,6 +53,7 @@ import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
 import ShareProfileScreen from './src/screens/ShareProfileScreen';
 import PublicProfileScreen from './src/screens/PublicProfileScreen';
 import WelcomeScreen from './src/screens/WelcomeScreen';
+import AddLocationScreen from './src/screens/AddLocationScreen';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
 import { ThemeProvider, useTheme } from './src/themeContext';
 
@@ -387,6 +388,14 @@ function AppShell() {
                 name="AddCall"
                 component={AddCallScreen}
                 options={{ title: 'Add phone call' }}
+              />
+
+              <Stack.Screen
+                name="AddLocation"
+                component={AddLocationScreen}
+                options={({ route }) => ({
+                  title: route.params?.event ? 'Edit location' : 'Add location',
+                })}
               />
 
               <Stack.Screen

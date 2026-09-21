@@ -42,6 +42,7 @@ import {
 import { auth } from '../services/firebase';
 import { ADD_KINDS } from '../constants/addKinds';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
+import { PLACE_PRESETS } from '../services/placesService';
 
 export default function AddEventScreen({ navigation, route }) {
   const existing = route.params?.event || null;
@@ -90,6 +91,7 @@ export default function AddEventScreen({ navigation, route }) {
   const [imageUri, setImageUri] = useState(existing?.imageUri || route.params?.imageUri || '');
   const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
   const [labels, setLabels] = useState(Array.isArray(existing?.labels) ? existing.labels : []);
+  const [location, setLocation] = useState(existing?.location || '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saveNotice, setSaveNotice] = useState('');
@@ -276,6 +278,7 @@ export default function AddEventScreen({ navigation, route }) {
         imageUri: imageUri || undefined,
         photoNote: photoNote.trim() || undefined,
         labels,
+        location: location.trim() || undefined,
         shareId: existing?.shareId,
         isShared: existing?.isShared,
         sharedFrom: existing?.sharedFrom,
@@ -764,6 +767,30 @@ export default function AddEventScreen({ navigation, route }) {
           onChangeText={setDate}
           editable={!coreReadOnly}
           keyboardType="numbers-and-punctuation"
+        />
+
+        <Text style={styles.label}>Location (optional)</Text>
+        <View style={styles.categories}>
+          {PLACE_PRESETS.slice(0, 3).map((p) => {
+            const on = location === p.name;
+            return (
+              <TouchableOpacity
+                key={p.name}
+                style={[styles.catChip, on && { backgroundColor: '#0f766e33', borderColor: '#2dd4bf' }]}
+                onPress={() => { if (!coreReadOnly) setLocation(on ? '' : p.name); }}
+              >
+                <Text style={[styles.catText, on && { color: '#2dd4bf', fontWeight: '600' }]}>{p.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <TextInput
+          style={[styles.input, coreReadOnly && styles.inputReadOnly]}
+          placeholder="Or type a place"
+          placeholderTextColor="#64748b"
+          value={location}
+          onChangeText={setLocation}
+          editable={!coreReadOnly}
         />
 
         <Text style={styles.label}>Category</Text>

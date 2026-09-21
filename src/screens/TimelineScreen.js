@@ -362,6 +362,7 @@ export default function TimelineScreen({ navigation, route }) {
                 else if (item.source === 'social') navigation.navigate('Social', { event: item });
                 else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
                 else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
+                else if (item.source === 'location') navigation.navigate('AddLocation', { event: item });
                 else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
                 else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
                 else navigation.navigate('AddEvent', { event: item });

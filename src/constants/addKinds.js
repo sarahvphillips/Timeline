@@ -15,5 +15,6 @@ export const ADD_KINDS = [
   { id: 'qr', label: 'QR link', blurb: 'Link plus a code', screen: 'AddQr' },
   { id: 'food', label: 'Food', blurb: 'Planned or eaten. Photo optional', screen: 'AddFood', needsFood: true },
   { id: 'wash', label: 'Wash load', blurb: 'Laundry on the household central axis', screen: 'AddWashLoad', needsWash: true },
+  { id: 'location', label: 'Location', blurb: 'Home, internet, or a named place', screen: 'AddLocation' },
   { id: 'openBanking', label: 'Open Banking', blurb: 'Sandbox bank import (live later)', screen: 'OpenBanking' },
 ];
