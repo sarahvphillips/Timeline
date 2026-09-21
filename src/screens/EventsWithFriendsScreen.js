@@ -206,7 +206,6 @@ function SharedCard({ item, myUid, meInitial, onPress }) {
 export default function EventsWithFriendsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [sharedEvents, setSharedEvents] = useState([]);
-  const [personalEvents, setPersonalEvents] = useState([]);
   const [localByShareId, setLocalByShareId] = useState({});
   const [me, setMe] = useState({ displayName: 'You', photoUri: null, initial: 'Y' });
   const myUid = auth.currentUser?.uid;
@@ -232,7 +231,6 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
       const sharedList = shared || [];
       const localList = local || [];
-      const sharedIds = new Set(sharedList.map((s) => s.id));
 
       const byShare = {};
       localList.forEach((ev) => {
@@ -240,19 +238,10 @@ export default function EventsWithFriendsScreen({ navigation }) {
       });
       setLocalByShareId(byShare);
 
-      // Personal-only: local timeline events not part of an active shared set.
-      const personal = localList.filter((ev) => {
-        if (!ev || !ev.id) return false;
-        if (ev.shareId && sharedIds.has(ev.shareId)) return false;
-        return true;
-      });
-
       setSharedEvents(sharedList);
-      setPersonalEvents(personal);
     } catch (e) {
       console.warn('Events with friends load failed', e);
       setSharedEvents([]);
-      setPersonalEvents([]);
       setLocalByShareId({});
     } finally {
       setLoading(false);
@@ -282,17 +271,6 @@ export default function EventsWithFriendsScreen({ navigation }) {
   const timelineItems = useMemo(() => {
     const items = [];
 
-    personalEvents.forEach((ev) => {
-      items.push({
-        key: `personal-${ev.id}`,
-        kind: 'personal',
-        side: 'left',
-        date: ev.date || '',
-        event: ev,
-        colour: ME_COLOUR,
-      });
-    });
-
     sharedEvents.forEach((shared) => {
       const friends = listOtherParticipants(shared, myUid);
       items.push({
@@ -308,7 +286,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
     items.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
     return items;
-  }, [personalEvents, sharedEvents, myUid]);
+  }, [sharedEvents, myUid]);
 
   const openItem = useCallback(
     (item) => {
@@ -388,7 +366,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
             )}
           </View>
           <Text style={styles.screenTitle}>Events with friends</Text>
-          <Text style={styles.subtitle}>Shared moments and your own memories.</Text>
+          <Text style={styles.subtitle}>Only events shared with friends.</Text>
           {friendRoster.length > 0 ? (
             <Text style={styles.friendEmails} numberOfLines={2}>
               {friendRoster
@@ -423,11 +401,10 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
           {isEmpty ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyTitle}>No events yet</Text>
+              <Text style={styles.emptyTitle}>No shared events yet</Text>
               <Text style={styles.emptyBody}>
-                Add moments on your timeline, or share an event and accept an invite from a
-                friend. Personal memories stay on the left; shared moments meet on the central
-                axis.
+                Share an event with a friend, or enter an invite code. Private timeline items stay
+                on Timeline — they are hidden here.
               </Text>
             </View>
           ) : (
