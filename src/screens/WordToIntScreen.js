@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -33,6 +34,19 @@ import {
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
+import { auth } from '../services/firebase';
+import {
+  createWordListShare,
+  qrImageUrl,
+} from '../services/shareService';
+import {
+  getRewards,
+  spendShopItem,
+  hasPerk,
+  SHARE_WORDS_COST,
+  SHARE_WORDS_PERK,
+} from '../services/rewardsService';
+import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
 
 function isDayCount(n) {
   return Number.isInteger(n) && n >= 1 && n <= 200000;
@@ -57,6 +71,13 @@ export default function WordToIntScreen({ navigation, route }) {
   const [dupNotice, setDupNotice] = useState(false);
   const [sortMode, setSortMode] = useState('added');
   const [lookupMethod, setLookupMethod] = useState('ordinal');
+  const [pickMode, setPickMode] = useState(false);
+  const [selected, setSelected] = useState({});
+  const [shareResult, setShareResult] = useState(null);
+  const [rewards, setRewards] = useState(null);
+  const [staff, setStaff] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const lastPhraseParam = useRef(null);
 
   const result = convertPhrase(phrase);
@@ -99,6 +120,10 @@ export default function WordToIntScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       loadList();
+      getRewards().then(setRewards).catch(() => setRewards(null));
+      loadAdmin(auth.currentUser?.email)
+        .then((s) => setStaff(canSeeHomeAdmin(auth.currentUser?.email, s)))
+        .catch(() => setStaff(false));
       const incoming = route?.params?.phrase;
       const stamp = route?.params?.t || incoming;
       if (incoming && stamp !== lastPhraseParam.current) {
@@ -251,8 +276,87 @@ export default function WordToIntScreen({ navigation, route }) {
     try {
       const next = await deleteWordNumber(item.id);
       setList(next);
+      setSelected((cur) => {
+        const copy = { ...cur };
+        delete copy[item.id];
+        return copy;
+      });
     } catch {
       Alert.alert('Error', 'Could not delete this item.');
+    }
+  };
+
+  const wordsUnlocked = hasPerk(rewards, SHARE_WORDS_PERK);
+  const selectedItems = sortedList.filter((item) => selected[item.id]);
+
+  const toggleWord = (id) => {
+    setSelected((cur) => ({ ...cur, [id]: !cur[id] }));
+  };
+
+  const selectAll = () => {
+    const next = {};
+    sortedList.forEach((item) => {
+      next[item.id] = true;
+    });
+    setSelected(next);
+  };
+
+  const unlockShare = async () => {
+    if (unlocking) return;
+    setUnlocking(true);
+    try {
+      const next = await spendShopItem(SHARE_WORDS_PERK);
+      setRewards(next);
+      Alert.alert('Unlocked', `Share word list is on. Credits left: ${next.credits}.`);
+    } catch (e) {
+      if (e?.code === 'NEED_CREDITS') {
+        Alert.alert('Not enough credits', e.message, [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: staff ? 'Admin' : 'Credits shop',
+            onPress: () => navigation.navigate(staff ? 'Admin' : 'CreditsShop'),
+          },
+        ]);
+      } else if (e?.code === 'OWNED') {
+        Alert.alert('Already yours', 'Share word list is already unlocked.');
+      } else {
+        Alert.alert('Shop', e?.message || 'Could not unlock.');
+      }
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const startPick = () => {
+    if (!wordsUnlocked) {
+      Alert.alert(
+        'Credits perk',
+        `Share some or all of this list with a friend. Unlock for ${SHARE_WORDS_COST} credits.`,
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: unlocking ? '…' : `Unlock (${SHARE_WORDS_COST} credits)`, onPress: unlockShare },
+        ],
+      );
+      return;
+    }
+    setPickMode(true);
+    setShareResult(null);
+  };
+
+  const sharePicked = async () => {
+    if (!selectedItems.length) {
+      Alert.alert('Pick words', 'Tick some words, or tap Select all.');
+      return;
+    }
+    setSharing(true);
+    try {
+      const result = await createWordListShare(selectedItems);
+      setShareResult(result);
+      setPickMode(false);
+    } catch (e) {
+      Alert.alert('Could not share', e?.message || 'Try again when signed in.');
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -453,6 +557,64 @@ export default function WordToIntScreen({ navigation, route }) {
 
       <Text style={styles.listTitle}>Saved numbers</Text>
       {list.length > 0 ? (
+        <View style={styles.shareBar}>
+          {!wordsUnlocked ? (
+            <TouchableOpacity style={styles.button} onPress={unlockShare} disabled={unlocking}>
+              <Text style={styles.buttonText}>
+                {unlocking ? 'Unlocking…' : `Share list — ${SHARE_WORDS_COST} credits`}
+              </Text>
+            </TouchableOpacity>
+          ) : pickMode ? (
+            <>
+              <Text style={styles.shareHint}>
+                Tick words to share. Friend accepts the code on Enter invite code. Duplicates they
+                already have are skipped.
+              </Text>
+              <View style={styles.sortRow}>
+                <TouchableOpacity style={styles.sortChip} onPress={selectAll}>
+                  <Text style={styles.sortChipText}>Select all</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortChip, styles.sortChipOn]}
+                  onPress={sharePicked}
+                  disabled={sharing}
+                >
+                  <Text style={styles.sortChipTextOn}>
+                    {sharing ? 'Sharing…' : `Share ${selectedItems.length || 0}`}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.sortChip}
+                  onPress={() => {
+                    setPickMode(false);
+                    setSelected({});
+                  }}
+                >
+                  <Text style={styles.sortChipText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <TouchableOpacity style={[styles.button, styles.ghost]} onPress={startPick}>
+              <Text style={styles.ghostText}>Share some or all</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : null}
+      {shareResult ? (
+        <View style={styles.shareCard}>
+          <Text style={styles.itemPhrase}>Invite code</Text>
+          <Text style={styles.itemNumber}>{shareResult.code}</Text>
+          <Text style={styles.itemMeta}>Friend: Home → Enter invite code, or scan the QR.</Text>
+          {shareResult.link ? (
+            <Image source={{ uri: qrImageUrl(shareResult.link, 180) }} style={styles.qr} />
+          ) : null}
+          <TouchableOpacity onPress={() => copyText(shareResult.code)}>
+            <Text style={styles.link}>Copy code</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {list.length > 0 ? (
         <View style={styles.sortRow}>
           {LIST_SORTS.map((opt) => (
             <TouchableOpacity
@@ -478,18 +640,29 @@ export default function WordToIntScreen({ navigation, route }) {
         <Text style={styles.empty}>No saved numbers yet. Convert a phrase and save it here.</Text>
       ) : (
         sortedList.map((item) => (
-          <View key={item.id} style={styles.item}>
-            <TouchableOpacity onPress={() => reuseItem(item)} style={styles.itemMain}>
-              <Text style={styles.itemPhrase}>{item.phrase}</Text>
-              <Text style={styles.itemNumber}>{preferredNumber(item)}</Text>
-              <Text style={styles.itemAdded}>
-                Added {formatAddedAt(item.createdAt || item.updatedAt)}
-              </Text>
-              <Text style={styles.itemMeta}>
-                Ord {item.ordinal} · Pyth {item.pythagorean} · Rev {item.reverse} · Red {item.reduced} · hash {displayHash(item)}
-              </Text>
-              {!!item.notes && <Text style={styles.itemNotes}>{item.notes}</Text>}
-            </TouchableOpacity>
+          <View key={item.id} style={[styles.item, pickMode && selected[item.id] && styles.itemPicked]}>
+            {pickMode ? (
+              <TouchableOpacity onPress={() => toggleWord(item.id)} style={styles.pickRow}>
+                <Text style={styles.tick}>{selected[item.id] ? '☑' : '☐'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemPhrase}>{item.phrase}</Text>
+                  <Text style={styles.itemNumber}>{preferredNumber(item)}</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => reuseItem(item)} style={styles.itemMain}>
+                <Text style={styles.itemPhrase}>{item.phrase}</Text>
+                <Text style={styles.itemNumber}>{preferredNumber(item)}</Text>
+                <Text style={styles.itemAdded}>
+                  Added {formatAddedAt(item.createdAt || item.updatedAt)}
+                </Text>
+                <Text style={styles.itemMeta}>
+                  Ord {item.ordinal} · Pyth {item.pythagorean} · Rev {item.reverse} · Red {item.reduced} · hash {displayHash(item)}
+                </Text>
+                {!!item.notes && <Text style={styles.itemNotes}>{item.notes}</Text>}
+              </TouchableOpacity>
+            )}
+            {!pickMode ? (
             <View style={styles.itemActions}>
               <TouchableOpacity onPress={() => copyText(preferredNumber(item))}>
                 <Text style={styles.link}>Copy</Text>
@@ -498,6 +671,7 @@ export default function WordToIntScreen({ navigation, route }) {
                 <Text style={styles.delete}>Delete</Text>
               </TouchableOpacity>
             </View>
+            ) : null}
           </View>
         ))
       )}
@@ -679,6 +853,19 @@ const styles = StyleSheet.create({
     marginTop: 28,
     marginBottom: 10,
   },
+  shareBar: { marginBottom: 12 },
+  shareHint: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginBottom: 10 },
+  shareCard: {
+    backgroundColor: '#1a1b36',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+    alignItems: 'center',
+  },
+  qr: { width: 180, height: 180, marginVertical: 10, backgroundColor: '#fff' },
+  pickRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  tick: { color: '#c4b5fd', fontSize: 22, width: 28 },
+  itemPicked: { borderWidth: 1, borderColor: '#3b82f6' },
   sortRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

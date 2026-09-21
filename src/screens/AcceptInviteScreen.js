@@ -15,6 +15,7 @@ import {
 import {
   getInviteByCode,
   getSharedEvent,
+  getSharedWordList,
   acceptInviteByCode,
   rejectInviteByCode,
 } from '../services/shareService';
@@ -148,6 +149,24 @@ export default function AcceptInviteScreen({ navigation, route }) {
     try {
       const invite = await getInviteByCode(normalised);
       if (invite) {
+        if (invite.kind === 'words') {
+          let wordList = null;
+          try {
+            wordList = await getSharedWordList(invite.shareId);
+          } catch (_) {
+            wordList = null;
+          }
+          setPreview({
+            kind: 'words',
+            invite,
+            wordList: wordList || {
+              title: invite.eventTitle || 'Word list',
+              wordCount: invite.wordCount || 0,
+              words: [],
+            },
+          });
+          return;
+        }
         let shared = null;
         try {
           shared = await getSharedEvent(invite.shareId);
@@ -216,6 +235,23 @@ export default function AcceptInviteScreen({ navigation, route }) {
         return;
       }
       const result = await acceptInviteByCode(normalised);
+      if (result.kind === 'words') {
+        const added = result.imported?.added?.length || 0;
+        const skipped = result.imported?.skipped?.length || 0;
+        Alert.alert(
+          'Word list added',
+          `${added} new word${added === 1 ? '' : 's'} saved.` +
+            (skipped ? ` ${skipped} already on your list.` : ''),
+          [
+            {
+              text: 'Word to int',
+              onPress: () => navigation.replace('WordToInt'),
+            },
+            { text: 'OK', style: 'cancel' },
+          ],
+        );
+        return;
+      }
       Alert.alert(
         result.alreadyParticipant ? 'Already shared' : 'Invite accepted',
         result.alreadyParticipant
@@ -268,6 +304,10 @@ export default function AcceptInviteScreen({ navigation, route }) {
       'Decline',
     );
     if (!ok) return;
+    if (preview?.kind === 'words') {
+      notify('Word list', 'Ignore the code if you do not want the words. Decline is for shared events.');
+      return;
+    }
     if (preview?.kind === 'join') {
       notify('Join codes', 'Decline is only for shared events. Ignore a People join code if you do not want it.');
       return;
@@ -339,6 +379,27 @@ export default function AcceptInviteScreen({ navigation, route }) {
               : 'Accepting tells them you now have a Timeline account.'}
           </Text>
           <Text style={styles.previewStatus}>Status: {preview.joinInvite.status || 'pending'}</Text>
+        </View>
+      ) : null}
+      {preview?.kind === 'words' && preview.wordList ? (
+        <View style={styles.preview}>
+          <Text style={styles.previewTitle}>{preview.wordList.title || 'Word list'}</Text>
+          <Text style={styles.previewMeta}>
+            {preview.invite?.fromEmail
+              ? `From ${preview.invite.fromEmail}`
+              : preview.invite?.fromName
+                ? `From ${preview.invite.fromName}`
+                : 'Word to int share'}
+          </Text>
+          <Text style={styles.previewDesc}>
+            {(preview.wordList.words && preview.wordList.words.length) ||
+              preview.wordList.wordCount ||
+              preview.invite?.wordCount ||
+              0}{' '}
+            word{(preview.wordList.words || []).length === 1 ? '' : 's'} to add to your list. Words
+            you already have are skipped.
+          </Text>
+          <Text style={styles.previewStatus}>Status: {preview.invite?.status || 'pending'}</Text>
         </View>
       ) : null}
       {preview?.shared ? (

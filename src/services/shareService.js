@@ -14,6 +14,7 @@ import {
 import { auth, db } from './firebase';
 import { saveEvent, getEvents, deleteEvent } from './eventService';
 import { getProfile } from './profileService';
+import { importSharedWords } from './wordToIntService';
 import { buildShareLink, parseInviteCodeFromScan } from '../utils/inviteCode';
 export { buildShareLink, parseInviteCodeFromScan };
 
@@ -274,6 +275,79 @@ export async function createEventShare(event) {
   return { shareId, code, link, invite: invitePayload, shared: sharedPayload };
 }
 
+function slimWord(item) {
+  return stripUndefined({
+    phrase: item.phrase,
+    notes: item.notes || '',
+    preferred: item.preferred || 'ordinal',
+    ordinal: item.ordinal,
+    pythagorean: item.pythagorean,
+    reverse: item.reverse,
+    reduced: item.reduced,
+    hashCode: item.hashCode,
+  });
+}
+
+export async function createWordListShare(items) {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to share your word list.');
+  const words = (items || []).map(slimWord).filter((w) => w && w.phrase);
+  if (!words.length) throw new Error('Pick at least one word to share.');
+
+  const now = new Date();
+  const expires = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  let code = makeInviteCode(6);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const existingInvite = await getDoc(doc(db, 'eventInvites', code));
+    if (!existingInvite.exists()) break;
+    code = makeInviteCode(6);
+  }
+
+  const me = await currentParticipantProfile(FRIEND_COLOURS[0]);
+  const shareId = `words_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const payload = stripUndefined({
+    kind: 'words',
+    title: `Word list (${words.length})`,
+    words,
+    wordCount: words.length,
+    createdByUid: uid,
+    createdByName: me.displayName,
+    createdByEmail: me.email,
+    participantUids: [uid],
+    participants: { [uid]: participantForCloud(me) },
+    status: 'active',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await setDoc(doc(db, 'sharedWordLists', shareId), payload);
+
+  const invitePayload = stripUndefined({
+    kind: 'words',
+    shareId,
+    fromUid: uid,
+    fromName: me.displayName,
+    fromEmail: me.email,
+    code,
+    status: 'pending',
+    eventTitle: payload.title,
+    wordCount: words.length,
+    createdAt: now.toISOString(),
+    expiresAt: expires.toISOString(),
+  });
+  await setDoc(doc(db, 'eventInvites', code), invitePayload);
+
+  const link = buildShareLink(code);
+  return { shareId, code, link, invite: invitePayload, shared: payload };
+}
+
+export async function getSharedWordList(shareId) {
+  if (!shareId) return null;
+  const snap = await getDoc(doc(db, 'sharedWordLists', shareId));
+  if (!snap.exists()) return null;
+  const data = snap.data() || {};
+  return { id: snap.id, ...data };
+}
+
 export async function getInviteByCode(code) {
   const normalised = String(code || '').trim().toUpperCase();
   if (!normalised) return null;
@@ -317,6 +391,34 @@ function inviteIsUsable(invite) {
   return { ok: true };
 }
 
+async function acceptWordListInvite(invite, uid, code) {
+  const list = await getSharedWordList(invite.shareId);
+  if (!list) throw new Error('Shared word list not found.');
+  const nowIso = new Date().toISOString();
+  if (!(list.participantUids || []).includes(uid)) {
+    const colourIndex = (list.participantUids || []).length % FRIEND_COLOURS.length;
+    const me = await currentParticipantProfile(FRIEND_COLOURS[colourIndex]);
+    await updateDoc(doc(db, 'sharedWordLists', list.id), {
+      participantUids: arrayUnion(uid),
+      [`participants.${uid}`]: participantForCloud({ ...me, status: 'accepted', joinedAt: nowIso }),
+      updatedAt: nowIso,
+    });
+  }
+  await updateDoc(doc(db, 'eventInvites', code), {
+    status: 'accepted',
+    acceptedByUid: uid,
+    acceptedAt: nowIso,
+  });
+  const imported = await importSharedWords(list.words || []);
+  return {
+    kind: 'words',
+    shared: list,
+    invite,
+    imported,
+    alreadyParticipant: (list.participantUids || []).includes(uid),
+  };
+}
+
 /**
  * Accept invite by code: add current user to shared event participants,
  * mark invite accepted, and create/link a local event copy.
@@ -329,6 +431,10 @@ export async function acceptInviteByCode(rawCode) {
   const invite = await getInviteByCode(code);
   const usable = inviteIsUsable(invite);
   if (!usable.ok) throw new Error(usable.reason);
+
+  if (invite.kind === 'words') {
+    return acceptWordListInvite(invite, uid, code);
+  }
 
   const shared = await getSharedEvent(invite.shareId);
   if (!shared) throw new Error('Shared event not found.');

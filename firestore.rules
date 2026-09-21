@@ -58,6 +58,20 @@ service cloud.firestore {
         && request.auth.uid == resource.data.createdByUid;
     }
 
+    match /sharedWordLists/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.createdByUid
+        && request.auth.uid in request.resource.data.participantUids;
+      allow update: if isSignedIn()
+        && (request.auth.uid == resource.data.createdByUid
+            || request.auth.uid in resource.data.participantUids
+            || (request.auth.uid in request.resource.data.participantUids
+                && !(request.auth.uid in resource.data.participantUids)));
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.createdByUid;
+    }
+
     match /eventInvites/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()

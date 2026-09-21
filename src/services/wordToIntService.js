@@ -518,6 +518,28 @@ export async function saveWordNumber(entry) {
   return found;
 }
 
+/** Merge a friend's shared words. Duplicates are skipped, not overwritten. */
+export async function importSharedWords(entries) {
+  const added = [];
+  const skipped = [];
+  for (const entry of entries || []) {
+    const phrase = String(entry?.phrase || '').trim();
+    if (!phrase) continue;
+    try {
+      const saved = await saveWordNumber({
+        phrase,
+        notes: entry.notes || '',
+        preferred: entry.preferred || 'ordinal',
+      });
+      added.push(saved);
+    } catch (e) {
+      if (e?.code === 'DUPLICATE_PHRASE') skipped.push(phrase);
+      else console.warn('Shared word import skipped', phrase, e);
+    }
+  }
+  return { added, skipped, list: await getWordNumbers() };
+}
+
 export async function deleteWordNumber(id) {
   const uid = currentUid();
   const list = await readLocalWordNumbers(uid);

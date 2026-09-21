@@ -49,6 +49,8 @@ export const STAMP_ROW_REWARD = {
 
 export const CALL_RECORDING_COST = 4;
 export const CALL_RECORDING_PERK = 'callRecording';
+export const SHARE_WORDS_COST = 3;
+export const SHARE_WORDS_PERK = 'shareWords';
 
 /** Same SKUs as Mafia PurchasesActivity — consumable Play packs. */
 export const CREDIT_PACKS = [
@@ -89,6 +91,13 @@ export const SHOP_ITEMS = [
     blurb: 'Attach audio, a screen recording, or a voice note on phone-call events.',
     cost: 4,
     perk: 'callRecording',
+  },
+  {
+    id: 'shareWords',
+    title: 'Share word list',
+    blurb: 'Share some or all of your Word to int list with a friend via invite code.',
+    cost: 3,
+    perk: 'shareWords',
   },
   {
     id: 'customCategories',
@@ -558,5 +567,6 @@ export function perkLabel(key) {
   if (key === 'customCategories') return 'Custom event categories';
   if (key === 'checksumHome') return 'Checksums on Home';
   if (key === 'openBanking') return 'Open Banking';
+  if (key === 'shareWords') return 'Share word list';
   return key;
 }
