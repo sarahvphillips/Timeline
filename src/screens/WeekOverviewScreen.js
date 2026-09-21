@@ -204,6 +204,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
     else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
     else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
     else if (item.source === 'location') navigation.navigate('AddLocation', { event: item });
+    else if (item.source === 'life') navigation.navigate('AddLifeEvent', { event: item });
     else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
     else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
     else navigation.navigate('AddEvent', { event: item });
@@ -305,6 +306,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
               { label: 'SMS', action: () => navigation.navigate('AddSms') },
               { label: 'Phone call', action: () => navigation.navigate('AddCall') },
               { label: 'Location', action: () => navigation.navigate('AddLocation') },
+              { label: 'Life event', action: () => navigation.navigate('AddLifeEvent') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }] : []),
               ...(showWashInMenu ? [{ label: 'Wash load', action: () => navigation.navigate('AddWashLoad') }] : []),

@@ -773,6 +773,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   bank: '#22d3ee',
   watched: '#f472b6',
   location: '#2dd4bf',
+  life: '#e879f9',
 };
 
 const YEAR_BUBBLE_KIND_ORDER = [
@@ -792,6 +793,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'bank',
   'watched',
   'location',
+  'life',
 ];
 
 /**
@@ -903,6 +905,14 @@ export function classifyYearBubbleKind(event) {
       label: 'Places',
       color: YEAR_BUBBLE_KIND_COLORS.location,
       filter: { source: 'location' },
+    };
+  }
+  if (source === 'life') {
+    return {
+      kind: 'life',
+      label: event?.lifeKind === 'birthday' ? 'Birthday' : 'Life',
+      color: YEAR_BUBBLE_KIND_COLORS.life,
+      filter: { source: 'life' },
     };
   }
   if (source === 'bank' || category === 'banking') {
@@ -1405,6 +1415,7 @@ export const TIMELINE_FILTERS = [
   { id: 'food', label: 'Food', color: '#f59e0b', itemView: true },
   { id: 'laundry', label: 'Wash', color: '#38bdf8', itemView: true },
   { id: 'location', label: 'Places', color: '#2dd4bf', itemView: true },
+  { id: 'life', label: 'Life', color: '#e879f9', itemView: true },
   { id: 'bank', label: 'Banking', color: '#22d3ee', itemView: true },
   ...CATEGORIES.map((c) => ({
     id: `cat:${c.id}`,
@@ -1433,6 +1444,7 @@ export function eventMatchesTimelineFilter(event, filterId) {
   if (filterId === 'food') return source === 'food';
   if (filterId === 'laundry') return source === 'laundry';
   if (filterId === 'location') return source === 'location' || Boolean(event?.placeName);
+  if (filterId === 'life') return source === 'life' || Boolean(event?.lifeKind);
   if (filterId === 'bank') return source === 'bank' || category === 'banking';
   if (filterId.startsWith('cat:')) return category === filterId.slice(4);
   return true;

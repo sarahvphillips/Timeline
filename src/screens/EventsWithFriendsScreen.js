@@ -114,6 +114,7 @@ function cardGlyph(ev) {
   if (/sms|text/.test(blob)) return '💬';
   if (/call|phone/.test(blob)) return '📞';
   if (/place|location|maps|visit/.test(blob)) return '📍';
+  if (/life|birthday|wedding|baby|graduat/.test(blob)) return '✦';
   if (/game/.test(blob)) return '🎮';
   if (/social|post/.test(blob)) return '✦';
   return '◆';
@@ -190,6 +191,7 @@ function navigateToEvent(navigation, event) {
   if (event.source === 'sms') navigation.navigate('AddSms', { event });
   else if (event.source === 'call') navigation.navigate('AddCall', { event });
   else if (event.source === 'location') navigation.navigate('AddLocation', { event });
+  else if (event.source === 'life') navigation.navigate('AddLifeEvent', { event });
   else if (event.source === 'qr') navigation.navigate('AddQr', { event });
   else navigation.navigate('AddEvent', { event });
 }

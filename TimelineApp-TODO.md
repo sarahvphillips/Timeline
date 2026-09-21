@@ -142,7 +142,7 @@ Product map:
 
 ### Life & people
 
-- [ ] Life events (birthdays, house moves, wedding, â¦)
+- [x] **Life events (21 Sep 2026):** Add event → Life event. Birthday / house move / wedding / graduation / new job / new baby / other. Who (People), place, photo, Coming up (incl. People birthdays not yet saved). Timeline **Life** filter. Birthdays already on People stay there too.
 - [x] User add friends - per-event invite MVP (`sharedEvents` + `eventInvites`; Events with friends screen)
 - [x] **People** (17 Sep 2026): real-life friends even if they don’t use Timeline. Name, phone, email, birthday DD/MM/YYYY, note. Optional invite. Auto-share SMS/calls flags for later SMS/call screens. Import from date circle / add to wheel. Birthday can be pinned as a Family timeline event. Local uid-scoped list (`@timeline_people_v1_{uid}`).
 - [x] **Stamps + credits shop** (17 Sep 2026): Home private stamps (Poem, Friend joined, Word saved, Wash done, Event shared, Checksum, Food, Birthday). First row of four filled → +2 credits once. Shop spends credits on delivery perk, extra invites, clip points, custom categories, checksums-on-home. No streaks.

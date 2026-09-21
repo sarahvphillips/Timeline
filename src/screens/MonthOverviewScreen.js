@@ -256,6 +256,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
               { label: 'SMS', action: () => navigation.navigate('AddSms') },
               { label: 'Phone call', action: () => navigation.navigate('AddCall') },
               { label: 'Location', action: () => navigation.navigate('AddLocation') },
+              { label: 'Life event', action: () => navigation.navigate('AddLifeEvent') },
               { label: 'QR link', action: () => navigation.navigate('AddQr') },
               ...(showFoodInMenu
                 ? [{ label: 'Food', action: () => navigation.navigate('AddFood') }]

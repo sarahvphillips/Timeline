@@ -54,6 +54,7 @@ import ShareProfileScreen from './src/screens/ShareProfileScreen';
 import PublicProfileScreen from './src/screens/PublicProfileScreen';
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import AddLocationScreen from './src/screens/AddLocationScreen';
+import AddLifeEventScreen from './src/screens/AddLifeEventScreen';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
 import { ThemeProvider, useTheme } from './src/themeContext';
 
@@ -395,6 +396,14 @@ function AppShell() {
                 component={AddLocationScreen}
                 options={({ route }) => ({
                   title: route.params?.event ? 'Edit location' : 'Add location',
+                })}
+              />
+
+              <Stack.Screen
+                name="AddLifeEvent"
+                component={AddLifeEventScreen}
+                options={({ route }) => ({
+                  title: route.params?.event ? 'Edit life event' : 'Life events',
                 })}
               />
 
