@@ -12,13 +12,43 @@ export default function UtilitiesScreen({ navigation }) {
         <Text style={[styles.kicker, { color: colors.blueSoft }]}>Home</Text>
         <Text style={[styles.title, { color: colors.text }]}>Utilities</Text>
         <Text style={[styles.intro, { color: colors.faint }]}>
-          Connection checks and tools that are not events. More can live here later.
+          Connection checks and tools that are not events.
         </Text>
 
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('DateCircle')}
+        >
+          <Text style={styles.buttonText}>Date circle</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('DateSpan')}
+        >
+          <Text style={styles.buttonText}>Days between dates</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('WordToInt')}
+        >
+          <Text style={styles.buttonText}>Word to int</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('YearOverview')}
+        >
+          <Text style={styles.buttonText}>Checksums</Text>
+        </TouchableOpacity>
+        <Text style={[styles.hint, { color: colors.muted }]}>
+          Event SHA-256 lives on each item. Timeline is the shortcut until a dedicated checksums list is added.
+        </Text>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue, marginTop: 16 }]}
           onPress={() => navigation.navigate('StarlinkCheck')}
         >
+          <Text style={styles.buttonText}>Starlink check</Text>
+        </TouchableOpacity>
           <Text style={styles.buttonText}>Starlink check</Text>
         </TouchableOpacity>
         <Text style={[styles.hint, { color: colors.muted }]}>

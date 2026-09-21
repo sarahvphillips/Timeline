@@ -20,7 +20,6 @@ import {
   applyStampRowReward,
   applyJoinRewards,
   getRewards,
-  hasPerk,
   STAMPS,
 } from '../services/rewardsService';
 import StampsRow from '../components/StampsRow';
@@ -55,7 +54,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const [blocked, setBlocked] = useState(false);
   const [stamps, setStamps] = useState(() => STAMPS.map((s) => ({ ...s, earned: false })));
   const [credits, setCredits] = useState(0);
-  const [showChecksums, setShowChecksums] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,7 +102,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           const rewards = stampResult.rewards || (await getRewards());
           if (cancelled) return;
           setCredits(rewards.credits || 0);
-          setShowChecksums(hasPerk(rewards, 'checksumHome'));
           if (stampResult.newlyClaimed?.length) {
             Alert.alert('Stamps', `${stampResult.newlyClaimed[0].label}. Open Credits shop to spend them.`);
           }
@@ -113,7 +110,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
             const rewards = await getRewards();
             if (!cancelled) {
               setCredits(rewards.credits || 0);
-              setShowChecksums(hasPerk(rewards, 'checksumHome'));
             }
           } catch {
             /* keep defaults */
@@ -324,15 +320,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Credits shop</Text>
       </TouchableOpacity>
 
-      {showChecksums ? (
-        <TouchableOpacity
-          style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
-          onPress={() => navigation.navigate('YearOverview')}
-        >
-          <Text style={[styles.ghostText, { color: colors.faint }]}>Checksums</Text>
-        </TouchableOpacity>
-      ) : null}
-
       <TouchableOpacity
         style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
         onPress={() => navigation.navigate('AcceptInvite')}
@@ -345,18 +332,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         onPress={() => navigation.navigate('Utilities')}
       >
         <Text style={styles.buttonText}>Utilities</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('WordToInt')}>
-        <Text style={styles.buttonText}>Word to Int</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('DateSpan')}>
-        <Text style={styles.buttonText}>Days between dates</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('DateCircle')}>
-        <Text style={styles.buttonText}>Date circle</Text>
       </TouchableOpacity>
 
       {showWash && latestWash ? (
