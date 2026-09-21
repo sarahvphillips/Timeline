@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Image,
   Linking,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import LabelPicker from '../components/LabelPicker';
 import { saveEvent, deleteEvent } from '../services/eventService';
+import { pickFromGallery } from '../services/imagePicker';
 import {
   loadSocial,
   saveSocial,
@@ -53,6 +55,7 @@ export default function SocialScreen({ navigation, route }) {
   const [addToTimeline, setAddToTimeline] = useState(true);
   const [editingId, setEditingId] = useState(existing?.id || null);
   const [saving, setSaving] = useState(false);
+  const [photo, setPhoto] = useState(existing?.imageUri || '');
 
   const parsed = useMemo(() => parseSocialLink(url), [url]);
 
@@ -76,6 +79,7 @@ export default function SocialScreen({ navigation, route }) {
     setLabels([]);
     setAddToTimeline(true);
     setEditingId(null);
+    setPhoto('');
   }
 
   async function persistTimeline(row) {
@@ -100,6 +104,7 @@ export default function SocialScreen({ navigation, route }) {
       socialPlatform: row.platform,
       socialAction: row.action,
       socialNote: row.note,
+      imageUri: row.imageUri || undefined,
     });
   }
 
@@ -121,6 +126,7 @@ export default function SocialScreen({ navigation, route }) {
       note: note.trim(),
       labels,
       addToTimeline,
+      imageUri: photo || undefined,
     };
     setSaving(true);
     try {
@@ -146,6 +152,7 @@ export default function SocialScreen({ navigation, route }) {
     setNote(row.note || '');
     setLabels(row.labels || []);
     setAddToTimeline(row.addToTimeline !== false);
+    setPhoto(row.imageUri || '');
   }
 
   return (
@@ -234,6 +241,29 @@ export default function SocialScreen({ navigation, route }) {
 
           <LabelPicker value={labels} onChange={setLabels} />
 
+          <Text style={styles.label}>Screenshot or photo</Text>
+          {photo ? <Image source={{ uri: photo }} style={styles.art} /> : null}
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.chip}
+              onPress={async () => {
+                const uri = await pickFromGallery();
+                if (uri) setPhoto(uri);
+              }}
+            >
+              <Text style={styles.chipText}>{photo ? 'Change photo' : 'Add photo'}</Text>
+            </TouchableOpacity>
+            {photo ? (
+              <TouchableOpacity style={styles.chip} onPress={() => setPhoto('')}>
+                <Text style={styles.chipText}>Remove</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <Text style={styles.hint}>
+            Instagram / Facebook / X don’t send the post image here. Add a screenshot if you want it
+            on the timeline.
+          </Text>
+
           <TouchableOpacity style={styles.shareRow} onPress={() => setAddToTimeline((v) => !v)}>
             <View style={[styles.box, addToTimeline && styles.boxOn]} />
             <Text style={styles.shareLabel}>Add to timeline</Text>
@@ -256,6 +286,7 @@ export default function SocialScreen({ navigation, route }) {
                 {p.platform} · {p.action}
               </Text>
               <Text style={styles.logTitle}>{p.title}</Text>
+              {p.imageUri ? <Image source={{ uri: p.imageUri }} style={styles.art} /> : null}
               <Text style={styles.hint}>{formatUk(p.date)}</Text>
               {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
               <View style={styles.row}>
@@ -325,4 +356,5 @@ const styles = StyleSheet.create({
   meta: { color: '#7dd3fc', fontSize: 12, fontWeight: '700', marginBottom: 4 },
   note: { color: '#cbd5e1', marginTop: 6 },
   link: { color: '#7dd3fc', fontWeight: '700', marginTop: 8, marginRight: 16 },
+  art: { width: '100%', height: 160, borderRadius: 10, marginTop: 8, backgroundColor: '#0f1024' },
 });
