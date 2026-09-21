@@ -56,6 +56,52 @@ function formatTime(iso) {
   }
 }
 
+function parseDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function isoWeekNumber(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
+}
+
+function weekKey(d) {
+  return `${d.getFullYear()}-W${isoWeekNumber(d)}`;
+}
+
+function weekLabel(d) {
+  const day = d.getDay() || 7;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - (day - 1));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const fmt = (x) =>
+    x.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return `W${isoWeekNumber(d)} · ${fmt(start)} – ${fmt(end)}`;
+}
+
+function monthLabel(d) {
+  return d.toLocaleDateString(undefined, { month: 'short' });
+}
+
+function friendshipSpan(events) {
+  const dates = (events || []).map((e) => parseDate(e.date)).filter(Boolean);
+  if (!dates.length) return '';
+  dates.sort((a, b) => a - b);
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  const y0 = first.getFullYear();
+  const y1 = last.getFullYear();
+  const from = first.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  const to = last.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  if (y0 === y1) return `Shared in ${y0}`;
+  return `${from} → ${to} · ${y1 - y0} year${y1 - y0 === 1 ? '' : 's'}`;
+}
+
 function cardGlyph(ev) {
   const blob = `${ev?.category || ''} ${ev?.source || ''} ${ev?.hobbyType || ''} ${ev?.title || ''}`.toLowerCase();
   if (/poem|poetry|verse/.test(blob)) return '📖';
@@ -141,37 +187,7 @@ function navigateToEvent(navigation, event) {
   else navigation.navigate('AddEvent', { event });
 }
 
-function PersonalCard({ item, colour, onPress }) {
-  const ev = item.event;
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onPress}
-      style={[styles.personalCard, { borderColor: colour + '66' }]}
-    >
-      <View style={styles.personalHead}>
-        <Text style={{ color: colour, fontSize: 16 }}>{cardGlyph(ev)}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {ev.title || 'Untitled'}
-          </Text>
-          <Text style={[styles.cardDate, { color: colour }]}>{formatDateLabel(ev.date)}</Text>
-        </View>
-      </View>
-      {ev.description ? (
-        <Text style={styles.cardSub} numberOfLines={1}>
-          {ev.description}
-        </Text>
-      ) : null}
-      <View style={styles.cardFooter}>
-        <Text style={{ color: colour, fontSize: 11 }}>🔒</Text>
-        <Text style={[styles.cardFooterText, { color: colour }]}>Personal only</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function SharedCard({ item, meLabel, myEmail, onPress }) {
+function SharedCard({ item, meLabel, myEmail, colour, onPress }) {
   const shared = item.shared;
   const friends = item.friends || [];
   const names = uniqueNames([
@@ -196,26 +212,34 @@ function SharedCard({ item, meLabel, myEmail, onPress }) {
   const dateBit = formatDateLabel(shared.date);
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.sharedCard}>
-      <Text style={styles.sharedGlyph}>👥</Text>
-      <Text style={[styles.cardTitle, styles.centreAlign]} numberOfLines={2}>
-        {shared.title || 'Shared event'}
-      </Text>
-      <Text style={[styles.cardDate, styles.centreAlign]}>
-        {dateBit}
-        {time ? ` · ${time}` : ''}
-      </Text>
-      <Text style={[styles.cardSub, styles.centreAlign]} numberOfLines={1}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={[styles.personalCard, { borderColor: colour + '99' }]}
+    >
+      <View style={styles.personalHead}>
+        <Text style={{ color: colour, fontSize: 16 }}>👥</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {shared.title || 'Shared event'}
+          </Text>
+          <Text style={[styles.cardDate, { color: colour }]}>
+            {dateBit}
+            {time ? ` · ${time}` : ''}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.cardSub} numberOfLines={1}>
         {withLabel}
       </Text>
       {fromOther ? (
-        <Text style={styles.fromFriend} numberOfLines={1}>
+        <Text style={[styles.fromFriend, { textAlign: 'left' }]} numberOfLines={1}>
           From friend
         </Text>
       ) : null}
-      <View style={[styles.cardFooter, styles.footerCentre]}>
-        <Text style={{ fontSize: 11, color: '#94a3b8' }}>🔒</Text>
-        <Text style={[styles.cardFooterText, { color: '#94a3b8' }]}>Shared event</Text>
+      <View style={styles.cardFooter}>
+        <Text style={{ fontSize: 11, color: colour }}>🔒</Text>
+        <Text style={[styles.cardFooterText, { color: colour }]}>Shared</Text>
       </View>
     </TouchableOpacity>
   );
@@ -288,18 +312,51 @@ export default function EventsWithFriendsScreen({ navigation }) {
     (friendRoster[0] && friendRoster[0].colour) || FRIEND_COLOURS[1] || FRIEND_PINK;
 
   const rows = useMemo(() => {
-    return [...sharedEvents]
-      .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
-      .map((shared) => ({
-        type: 'shared',
+    const sorted = [...sharedEvents].sort(
+      (a, b) => new Date(a.date || 0) - new Date(b.date || 0),
+    );
+    const out = [];
+    let lastYear = null;
+    let lastMonth = null;
+    let lastWeek = null;
+    let side = 'left';
+    sorted.forEach((shared) => {
+      const d = parseDate(shared.date) || new Date();
+      const year = d.getFullYear();
+      const month = `${year}-${d.getMonth()}`;
+      const week = weekKey(d);
+      if (year !== lastYear) {
+        out.push({ type: 'year', year });
+        lastYear = year;
+        lastMonth = null;
+        lastWeek = null;
+      }
+      if (month !== lastMonth) {
+        out.push({ type: 'month', year, month: monthLabel(d) });
+        lastMonth = month;
+        lastWeek = null;
+      }
+      if (week !== lastWeek) {
+        out.push({ type: 'week', label: weekLabel(d) });
+        lastWeek = week;
+      }
+      out.push({
+        type: 'event',
+        side,
+        colour: side === 'left' ? ME_COLOUR : FRIEND_PINK,
         item: {
           kind: 'shared',
           date: shared.date || '',
           shared,
           friends: listOtherParticipants(shared, myUid),
         },
-      }));
+      });
+      side = side === 'left' ? 'right' : 'left';
+    });
+    return out;
   }, [sharedEvents, myUid]);
+
+  const spanText = useMemo(() => friendshipSpan(sharedEvents), [sharedEvents]);
 
   const openShared = useCallback(
     (item) => {
@@ -328,7 +385,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
     );
   }
 
-  const isEmpty = rows.length === 0;
+  const isEmpty = sharedEvents.length === 0;
   const friendInitial =
     (friendRoster[0] && (friendRoster[0].displayName || 'F').charAt(0).toUpperCase()) || 'F';
 
@@ -354,7 +411,12 @@ export default function EventsWithFriendsScreen({ navigation }) {
           </View>
           <Text style={styles.screenTitle}>Events with friends</Text>
           <View style={styles.titleRule} />
-          <Text style={styles.subtitle}>Only events shared with friends</Text>
+          <Text style={styles.subtitle}>
+            {spanText || 'Only events shared with friends'}
+          </Text>
+          {spanText ? (
+            <Text style={styles.subtitleFine}>Years, months and weeks sit on the centre axis</Text>
+          ) : null}
         </View>
 
         <View style={styles.timeline}>
@@ -371,18 +433,67 @@ export default function EventsWithFriendsScreen({ navigation }) {
               </Text>
             </View>
           ) : (
-            rows.map((row, idx) => (
-              <View key={row.item.shared.id || `s-${idx}`} style={styles.sharedRow}>
-                <View style={styles.sideSlot} />
-                <SharedCard
-                  item={row.item}
-                  meLabel={me.initial}
-                  myEmail={me.email}
-                  onPress={() => openShared(row.item)}
-                />
-                <View style={styles.sideSlot} />
-              </View>
-            ))
+            rows.map((row, idx) => {
+              if (row.type === 'year') {
+                return (
+                  <View key={`y-${row.year}`} style={styles.markerRow}>
+                    <View style={styles.yearBox}>
+                      <Text style={styles.yearText}>{row.year}</Text>
+                    </View>
+                  </View>
+                );
+              }
+              if (row.type === 'month') {
+                return (
+                  <View key={`m-${row.year}-${row.month}-${idx}`} style={styles.markerRow}>
+                    <View style={styles.monthBox}>
+                      <Text style={styles.monthText}>{row.month}</Text>
+                    </View>
+                  </View>
+                );
+              }
+              if (row.type === 'week') {
+                return (
+                  <View key={`w-${row.label}-${idx}`} style={styles.markerRow}>
+                    <Text style={styles.weekText}>{row.label}</Text>
+                  </View>
+                );
+              }
+              const left = row.side === 'left';
+              return (
+                <View key={row.item.shared.id || `e-${idx}`} style={styles.pairRow}>
+                  <View style={styles.sideSlot}>
+                    {left ? (
+                      <View style={styles.personalWrap}>
+                        <SharedCard
+                          item={row.item}
+                          meLabel={me.initial}
+                          myEmail={me.email}
+                          colour={row.colour}
+                          onPress={() => openShared(row.item)}
+                        />
+                        <Curve colour={row.colour} side="left" />
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={styles.spineGap} />
+                  <View style={styles.sideSlot}>
+                    {!left ? (
+                      <View style={[styles.personalWrap, styles.personalWrapRight]}>
+                        <Curve colour={row.colour} side="right" />
+                        <SharedCard
+                          item={row.item}
+                          meLabel={me.initial}
+                          myEmail={me.email}
+                          colour={row.colour}
+                          onPress={() => openShared(row.item)}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })
           )}
         </View>
 
@@ -443,6 +554,12 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 13,
     marginTop: 8,
+    textAlign: 'center',
+  },
+  subtitleFine: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 4,
     textAlign: 'center',
   },
   timeline: {
@@ -506,6 +623,38 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   spineGap: { width: 8 },
+  markerRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+    zIndex: 6,
+  },
+  yearBox: {
+    backgroundColor: '#0a0a12',
+    borderWidth: 1.5,
+    borderColor: '#94a3b8',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  yearText: { color: '#f8fafc', fontSize: 18, fontWeight: '800' },
+  monthBox: {
+    backgroundColor: '#0a0a12',
+    borderWidth: 1,
+    borderColor: '#64748b',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  monthText: { color: '#e2e8f0', fontSize: 14, fontWeight: '700' },
+  weekText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
+    backgroundColor: '#0a0a12',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   personalWrap: {
     flexDirection: 'row',
     alignItems: 'center',
