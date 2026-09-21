@@ -14,6 +14,7 @@ import { auth } from '../services/firebase';
 import {
   getMySharedEvents,
   listOtherParticipants,
+  hasActiveOtherParticipants,
   FRIEND_COLOURS,
 } from '../services/shareService';
 import { getEvents } from '../services/eventService';
@@ -223,7 +224,6 @@ function SharedCard({ item, meLabel, myEmail, onPress }) {
 export default function EventsWithFriendsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [sharedEvents, setSharedEvents] = useState([]);
-  const [personalEvents, setPersonalEvents] = useState([]);
   const [localByShareId, setLocalByShareId] = useState({});
   const [me, setMe] = useState({ displayName: 'You', photoUri: null, initial: 'Y', email: '' });
   const myUid = auth.currentUser?.uid;
@@ -251,25 +251,17 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
       const sharedList = shared || [];
       const localList = local || [];
-      const sharedIds = new Set(sharedList.map((s) => s.id));
       const byShare = {};
       localList.forEach((ev) => {
         if (ev?.shareId) byShare[ev.shareId] = ev;
       });
       setLocalByShareId(byShare);
-      setSharedEvents(sharedList);
-      setPersonalEvents(
-        localList.filter((ev) => {
-          if (!ev) return false;
-          if (ev.shareId && sharedIds.has(ev.shareId)) return false;
-          if (ev.isShared) return false;
-          return true;
-        }),
+      setSharedEvents(
+        sharedList.filter((s) => hasActiveOtherParticipants(s, auth.currentUser?.uid)),
       );
     } catch (e) {
       console.warn('Events with friends load failed', e);
       setSharedEvents([]);
-      setPersonalEvents([]);
       setLocalByShareId({});
     } finally {
       setLoading(false);
@@ -296,37 +288,18 @@ export default function EventsWithFriendsScreen({ navigation }) {
     (friendRoster[0] && friendRoster[0].colour) || FRIEND_COLOURS[1] || FRIEND_PINK;
 
   const rows = useMemo(() => {
-    const mixed = [
-      ...personalEvents.map((event) => ({
-        kind: 'personal',
-        date: event.date || '',
-        event,
-      })),
-      ...sharedEvents.map((shared) => ({
-        kind: 'shared',
-        date: shared.date || '',
-        shared,
-        friends: listOtherParticipants(shared, myUid),
-      })),
-    ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
-
-    const out = [];
-    mixed.forEach((item) => {
-      if (item.kind === 'shared') {
-        out.push({ type: 'shared', item });
-        return;
-      }
-      const last = out[out.length - 1];
-      if (last && last.type === 'pair' && !last.right) last.right = item;
-      else out.push({ type: 'pair', left: item, right: null });
-    });
-    return out;
-  }, [personalEvents, sharedEvents, myUid]);
-
-  const openPersonal = useCallback(
-    (event) => navigateToEvent(navigation, event),
-    [navigation],
-  );
+    return [...sharedEvents]
+      .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
+      .map((shared) => ({
+        type: 'shared',
+        item: {
+          kind: 'shared',
+          date: shared.date || '',
+          shared,
+          friends: listOtherParticipants(shared, myUid),
+        },
+      }));
+  }, [sharedEvents, myUid]);
 
   const openShared = useCallback(
     (item) => {
@@ -381,7 +354,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
           </View>
           <Text style={styles.screenTitle}>Events with friends</Text>
           <View style={styles.titleRule} />
-          <Text style={styles.subtitle}>Shared moments and your own memories</Text>
+          <Text style={styles.subtitle}>Only events shared with friends</Text>
         </View>
 
         <View style={styles.timeline}>
@@ -391,58 +364,25 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
           {isEmpty ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyTitle}>Nothing here yet</Text>
+              <Text style={styles.emptyTitle}>No shared events yet</Text>
               <Text style={styles.emptyBody}>
-                Personal timeline items sit on the left and right. Shared events sit on the centre
-                spine.
+                Private timeline items stay on Timeline. Share an event with a friend, or enter an
+                invite code, to see it here.
               </Text>
             </View>
           ) : (
-            rows.map((row, idx) => {
-              if (row.type === 'shared') {
-                return (
-                  <View key={row.item.shared.id || `s-${idx}`} style={styles.sharedRow}>
-                    <View style={styles.sideSlot} />
-                    <SharedCard
-                      item={row.item}
-                      meLabel={me.initial}
-                      myEmail={me.email}
-                      onPress={() => openShared(row.item)}
-                    />
-                    <View style={styles.sideSlot} />
-                  </View>
-                );
-              }
-              return (
-                <View key={`p-${idx}`} style={styles.pairRow}>
-                  <View style={styles.sideSlot}>
-                    {row.left ? (
-                      <View style={styles.personalWrap}>
-                        <PersonalCard
-                          item={row.left}
-                          colour={ME_COLOUR}
-                          onPress={() => openPersonal(row.left.event)}
-                        />
-                        <Curve colour={ME_COLOUR} side="left" />
-                      </View>
-                    ) : null}
-                  </View>
-                  <View style={styles.spineGap} />
-                  <View style={styles.sideSlot}>
-                    {row.right ? (
-                      <View style={[styles.personalWrap, styles.personalWrapRight]}>
-                        <Curve colour={primaryFriendColour} side="right" />
-                        <PersonalCard
-                          item={row.right}
-                          colour={primaryFriendColour}
-                          onPress={() => openPersonal(row.right.event)}
-                        />
-                      </View>
-                    ) : null}
-                  </View>
-                </View>
-              );
-            })
+            rows.map((row, idx) => (
+              <View key={row.item.shared.id || `s-${idx}`} style={styles.sharedRow}>
+                <View style={styles.sideSlot} />
+                <SharedCard
+                  item={row.item}
+                  meLabel={me.initial}
+                  myEmail={me.email}
+                  onPress={() => openShared(row.item)}
+                />
+                <View style={styles.sideSlot} />
+              </View>
+            ))
           )}
         </View>
 
