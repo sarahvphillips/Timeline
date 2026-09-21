@@ -19,13 +19,14 @@ import {
 import { getEvents } from '../services/eventService';
 import { getProfile, getProfilePhotoUri } from '../services/profileService';
 import HomeFab from '../components/HomeFab';
-import DesignTargetButton from '../components/DesignTargetButton';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const ME_COLOUR = '#2dd4bf';
-const SPINE_COLOUR = '#64748b';
-const CARD_W = Math.min(148, Math.floor(SCREEN_W * 0.38));
-const CENTRE_CARD_W = Math.min(168, Math.floor(SCREEN_W * 0.44));
+const FRIEND_PINK = '#f472b6';
+const SPINE_COLOUR = '#94a3b8';
+const CARD_W = Math.min(138, Math.floor(SCREEN_W * 0.36));
+const CENTRE_CARD_W = Math.min(190, Math.floor(SCREEN_W * 0.5));
+const CURVE = 34;
 
 function formatDateLabel(iso) {
   if (!iso) return '';
@@ -40,7 +41,48 @@ function formatDateLabel(iso) {
   }
 }
 
-function Avatar({ name, photoUri, colour, size = 48 }) {
+function formatTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const h = d.getHours();
+    const m = d.getMinutes();
+    if (!h && !m) return '';
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  } catch (_) {
+    return '';
+  }
+}
+
+function cardGlyph(ev) {
+  const blob = `${ev?.category || ''} ${ev?.source || ''} ${ev?.hobbyType || ''} ${ev?.title || ''}`.toLowerCase();
+  if (/poem|poetry|verse/.test(blob)) return '📖';
+  if (/food|coffee|meal|eat/.test(blob)) return '☕';
+  if (/walk|hike|outdoors/.test(blob)) return '🏔️';
+  if (/gratitude|love|heart/.test(blob)) return '♡';
+  if (/sms|text/.test(blob)) return '💬';
+  if (/call|phone/.test(blob)) return '📞';
+  if (/game/.test(blob)) return '🎮';
+  if (/social|post/.test(blob)) return '✦';
+  return '◆';
+}
+
+function uniqueNames(parts) {
+  const seen = new Set();
+  const out = [];
+  parts.forEach((p) => {
+    const n = (p || '').trim();
+    if (!n) return;
+    const k = n.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(n);
+  });
+  return out;
+}
+
+function Avatar({ name, photoUri, colour, size = 52 }) {
   const initial = (name || 'Y').charAt(0).toUpperCase();
   return (
     <View
@@ -51,70 +93,40 @@ function Avatar({ name, photoUri, colour, size = 48 }) {
           height: size,
           borderRadius: size / 2,
           borderColor: colour,
-          backgroundColor: colour,
+          backgroundColor: photoUri ? colour : '#0a0a12',
         },
       ]}
     >
       {photoUri ? (
         <Image
           source={{ uri: photoUri }}
-          style={{ width: size, height: size, borderRadius: size / 2 }}
+          style={{ width: size - 5, height: size - 5, borderRadius: (size - 5) / 2 }}
         />
       ) : (
-        <Text style={[styles.avatarText, { fontSize: size * 0.42 }]}>{initial}</Text>
+        <Text style={[styles.avatarText, { fontSize: size * 0.4, color: colour }]}>{initial}</Text>
       )}
     </View>
   );
 }
 
-function PeopleIcon({ colour = '#94a3b8', size = 20 }) {
+function Curve({ colour, side }) {
+  const common = {
+    width: CURVE,
+    height: CURVE,
+    borderColor: colour,
+    borderWidth: 2.5,
+    borderTopWidth: 0,
+  };
   return (
-    <View style={[styles.peopleIconWrap, { width: size + 10, height: size + 10 }]}>
-      <Text style={{ color: colour, fontSize: size * 0.9 }}>👥</Text>
-    </View>
-  );
-}
-
-function LockIcon({ colour = ME_COLOUR }) {
-  return <Text style={{ color: colour, fontSize: 12 }}>🔒</Text>;
-}
-
-/** Approximate lane→spine curve with stacked Views (no SVG). */
-function FriendPathSegment({ colour, side, meet }) {
-  const laneInset = 10;
-  const laneX = side === 'left' ? laneInset : SCREEN_W - laneInset - 3;
-  const centreX = SCREEN_W / 2 - 1.5;
-  const connectorLeft = side === 'left' ? laneX + 3 : centreX + 3;
-  const connectorWidth =
-    side === 'left'
-      ? Math.max(8, centreX - laneX - 3)
-      : Math.max(8, laneX - centreX - 3);
-
-  return (
-    <View style={styles.pathSeg} pointerEvents="none">
+    <View style={styles.curveCol} pointerEvents="none">
+      <View style={[styles.curveDot, { backgroundColor: colour }]} />
       <View
-        style={[
-          styles.laneLine,
-          {
-            backgroundColor: colour,
-            left: laneX,
-            opacity: meet ? 0.4 : 0.75,
-          },
-        ]}
+        style={
+          side === 'left'
+            ? { ...common, borderLeftWidth: 0, borderBottomRightRadius: CURVE }
+            : { ...common, borderRightWidth: 0, borderBottomLeftRadius: CURVE }
+        }
       />
-      {meet ? (
-        <View
-          style={[
-            styles.connector,
-            {
-              backgroundColor: colour,
-              left: connectorLeft,
-              width: connectorWidth,
-              opacity: 0.85,
-            },
-          ]}
-        />
-      ) : null}
     </View>
   );
 }
@@ -128,57 +140,59 @@ function navigateToEvent(navigation, event) {
   else navigation.navigate('AddEvent', { event });
 }
 
-function PersonalCard({ item, colour, side, onPress }) {
+function PersonalCard({ item, colour, onPress }) {
   const ev = item.event;
   return (
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={onPress}
-      style={[
-        styles.personalCard,
-        side === 'left' ? styles.cardLeft : styles.cardRight,
-        { borderColor: colour + '55' },
-      ]}
+      style={[styles.personalCard, { borderColor: colour + '66' }]}
     >
-      <Text style={[styles.cardAccent, { color: colour }]} numberOfLines={1}>
-        ◆
-      </Text>
-      <Text style={styles.cardTitle} numberOfLines={2}>
-        {ev.title || 'Untitled'}
-      </Text>
-      <Text style={styles.cardDate}>{formatDateLabel(ev.date)}</Text>
+      <View style={styles.personalHead}>
+        <Text style={{ color: colour, fontSize: 16 }}>{cardGlyph(ev)}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {ev.title || 'Untitled'}
+          </Text>
+          <Text style={[styles.cardDate, { color: colour }]}>{formatDateLabel(ev.date)}</Text>
+        </View>
+      </View>
       {ev.description ? (
         <Text style={styles.cardSub} numberOfLines={1}>
           {ev.description}
         </Text>
       ) : null}
       <View style={styles.cardFooter}>
-        <LockIcon colour={colour} />
+        <Text style={{ color: colour, fontSize: 11 }}>🔒</Text>
         <Text style={[styles.cardFooterText, { color: colour }]}>Personal only</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-function SharedCard({ item, myUid, meInitial, onPress }) {
+function SharedCard({ item, meLabel, myEmail, onPress }) {
   const shared = item.shared;
   const friends = item.friends || [];
-  const initials = [meInitial, ...friends.map((f) => f.initial)].filter(Boolean);
+  const names = uniqueNames([
+    meLabel,
+    ...friends.map((f) => f.initial || (f.displayName || '').charAt(0)),
+  ]);
   const withLabel =
-    initials.length > 1
-      ? `With ${initials.join(' and ')}`
-      : friends.length
-        ? `With ${friends.map((f) => f.displayName).join(', ')}`
-        : 'Shared event';
+    names.length > 1 ? `With ${names.join(' and ')}` : names.length === 1 ? `With ${names[0]}` : 'Shared event';
 
-  const isInvitee = shared.createdByUid && myUid && shared.createdByUid !== myUid;
-  const fromEmail =
+  const creatorEmail = (
     shared.createdByEmail ||
     (shared.participants &&
       shared.createdByUid &&
       shared.participants[shared.createdByUid] &&
       shared.participants[shared.createdByUid].email) ||
-    null;
+    ''
+  ).toLowerCase();
+  const mine = (myEmail || '').toLowerCase();
+  const fromOther = creatorEmail && mine && creatorEmail !== mine;
+
+  const time = formatTime(shared.date);
+  const dateBit = formatDateLabel(shared.date);
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.sharedCard}>
@@ -186,17 +200,20 @@ function SharedCard({ item, myUid, meInitial, onPress }) {
       <Text style={[styles.cardTitle, styles.centreAlign]} numberOfLines={2}>
         {shared.title || 'Shared event'}
       </Text>
-      <Text style={[styles.cardDate, styles.centreAlign]}>{formatDateLabel(shared.date)}</Text>
+      <Text style={[styles.cardDate, styles.centreAlign]}>
+        {dateBit}
+        {time ? ` · ${time}` : ''}
+      </Text>
       <Text style={[styles.cardSub, styles.centreAlign]} numberOfLines={1}>
         {withLabel}
       </Text>
-      {isInvitee ? (
+      {fromOther ? (
         <Text style={styles.fromFriend} numberOfLines={1}>
-          {fromEmail ? `From friend - ${fromEmail}` : 'From friend'}
+          From friend
         </Text>
       ) : null}
       <View style={[styles.cardFooter, styles.footerCentre]}>
-        <Text style={{ fontSize: 12, color: '#94a3b8' }}>👥</Text>
+        <Text style={{ fontSize: 11, color: '#94a3b8' }}>🔒</Text>
         <Text style={[styles.cardFooterText, { color: '#94a3b8' }]}>Shared event</Text>
       </View>
     </TouchableOpacity>
@@ -206,8 +223,9 @@ function SharedCard({ item, myUid, meInitial, onPress }) {
 export default function EventsWithFriendsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [sharedEvents, setSharedEvents] = useState([]);
+  const [personalEvents, setPersonalEvents] = useState([]);
   const [localByShareId, setLocalByShareId] = useState({});
-  const [me, setMe] = useState({ displayName: 'You', photoUri: null, initial: 'Y' });
+  const [me, setMe] = useState({ displayName: 'You', photoUri: null, initial: 'Y', email: '' });
   const myUid = auth.currentUser?.uid;
 
   const load = useCallback(async () => {
@@ -219,29 +237,39 @@ export default function EventsWithFriendsScreen({ navigation }) {
         getProfile().catch(() => ({ displayName: '' })),
         getProfilePhotoUri().catch(() => null),
       ]);
+      const email = auth.currentUser?.email || '';
       const displayName =
         profile?.displayName ||
         auth.currentUser?.displayName ||
-        (auth.currentUser?.email || 'You').split('@')[0];
+        (email || 'You').split('@')[0];
       setMe({
         displayName,
         photoUri,
         initial: (displayName || 'Y').charAt(0).toUpperCase(),
+        email,
       });
 
       const sharedList = shared || [];
       const localList = local || [];
-
+      const sharedIds = new Set(sharedList.map((s) => s.id));
       const byShare = {};
       localList.forEach((ev) => {
         if (ev?.shareId) byShare[ev.shareId] = ev;
       });
       setLocalByShareId(byShare);
-
       setSharedEvents(sharedList);
+      setPersonalEvents(
+        localList.filter((ev) => {
+          if (!ev) return false;
+          if (ev.shareId && sharedIds.has(ev.shareId)) return false;
+          if (ev.isShared) return false;
+          return true;
+        }),
+      );
     } catch (e) {
       console.warn('Events with friends load failed', e);
       setSharedEvents([]);
+      setPersonalEvents([]);
       setLocalByShareId({});
     } finally {
       setLoading(false);
@@ -265,35 +293,43 @@ export default function EventsWithFriendsScreen({ navigation }) {
   }, [sharedEvents, myUid]);
 
   const primaryFriendColour =
-    (friendRoster[0] && friendRoster[0].colour) || FRIEND_COLOURS[1] || '#f472b6';
+    (friendRoster[0] && friendRoster[0].colour) || FRIEND_COLOURS[1] || FRIEND_PINK;
 
-  /** Chronological merge: furthest past at top (matches design mock spine story). */
-  const timelineItems = useMemo(() => {
-    const items = [];
-
-    sharedEvents.forEach((shared) => {
-      const friends = listOtherParticipants(shared, myUid);
-      items.push({
-        key: `shared-${shared.id}`,
+  const rows = useMemo(() => {
+    const mixed = [
+      ...personalEvents.map((event) => ({
+        kind: 'personal',
+        date: event.date || '',
+        event,
+      })),
+      ...sharedEvents.map((shared) => ({
         kind: 'shared',
-        side: 'centre',
         date: shared.date || '',
         shared,
-        friends,
-        colour: SPINE_COLOUR,
-      });
-    });
+        friends: listOtherParticipants(shared, myUid),
+      })),
+    ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 
-    items.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
-    return items;
-  }, [sharedEvents, myUid]);
-
-  const openItem = useCallback(
-    (item) => {
-      if (item.kind === 'personal') {
-        navigateToEvent(navigation, item.event);
+    const out = [];
+    mixed.forEach((item) => {
+      if (item.kind === 'shared') {
+        out.push({ type: 'shared', item });
         return;
       }
+      const last = out[out.length - 1];
+      if (last && last.type === 'pair' && !last.right) last.right = item;
+      else out.push({ type: 'pair', left: item, right: null });
+    });
+    return out;
+  }, [personalEvents, sharedEvents, myUid]);
+
+  const openPersonal = useCallback(
+    (event) => navigateToEvent(navigation, event),
+    [navigation],
+  );
+
+  const openShared = useCallback(
+    (item) => {
       const shared = item.shared;
       const local =
         (shared && localByShareId[shared.id]) ||
@@ -305,12 +341,10 @@ export default function EventsWithFriendsScreen({ navigation }) {
           category: shared.category || 'personal',
           shareId: shared.id,
           isShared: true,
-          source:
-            shared.createdByUid && shared.createdByUid !== myUid ? 'shared' : undefined,
         });
       navigateToEvent(navigation, local);
     },
-    [navigation, localByShareId, myUid],
+    [navigation, localByShareId],
   );
 
   if (loading) {
@@ -321,64 +355,33 @@ export default function EventsWithFriendsScreen({ navigation }) {
     );
   }
 
-  const isEmpty = timelineItems.length === 0;
+  const isEmpty = rows.length === 0;
+  const friendInitial =
+    (friendRoster[0] && (friendRoster[0].displayName || 'F').charAt(0).toUpperCase()) || 'F';
 
   return (
     <View style={styles.container}>
-      {/* TEMP design target — remove when friends view matches sketch. */}
-      <DesignTargetButton
-        imageSource={require('../../assets/design-events-with-friends.png')}
-        title="Events with friends design (temp)"
-      />
-
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.headerBlock}>
           <View style={styles.avatarRow}>
-            <Avatar name={me.displayName} photoUri={me.photoUri} colour={ME_COLOUR} />
-            <PeopleIcon colour="#cbd5e1" size={20} />
+            <Avatar name={me.initial} photoUri={me.photoUri} colour={ME_COLOUR} />
+            <Text style={styles.peopleMark}>👥</Text>
             {friendRoster.length > 0 ? (
               friendRoster.map((f) => (
                 <Avatar
                   key={f.uid}
                   name={f.displayName}
                   photoUri={f.photoUri}
-                  colour={f.colour}
+                  colour={f.colour || primaryFriendColour}
                 />
               ))
             ) : (
-              <View
-                style={[
-                  styles.avatar,
-                  {
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
-                    borderColor: primaryFriendColour,
-                    backgroundColor: '#1a1b36',
-                    borderStyle: 'dashed',
-                  },
-                ]}
-              >
-                <Text style={{ color: primaryFriendColour, fontSize: 18, fontWeight: '700' }}>
-                  ?
-                </Text>
-              </View>
+              <Avatar name={friendInitial} colour={primaryFriendColour} />
             )}
           </View>
           <Text style={styles.screenTitle}>Events with friends</Text>
-          <Text style={styles.subtitle}>Only events shared with friends.</Text>
-          {friendRoster.length > 0 ? (
-            <Text style={styles.friendEmails} numberOfLines={2}>
-              {friendRoster
-                .map((f) => f.email || f.displayName)
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-          ) : (
-            <Text style={styles.noFriends}>
-              Share an event, then accept from another account.
-            </Text>
-          )}
+          <View style={styles.titleRule} />
+          <Text style={styles.subtitle}>Shared moments and your own memories</Text>
         </View>
 
         <View style={styles.timeline}>
@@ -386,69 +389,56 @@ export default function EventsWithFriendsScreen({ navigation }) {
           <View style={styles.centreSpine} />
           <View style={styles.spineCapBottom} />
 
-          {/* Persistent coloured lanes (me left, friend right — right stays empty/private) */}
-          <View
-            style={[styles.friendLane, { backgroundColor: ME_COLOUR, left: 12 }]}
-            pointerEvents="none"
-          />
-          <View
-            style={[
-              styles.friendLane,
-              { backgroundColor: primaryFriendColour, right: 12, opacity: 0.45 },
-            ]}
-            pointerEvents="none"
-          />
-
           {isEmpty ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyTitle}>No shared events yet</Text>
+              <Text style={styles.emptyTitle}>Nothing here yet</Text>
               <Text style={styles.emptyBody}>
-                Share an event with a friend, or enter an invite code. Private timeline items stay
-                on Timeline — they are hidden here.
+                Personal timeline items sit on the left and right. Shared events sit on the centre
+                spine.
               </Text>
             </View>
           ) : (
-            timelineItems.map((item) => {
-              if (item.kind === 'personal') {
+            rows.map((row, idx) => {
+              if (row.type === 'shared') {
                 return (
-                  <View key={item.key} style={styles.nodeBlock}>
-                    <FriendPathSegment colour={ME_COLOUR} side="left" meet />
-                    <View style={styles.nodeRow}>
-                      <View style={styles.laneCol}>
-                        <PersonalCard
-                          item={item}
-                          colour={ME_COLOUR}
-                          side="left"
-                          onPress={() => openItem(item)}
-                        />
-                      </View>
-                      <View style={styles.spineGap} />
-                      <View style={styles.laneCol} />
-                    </View>
+                  <View key={row.item.shared.id || `s-${idx}`} style={styles.sharedRow}>
+                    <View style={styles.sideSlot} />
+                    <SharedCard
+                      item={row.item}
+                      meLabel={me.initial}
+                      myEmail={me.email}
+                      onPress={() => openShared(row.item)}
+                    />
+                    <View style={styles.sideSlot} />
                   </View>
                 );
               }
-
               return (
-                <View key={item.key} style={styles.nodeBlock}>
-                  {(item.friends || []).slice(0, 2).map((f, fi) => (
-                    <FriendPathSegment
-                      key={`${item.key}-${f.uid}`}
-                      colour={f.colour}
-                      side={fi % 2 === 0 ? 'right' : 'left'}
-                      meet
-                    />
-                  ))}
-                  {(!item.friends || item.friends.length === 0) && (
-                    <FriendPathSegment colour={primaryFriendColour} side="right" meet />
-                  )}
-                  <View style={styles.nodeRowCentre}>
-                    <SharedCard
-                      item={item}
-                      myUid={myUid}
-                      meInitial={me.initial}
-                      onPress={() => openItem(item)}
-                    />
+                <View key={`p-${idx}`} style={styles.pairRow}>
+                  <View style={styles.sideSlot}>
+                    {row.left ? (
+                      <View style={styles.personalWrap}>
+                        <PersonalCard
+                          item={row.left}
+                          colour={ME_COLOUR}
+                          onPress={() => openPersonal(row.left.event)}
+                        />
+                        <Curve colour={ME_COLOUR} side="left" />
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={styles.spineGap} />
+                  <View style={styles.sideSlot}>
+                    {row.right ? (
+                      <View style={[styles.personalWrap, styles.personalWrapRight]}>
+                        <Curve colour={primaryFriendColour} side="right" />
+                        <PersonalCard
+                          item={row.right}
+                          colour={primaryFriendColour}
+                          onPress={() => openPersonal(row.right.event)}
+                        />
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               );
@@ -462,7 +452,6 @@ export default function EventsWithFriendsScreen({ navigation }) {
         >
           <Text style={styles.buttonText}>Enter invite code</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={[styles.button, styles.ghost]} onPress={load}>
           <Text style={styles.ghostText}>Refresh</Text>
         </TouchableOpacity>
@@ -480,14 +469,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scroll: { paddingHorizontal: 12, paddingBottom: 110, paddingTop: 44 },
-  headerBlock: { alignItems: 'center', marginBottom: 18 },
+  scroll: { paddingHorizontal: 10, paddingBottom: 110, paddingTop: 16 },
+  headerBlock: { alignItems: 'center', marginBottom: 10 },
   avatarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 14,
-    marginBottom: 14,
+    gap: 16,
+    marginBottom: 12,
   },
   avatar: {
     borderWidth: 2.5,
@@ -495,51 +484,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  avatarText: { color: '#0a0a12', fontWeight: '800' },
-  peopleIconWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  avatarText: { fontWeight: '800' },
+  peopleMark: { fontSize: 18, color: '#94a3b8' },
   screenTitle: {
     color: '#f8fafc',
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
-    letterSpacing: 0.2,
+  },
+  titleRule: {
+    width: 36,
+    height: 2,
+    backgroundColor: '#334155',
+    marginTop: 8,
+    borderRadius: 1,
   },
   subtitle: {
     color: '#94a3b8',
     fontSize: 13,
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  friendEmails: {
-    color: '#64748b',
-    fontSize: 11,
     marginTop: 8,
     textAlign: 'center',
   },
-  noFriends: { color: '#64748b', fontSize: 12, marginTop: 8, textAlign: 'center' },
   timeline: {
     position: 'relative',
-    minHeight: 240,
-    paddingVertical: 20,
-    marginBottom: 16,
+    minHeight: 260,
+    paddingVertical: 18,
+    marginBottom: 12,
   },
   centreSpine: {
     position: 'absolute',
-    top: 12,
-    bottom: 12,
+    top: 8,
+    bottom: 8,
     left: '50%',
-    marginLeft: -1.5,
-    width: 3,
+    marginLeft: -1,
+    width: 2,
     borderRadius: 2,
     backgroundColor: SPINE_COLOUR,
-    opacity: 0.85,
+    opacity: 0.7,
   },
   spineCapTop: {
     position: 'absolute',
-    top: 4,
+    top: 2,
     left: '50%',
     marginLeft: -5,
     width: 10,
@@ -552,7 +537,7 @@ const styles = StyleSheet.create({
   },
   spineCapBottom: {
     position: 'absolute',
-    bottom: 4,
+    bottom: 2,
     left: '50%',
     marginLeft: -5,
     width: 10,
@@ -563,69 +548,58 @@ const styles = StyleSheet.create({
     backgroundColor: '#0a0a12',
     zIndex: 2,
   },
-  friendLane: {
-    position: 'absolute',
-    top: 16,
-    bottom: 16,
-    width: 3,
-    borderRadius: 3,
-    opacity: 0.55,
-  },
-  pathSeg: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  laneLine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 3,
-    borderRadius: 2,
-  },
-  connector: {
-    position: 'absolute',
-    top: '46%',
-    height: 2.5,
-    borderRadius: 2,
-  },
-  nodeBlock: {
-    marginBottom: 22,
-    position: 'relative',
-    minHeight: 88,
-  },
-  nodeRow: {
+  pairRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 18,
+    minHeight: 88,
   },
-  nodeRowCentre: {
+  sharedRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 3,
+    marginBottom: 18,
+    zIndex: 4,
   },
-  laneCol: {
+  sideSlot: {
     flex: 1,
-    alignItems: 'center',
+    minWidth: 0,
   },
-  spineGap: { width: 10 },
+  spineGap: { width: 8 },
+  personalWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  personalWrapRight: {
+    justifyContent: 'flex-start',
+  },
+  curveCol: {
+    width: CURVE,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 18,
+  },
+  curveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: -2,
+    zIndex: 2,
+  },
   personalCard: {
     backgroundColor: '#16182a',
     borderRadius: 14,
     borderWidth: 1,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     width: CARD_W,
     maxWidth: CARD_W,
   },
-  cardLeft: {
-    alignSelf: 'flex-start',
-    marginLeft: 4,
-  },
-  cardRight: {
-    alignSelf: 'flex-end',
-    marginRight: 4,
-  },
+  personalHead: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   sharedCard: {
     backgroundColor: '#16182a',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#475569',
     paddingVertical: 12,
@@ -633,29 +607,24 @@ const styles = StyleSheet.create({
     width: CENTRE_CARD_W,
     maxWidth: CENTRE_CARD_W,
     alignItems: 'center',
-    zIndex: 4,
+    zIndex: 5,
   },
-  cardAccent: { fontSize: 12, marginBottom: 4 },
-  sharedGlyph: { fontSize: 14, marginBottom: 4, color: '#e2e8f0' },
+  sharedGlyph: { fontSize: 16, marginBottom: 4, color: '#e2e8f0' },
   cardTitle: {
     color: '#f8fafc',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    textAlign: 'left',
-    alignSelf: 'stretch',
   },
-  centreAlign: { textAlign: 'center' },
+  centreAlign: { textAlign: 'center', alignSelf: 'stretch' },
   cardDate: {
     color: '#94a3b8',
     fontSize: 11,
-    marginTop: 4,
-    alignSelf: 'stretch',
+    marginTop: 3,
   },
   cardSub: {
     color: '#64748b',
     fontSize: 11,
-    marginTop: 2,
-    alignSelf: 'stretch',
+    marginTop: 3,
   },
   fromFriend: {
     color: '#34d399',
@@ -668,8 +637,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 10,
-    alignSelf: 'stretch',
+    marginTop: 8,
   },
   footerCentre: { justifyContent: 'center' },
   cardFooterText: { fontSize: 11, fontWeight: '600' },
