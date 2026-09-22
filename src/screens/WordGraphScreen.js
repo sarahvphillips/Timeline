@@ -881,8 +881,18 @@ export default function WordGraphScreen({ onClose }) {
     root.style.webkitUserSelect = 'none';
     root.style.touchAction = 'none';
     root.style.cursor = 'grab';
-    let dragging = false;
-
+    const endDrag = () => {
+      const id = dragRef.current;
+      if (id && posRef.current[id]) {
+        const p = posRef.current[id];
+        p.pin = !!p.userPin;
+        if (p.userPin) pinnedRef.current[id] = { x: p.x, y: p.y };
+      }
+      dragRef.current = null;
+      holdRef.current = null;
+      root.style.cursor = 'grab';
+      scrollSetter.current(true);
+    };
     const place = (clientX, clientY) => {
       const rect = root.getBoundingClientRect();
       return { x: clientX - rect.left, y: clientY - rect.top };
@@ -892,16 +902,11 @@ export default function WordGraphScreen({ onClose }) {
       const raw = place(event.clientX, event.clientY);
       const { width: w, height: h } = sizeRef.current;
       const best = nearestNode(raw.x, raw.y, graphRef.current?.nodes, posRef.current, w, h, zoomRef.current);
+      if (!best || !posRef.current[best.id]) return;
       event.preventDefault();
-      scrollSetter.current(false);
-      if (!best || !posRef.current[best.id]) {
-        dragRef.current = null;
-        setSelected(null);
-        return;
-      }
       const point = unscalePoint(raw.x, raw.y, w, h, zoomRef.current);
       const grabbed = posRef.current[best.id];
-      dragging = true;
+      scrollSetter.current(false);
       root.style.cursor = 'grabbing';
       try {
         root.setPointerCapture(event.pointerId);
@@ -921,7 +926,6 @@ export default function WordGraphScreen({ onClose }) {
       setSelected(best.id);
     };
     const move = (event) => {
-      if (!dragging) return;
       const id = dragRef.current;
       const hold = holdRef.current;
       if (!id || !hold || !posRef.current[id]) return;
@@ -940,30 +944,26 @@ export default function WordGraphScreen({ onClose }) {
       setTick((n) => n + 1);
     };
     const up = () => {
-      if (!dragging) return;
-      dragging = false;
-      root.style.cursor = 'grab';
-      const id = dragRef.current;
-      if (id && posRef.current[id]) {
-        const p = posRef.current[id];
-        p.pin = !!p.userPin;
-        if (p.userPin) pinnedRef.current[id] = { x: p.x, y: p.y };
+      if (!dragRef.current) {
+        scrollSetter.current(true);
+        return;
       }
-      dragRef.current = null;
-      holdRef.current = null;
-      scrollSetter.current(true);
+      endDrag();
     };
     root.addEventListener('pointerdown', down);
     root.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+    window.addEventListener('blur', up);
     return () => {
+      endDrag();
       root.removeEventListener('pointerdown', down);
       root.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      window.removeEventListener('blur', up);
     };
-  }, [loading, graph.nodes.length, width, height]);
+  }, [loading, graph.nodes.length]);
 
   const byId = useMemo(() => {
     const map = {};
