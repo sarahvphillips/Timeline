@@ -557,6 +557,11 @@ export default function WordToIntScreen({ navigation, route }) {
 
       <Text style={styles.listTitle}>Saved numbers</Text>
       {list.length > 0 ? (
+        <TouchableOpacity style={[styles.button, styles.ghost]} onPress={() => navigation.navigate('WordGraph')}>
+          <Text style={styles.ghostText}>Graph — words that share a number</Text>
+        </TouchableOpacity>
+      ) : null}
+      {list.length > 0 ? (
         <View style={styles.shareBar}>
           {!wordsUnlocked ? (
             <TouchableOpacity style={styles.button} onPress={unlockShare} disabled={unlocking}>

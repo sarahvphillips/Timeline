@@ -37,6 +37,7 @@ import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
 import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
 import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
+import WordGraphScreen from './src/screens/WordGraphScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
 import DateCircleScreen from './src/screens/DateCircleScreen';
 import PeopleScreen from './src/screens/PeopleScreen';
@@ -350,6 +351,12 @@ function AppShell() {
                 name="WordToInt"
                 component={WordToIntScreen}
                 options={{ title: 'Word to Int' }}
+              />
+
+              <Stack.Screen
+                name="WordGraph"
+                component={WordGraphScreen}
+                options={{ title: 'Word graph' }}
               />
 
               <Stack.Screen
