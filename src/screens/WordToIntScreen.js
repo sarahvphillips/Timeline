@@ -23,7 +23,6 @@ import {
   javaHashCode,
   METHODS,
   LOOKUP_METHODS,
-  findSavedPhrase,
   scrubWordNumberDuplicates,
   LIST_SORTS,
   getListSort,
@@ -32,6 +31,7 @@ import {
   formatAddedAt,
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
 } from '../services/wordToIntService';
+import { findSavedPhrase } from '../services/wordPhrase';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
 import { auth } from '../services/firebase';

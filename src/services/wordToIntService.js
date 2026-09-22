@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { phraseKey, findSavedPhrase } from './wordPhrase';
+
+export { phraseKey, findSavedPhrase };
 
 const LEGACY_WORD_KEY = '@word_to_int_list';
 const GUEST_WORD_KEY = '@word_to_int_list_guest';
@@ -235,22 +238,6 @@ function sortWordNumbers(list) {
   return (list || []).sort(
     (a, b) =>
       new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
-  );
-}
-
-export function phraseKey(phrase) {
-  return String(phrase || '').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-export function findSavedPhrase(list, phrase) {
-  const key = phraseKey(phrase);
-  const letters = lettersOnly(phrase);
-  if (!key) return null;
-  return (
-    (list || []).find((item) => {
-      if (phraseKey(item.phrase) === key) return true;
-      return !!(letters && lettersOnly(item.phrase) === letters);
-    }) || null
   );
 }
 
