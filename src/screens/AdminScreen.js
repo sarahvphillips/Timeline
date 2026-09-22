@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -28,7 +28,7 @@ import {
 } from '../services/adminService';
 import { adminGetRewardsByEmail, adminSetRewards, perkLabel } from '../services/rewardsService';
 
-export default function AdminScreen({ navigation }) {
+export default function AdminScreen({ navigation, route }) {
   const email = (auth.currentUser?.email || '').toLowerCase();
   const [state, setState] = useState(null);
   const [grantEmail, setGrantEmail] = useState('');
@@ -64,6 +64,12 @@ export default function AdminScreen({ navigation }) {
       };
     }, [email])
   );
+
+  useEffect(() => {
+    if (route?.params?.focus === 'credits' && email) {
+      setCreditEmail(email);
+    }
+  }, [route?.params?.focus, email]);
 
   const commit = async (next) => {
     const saved = await saveAdmin(next);
@@ -174,6 +180,9 @@ export default function AdminScreen({ navigation }) {
       <Text style={styles.heading}>Admin</Text>
       <Text style={styles.intro}>Admins are chosen only by Sarah. Nobody can add themselves.</Text>
       <Text style={styles.meta}>{email} · {role}</Text>
+      <TouchableOpacity style={styles.primary} onPress={() => navigation.navigate('CreditsShop')}>
+        <Text style={styles.primaryText}>Credits shop — test as a user</Text>
+      </TouchableOpacity>
 
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
@@ -296,6 +305,12 @@ export default function AdminScreen({ navigation }) {
         Stored in Firestore at users/{'{uid}'}/settings/rewards. Look up by email, then set the
         balance. Device copy updates the next time they open the app.
       </Text>
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={() => navigation.navigate('CreditsShop')}
+      >
+        <Text style={styles.primaryText}>Open Credits shop (test unlocks)</Text>
+      </TouchableOpacity>
       <TextInput
         style={styles.input}
         placeholder="user@example.com"

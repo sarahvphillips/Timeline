@@ -39,7 +39,14 @@ export default function CreditsShopScreen({ navigation }) {
 
   const needMore = () => {
     if (staff) {
-      navigation.navigate('Admin');
+      Alert.alert(
+        'Not enough credits',
+        'Stay in the shop to test unlocks, or open Admin to set this account’s credits.',
+        [
+          { text: 'Stay in shop', style: 'cancel' },
+          { text: 'Edit credits in Admin', onPress: () => navigation.navigate('Admin', { focus: 'credits' }) },
+        ],
+      );
       return;
     }
     if (Platform.OS !== 'android') {
@@ -64,8 +71,8 @@ export default function CreditsShopScreen({ navigation }) {
         Alert.alert('Already yours', item.title);
       } else if (e?.code === 'NEED_CREDITS') {
         Alert.alert('Not enough credits', `You haven't got enough credits, you need ${item.cost - credits} more!`, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: staff ? 'Admin' : Platform.OS === 'android' ? 'Buy credits' : 'Play app only', onPress: needMore },
+          { text: 'Stay in shop', style: 'cancel' },
+          { text: staff ? 'Edit credits in Admin' : Platform.OS === 'android' ? 'Buy credits' : 'Play app only', onPress: needMore },
         ]);
       } else {
         Alert.alert('Shop', e?.message || 'Could not unlock this.');
@@ -87,12 +94,37 @@ export default function CreditsShopScreen({ navigation }) {
           Credits come from friends who join Timeline, and from filling the first stamps row on Home.
           Nothing here is a streak. Spend when you want a perk that would usually cost.
         </Text>
+        {staff ? (
+          <View style={styles.adminBanner}>
+            <Text style={styles.adminBannerTitle}>Admin test</Text>
+            <Text style={styles.adminBannerText}>
+              This shop stays usable so you can unlock perks the same way a user would. Use Admin to
+              set the credit balance, then come back here.
+            </Text>
+            <TouchableOpacity
+              style={styles.adminBtn}
+              onPress={() => navigation.navigate('Admin', { focus: 'credits' })}
+            >
+              <Text style={styles.adminBtnText}>Edit credits in Admin</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <View style={styles.balance}>
           <Text style={styles.balanceNum}>{credits}</Text>
           <Text style={styles.balanceLabel}>credits on this account</Text>
-          <TouchableOpacity style={styles.needBtn} onPress={needMore}>
-            <Text style={styles.needBtnText}>{staff ? 'Admin: add credits' : 'Buy credits'}</Text>
-          </TouchableOpacity>
+          <View style={styles.balanceActions}>
+            {staff ? (
+              <TouchableOpacity
+                style={[styles.needBtn, styles.needBtnGhost]}
+                onPress={() => navigation.navigate('Admin', { focus: 'credits' })}
+              >
+                <Text style={styles.needBtnGhostText}>Admin: edit credits</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.needBtn} onPress={needMore}>
+              <Text style={styles.needBtnText}>{staff ? 'Need more?' : 'Buy credits'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         {owned.length ? (
           <Text style={styles.ownedLine}>Unlocked: {owned.join(' · ')}</Text>
@@ -121,7 +153,7 @@ export default function CreditsShopScreen({ navigation }) {
                       : can
                         ? 'Unlock'
                         : staff
-                          ? 'Need more credits · Admin'
+                          ? 'Need more credits'
                           : 'Need more credits · Buy'}
                 </Text>
               </TouchableOpacity>
@@ -146,6 +178,24 @@ const styles = StyleSheet.create({
   },
   heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
   intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  adminBanner: {
+    backgroundColor: '#1e1b4b',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#8b5cf6',
+    padding: 14,
+    marginBottom: 14,
+  },
+  adminBannerTitle: { color: '#ddd6fe', fontWeight: '800', fontSize: 13, textTransform: 'uppercase' },
+  adminBannerText: { color: '#c4b5fd', fontSize: 13, lineHeight: 18, marginTop: 6 },
+  adminBtn: {
+    marginTop: 10,
+    backgroundColor: '#6d28d9',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  adminBtnText: { color: '#fff', fontWeight: '800' },
   balance: {
     backgroundColor: '#1a1b36',
     borderRadius: 14,
@@ -164,7 +214,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
+  needBtnGhost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#8b5cf6',
+  },
   needBtnText: { color: '#fff', fontWeight: '700' },
+  needBtnGhostText: { color: '#c4b5fd', fontWeight: '700' },
+  balanceActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   ownedLine: { color: '#a5b4fc', fontSize: 13, marginBottom: 16, lineHeight: 18 },
   card: {
     backgroundColor: '#1a1b36',

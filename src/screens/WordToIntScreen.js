@@ -313,8 +313,8 @@ export default function WordToIntScreen({ navigation, route }) {
         Alert.alert('Not enough credits', e.message, [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: staff ? 'Admin' : 'Credits shop',
-            onPress: () => navigation.navigate(staff ? 'Admin' : 'CreditsShop'),
+            text: 'Credits shop',
+            onPress: () => navigation.navigate('CreditsShop'),
           },
         ]);
       } else if (e?.code === 'OWNED') {
