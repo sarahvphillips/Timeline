@@ -1629,6 +1629,25 @@ export default function WordGraphScreen({ onClose, navigation }) {
           </>
         ) : null}
         <TouchableOpacity
+          style={[styles.chip, selected && posRef.current[selected]?.userPin && styles.chipOn]}
+          onPress={() => {
+            if (!selected || !posRef.current[selected]) {
+              Alert.alert('Pin this node', 'Tap a circle on the graph first.');
+              return;
+            }
+            togglePinRef.current(selected);
+          }}
+        >
+          <Text
+            style={[
+              styles.chipText,
+              selected && posRef.current[selected]?.userPin && styles.chipTextOn,
+            ]}
+          >
+            {selected && posRef.current[selected]?.userPin ? 'Unpin this node' : 'Pin this node'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={styles.chip}
           onPress={() => {
             pinnedRef.current = {};
