@@ -478,6 +478,8 @@ export default function WordGraphScreen({ onClose }) {
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [savingImage, setSavingImage] = useState(false);
   const [previewUri, setPreviewUri] = useState('');
+  const scrollRef = useRef(null);
+  const tableY = useRef(0);
   const scrollSetter = useRef(setScrollEnabled);
   scrollSetter.current = setScrollEnabled;
   const graph = useMemo(() => buildGraph(list, methods), [list, methods]);
@@ -700,6 +702,7 @@ export default function WordGraphScreen({ onClose }) {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.wrap}
       contentContainerStyle={styles.content}
       scrollEnabled={scrollEnabled}
@@ -764,6 +767,12 @@ export default function WordGraphScreen({ onClose }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.chip} onPress={saveImage} disabled={savingImage}>
           <Text style={styles.chipText}>{savingImage ? 'Saving…' : 'Save image'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.chip}
+          onPress={() => scrollRef.current?.scrollTo({ y: Math.max(0, tableY.current - 8), animated: true })}
+        >
+          <Text style={styles.chipText}>Data table</Text>
         </TouchableOpacity>
       </View>
       {loading ? (
@@ -874,18 +883,19 @@ export default function WordGraphScreen({ onClose }) {
         </View>
       ) : null}
 
-      <Text style={styles.layoutLabel}>Table</Text>
-      <Text style={styles.meta}>Every saved word on this graph. Gold means that word sits on an overlap edge.</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View>
-          <View style={styles.tableRow}>
-            {['Word', 'Ordinal', 'Pythagorean', 'Reverse', 'Reduced', 'Overlap with'].map((h) => (
-              <Text key={h} style={[styles.tableCell, styles.tableHead]}>
-                {h}
-              </Text>
-            ))}
-          </View>
-          {graph.nodes
+      <View
+        onLayout={(e) => {
+          tableY.current = e.nativeEvent.layout.y;
+        }}
+      >
+        <Text style={styles.layoutLabel}>Data table</Text>
+        <Text style={styles.meta}>
+          Every saved word. Gold means that word shares a link in more than one selected number set.
+        </Text>
+        {graph.nodes.filter((n) => n.kind === 'word').length === 0 ? (
+          <Text style={styles.meta}>No saved words yet.</Text>
+        ) : (
+          graph.nodes
             .filter((n) => n.kind === 'word')
             .sort((a, b) => String(a.label).localeCompare(String(b.label)))
             .map((node) => {
@@ -894,32 +904,34 @@ export default function WordGraphScreen({ onClose }) {
               const withWords = pairs
                 .map((row) => {
                   const other = row.a === node.id ? row.b : row.a;
-                  const via = row.via.map((id) => METHODS.find((m) => m.id === id)?.label || id).join('+');
+                  const via = (row.via || [])
+                    .map((id) => METHODS.find((m) => m.id === id)?.label || id)
+                    .join(' + ');
                   return `${labelOf(other)} (${via})`;
                 })
                 .join(', ');
               return (
-                <View key={node.id} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, styles.tableWord, node.overlap && { color: OVERLAP_COLOR }]}>
-                    {node.label}
-                  </Text>
-                  <Text style={styles.tableCell}>{entry.ordinal ?? '—'}</Text>
-                  <Text style={styles.tableCell}>{entry.pythagorean ?? '—'}</Text>
-                  <Text style={styles.tableCell}>{entry.reverse ?? '—'}</Text>
-                  <Text style={styles.tableCell}>{entry.reduced ?? '—'}</Text>
-                  <Text style={[styles.tableCell, styles.tableWide]}>{withWords || '—'}</Text>
+                <View key={node.id} style={styles.tableCard}>
+                  <Text style={[styles.tableTitle, node.overlap && { color: OVERLAP_COLOR }]}>{node.label}</Text>
+                  <Text style={styles.tableLine}>Ordinal {entry.ordinal ?? '—'}</Text>
+                  <Text style={styles.tableLine}>Pythagorean {entry.pythagorean ?? '—'}</Text>
+                  <Text style={styles.tableLine}>Reverse {entry.reverse ?? '—'}</Text>
+                  <Text style={styles.tableLine}>Reduced {entry.reduced ?? '—'}</Text>
+                  <Text style={styles.tableLine}>Preferred {preferredNumber(entry) ?? '—'}</Text>
+                  <Text style={styles.tableLine}>Overlap with {withWords || '—'}</Text>
+                  {entry.notes ? <Text style={styles.tableLine}>Note {entry.notes}</Text> : null}
                 </View>
               );
-            })}
-        </View>
-      </ScrollView>
-      {(graph.overlaps || []).length ? (
-        <Text style={styles.meta}>
-          {graph.overlaps.length} overlap edge{graph.overlaps.length === 1 ? '' : 's'} between the selected sets.
-        </Text>
-      ) : (
-        <Text style={styles.meta}>No overlap yet. Turn on a second number set, such as Ordinal and Reduced.</Text>
-      )}
+            })
+        )}
+        {(graph.overlaps || []).length ? (
+          <Text style={styles.meta}>
+            {graph.overlaps.length} overlap edge{graph.overlaps.length === 1 ? '' : 's'} between the selected sets.
+          </Text>
+        ) : (
+          <Text style={styles.meta}>No overlap yet. Turn on a second number set, such as Ordinal and Reduced.</Text>
+        )}
+      </View>
 
       {previewUri ? (
         <View style={styles.detail}>
@@ -984,9 +996,14 @@ const styles = StyleSheet.create({
   },
   detailTitle: { color: '#f8fafc', fontWeight: '800', fontSize: 16 },
   meta: { color: '#94a3b8', fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 8 },
-  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  tableCell: { color: '#e2e8f0', fontSize: 12, width: 88, paddingVertical: 8, paddingHorizontal: 6 },
-  tableHead: { color: '#93c5fd', fontWeight: '800', fontSize: 11 },
-  tableWord: { width: 120, fontWeight: '700' },
-  tableWide: { width: 220 },
+  tableCard: {
+    backgroundColor: '#111827',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    padding: 12,
+    marginBottom: 8,
+  },
+  tableTitle: { color: '#f8fafc', fontWeight: '800', fontSize: 16, marginBottom: 4 },
+  tableLine: { color: '#cbd5e1', fontSize: 13, lineHeight: 20 },
 });
