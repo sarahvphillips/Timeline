@@ -60,7 +60,6 @@ function buildGraph(list, methods) {
       groups.get(n).push(w);
     });
     groups.forEach((members, n) => {
-      if (members.length < 2) return;
       const hid = `hub:${method}:${n}`;
       nodes.push({
         id: hid,
@@ -992,8 +991,8 @@ export default function WordGraphScreen({ onClose }) {
       </View>
       <Text style={styles.heading}>Graph</Text>
       <Text style={styles.intro}>
-        Turn on more than one number set to compare edges. A gold line means the same two words are
-        linked in both sets. Drag a node, then save an image of where you left it.
+        Each word stays joined to its number, even when nothing else shares it. Turn on more than one
+        number set to compare edges. A gold line means the same two words are linked in both sets.
       </Text>
       <Text style={styles.layoutLabel}>Number sets — tap to combine</Text>
       <View style={styles.row}>
