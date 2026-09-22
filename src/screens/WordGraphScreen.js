@@ -489,6 +489,27 @@ function nudgeApart(pos, nodes, width, height) {
   return next;
 }
 
+function nearestNode(rawX, rawY, nodes, pos, width, height, zoom) {
+  const z = zoom || 1;
+  const cx = width / 2;
+  const cy = height / 2;
+  let best = null;
+  let bestD = Infinity;
+  (nodes || []).forEach((node) => {
+    const p = pos[node.id];
+    if (!p) return;
+    const sx = cx + (p.x - cx) * z;
+    const sy = cy + (p.y - cy) * z;
+    const d = Math.hypot(sx - rawX, sy - rawY);
+    const limit = node.kind === 'number' ? 36 : 24;
+    if (d <= limit && d < bestD) {
+      best = node;
+      bestD = d;
+    }
+  });
+  return best;
+}
+
 function unscalePoint(x, y, width, height, zoom) {
   const z = zoom || 1;
   const cx = width / 2;
@@ -748,34 +769,24 @@ export default function WordGraphScreen({ onClose }) {
 
   const pan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => Platform.OS !== 'web',
+      onMoveShouldSetPanResponder: () => Platform.OS !== 'web',
       onPanResponderGrant: (e) => {
         scrollSetter.current(false);
         const rawX = e.nativeEvent.locationX;
         const rawY = e.nativeEvent.locationY;
         const { width: w, height: h } = sizeRef.current;
         const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
-        const nodes = graphRef.current.nodes || [];
-        let best = null;
-        let bestD = 36 / (zoomRef.current || 1);
-        nodes.forEach((node) => {
-          const p = posRef.current[node.id];
-          if (!p) return;
-          const dx = p.x - point.x;
-          const dy = p.y - point.y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < bestD) {
-            best = node;
-            bestD = d;
-          }
-        });
+        const best = nearestNode(rawX, rawY, graphRef.current.nodes, posRef.current, w, h, zoomRef.current);
         if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
         const id = best?.id || null;
+        const grabbed = id ? posRef.current[id] : null;
         holdRef.current = {
           id,
           x: rawX,
           y: rawY,
+          ox: grabbed ? grabbed.x - point.x : 0,
+          oy: grabbed ? grabbed.y - point.y : 0,
           moved: false,
           fired: false,
           timer: setTimeout(() => {
@@ -786,9 +797,11 @@ export default function WordGraphScreen({ onClose }) {
           }, 480),
         };
         dragRef.current = id;
-        if (best && posRef.current[best.id]) {
-          posRef.current[best.id].pin = true;
-          setSelected(best.id);
+        if (grabbed) {
+          grabbed.pin = true;
+          grabbed.vx = 0;
+          grabbed.vy = 0;
+          setSelected(id);
         } else {
           setSelected(null);
         }
@@ -800,7 +813,7 @@ export default function WordGraphScreen({ onClose }) {
         if (hold && !hold.moved) {
           const dx = rawX - hold.x;
           const dy = rawY - hold.y;
-          if (dx * dx + dy * dy > 36) {
+          if (dx * dx + dy * dy > 9) {
             hold.moved = true;
             clearTimeout(hold.timer);
           }
@@ -810,11 +823,13 @@ export default function WordGraphScreen({ onClose }) {
         if (!id || !posRef.current[id]) return;
         const { width: w, height: h } = sizeRef.current;
         const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
-        posRef.current[id].x = point.x;
-        posRef.current[id].y = point.y;
+        const nextX = point.x + (hold?.ox || 0);
+        const nextY = point.y + (hold?.oy || 0);
+        posRef.current[id].x = nextX;
+        posRef.current[id].y = nextY;
         posRef.current[id].vx = 0;
         posRef.current[id].vy = 0;
-        if (posRef.current[id].userPin) pinnedRef.current[id] = { x: point.x, y: point.y };
+        if (posRef.current[id].userPin) pinnedRef.current[id] = { x: nextX, y: nextY };
         setTick((n) => n + 1);
       },
       onPanResponderRelease: () => {
@@ -850,26 +865,104 @@ export default function WordGraphScreen({ onClose }) {
       const rawX = event.clientX - rect.left;
       const rawY = event.clientY - rect.top;
       const { width: w, height: h } = sizeRef.current;
-      const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
-      const nodes = graphRef.current?.nodes || [];
-      let best = null;
-      let bestD = 36 / (zoomRef.current || 1);
-      nodes.forEach((node) => {
-        const p = posRef.current[node.id];
-        if (!p) return;
-        const dx = p.x - point.x;
-        const dy = p.y - point.y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < bestD) {
-          best = node;
-          bestD = d;
-        }
-      });
+      const best = nearestNode(rawX, rawY, graphRef.current?.nodes, posRef.current, w, h, zoomRef.current);
       if (best) togglePinRef.current(best.id);
     };
     document.addEventListener('contextmenu', onMenu);
     return () => document.removeEventListener('contextmenu', onMenu);
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const root = document.getElementById('word-graph-canvas');
+    if (!root) return undefined;
+    root.style.userSelect = 'none';
+    root.style.webkitUserSelect = 'none';
+    root.style.touchAction = 'none';
+    root.style.cursor = 'grab';
+    let dragging = false;
+
+    const place = (clientX, clientY) => {
+      const rect = root.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+    const down = (event) => {
+      if (event.button != null && event.button !== 0) return;
+      const raw = place(event.clientX, event.clientY);
+      const { width: w, height: h } = sizeRef.current;
+      const best = nearestNode(raw.x, raw.y, graphRef.current?.nodes, posRef.current, w, h, zoomRef.current);
+      event.preventDefault();
+      scrollSetter.current(false);
+      if (!best || !posRef.current[best.id]) {
+        dragRef.current = null;
+        setSelected(null);
+        return;
+      }
+      const point = unscalePoint(raw.x, raw.y, w, h, zoomRef.current);
+      const grabbed = posRef.current[best.id];
+      dragging = true;
+      root.style.cursor = 'grabbing';
+      try {
+        root.setPointerCapture(event.pointerId);
+      } catch (err) {
+        /* capture is optional */
+      }
+      dragRef.current = best.id;
+      holdRef.current = {
+        id: best.id,
+        ox: grabbed.x - point.x,
+        oy: grabbed.y - point.y,
+        moved: true,
+      };
+      grabbed.pin = true;
+      grabbed.vx = 0;
+      grabbed.vy = 0;
+      setSelected(best.id);
+    };
+    const move = (event) => {
+      if (!dragging) return;
+      const id = dragRef.current;
+      const hold = holdRef.current;
+      if (!id || !hold || !posRef.current[id]) return;
+      event.preventDefault();
+      const raw = place(event.clientX, event.clientY);
+      const { width: w, height: h } = sizeRef.current;
+      const point = unscalePoint(raw.x, raw.y, w, h, zoomRef.current);
+      const nextX = point.x + hold.ox;
+      const nextY = point.y + hold.oy;
+      posRef.current[id].x = nextX;
+      posRef.current[id].y = nextY;
+      posRef.current[id].vx = 0;
+      posRef.current[id].vy = 0;
+      posRef.current[id].pin = true;
+      if (posRef.current[id].userPin) pinnedRef.current[id] = { x: nextX, y: nextY };
+      setTick((n) => n + 1);
+    };
+    const up = () => {
+      if (!dragging) return;
+      dragging = false;
+      root.style.cursor = 'grab';
+      const id = dragRef.current;
+      if (id && posRef.current[id]) {
+        const p = posRef.current[id];
+        p.pin = !!p.userPin;
+        if (p.userPin) pinnedRef.current[id] = { x: p.x, y: p.y };
+      }
+      dragRef.current = null;
+      holdRef.current = null;
+      scrollSetter.current(true);
+    };
+    root.addEventListener('pointerdown', down);
+    root.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      root.removeEventListener('pointerdown', down);
+      root.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [loading, graph.nodes.length, width, height]);
 
   const byId = useMemo(() => {
     const map = {};
@@ -993,6 +1086,7 @@ export default function WordGraphScreen({ onClose }) {
       <Text style={styles.intro}>
         Each word stays joined to its number, even when nothing else shares it. Turn on more than one
         number set to compare edges. A gold line means the same two words are linked in both sets.
+        Drag a circle to move it. The browser will not select the label.
       </Text>
       <Text style={styles.layoutLabel}>Number sets — tap to combine</Text>
       <View style={styles.row}>
@@ -1340,6 +1434,7 @@ function screenStyles(c) {
     borderWidth: 1,
     borderColor: c.cardBorder,
     overflow: 'hidden',
+    userSelect: 'none',
   },
   zoomBar: {
     position: 'absolute',
@@ -1360,10 +1455,10 @@ function screenStyles(c) {
     borderColor: c.cardBorder,
   },
   zoomLabel: { color: c.text, fontSize: 22, fontWeight: '800', marginTop: -2 },
-  nodeLabel: { color: c.text, fontSize: 11, marginTop: 2, maxWidth: 88 },
+  nodeLabel: { color: c.text, fontSize: 11, marginTop: 2, maxWidth: 88, userSelect: 'none' },
   nodeLabelOn: { color: c.accent, fontWeight: '800' },
-  hubText: { color: c.text, fontSize: 11, fontWeight: '800' },
-  hubMeta: { color: c.faint, fontSize: 10, marginTop: 2 },
+  hubText: { color: c.text, fontSize: 11, fontWeight: '800', userSelect: 'none' },
+  hubMeta: { color: c.faint, fontSize: 10, marginTop: 2, userSelect: 'none' },
   detail: {
     marginTop: 10,
     backgroundColor: c.card,
