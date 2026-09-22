@@ -123,6 +123,8 @@ function WordToIntScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [lookupNumber, setLookupNumber] = useState('');
   const [dupNotice, setDupNotice] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const savingRef = useRef(false);
   const [sortMode, setSortMode] = useState('added');
   const [lookupMethod, setLookupMethod] = useState('ordinal');
   const [pickMode, setPickMode] = useState(false);
@@ -149,7 +151,11 @@ function WordToIntScreen({ navigation, route }) {
           breakdown: [],
         };
   const duplicateHit = findSavedPhrase(list, result.phrase || phrase);
-  const showDup = !!(dupNotice || duplicateHit);
+  const editingItem = list.find((item) => String(item.id) === String(editingId)) || null;
+  const conflicts = !!(
+    duplicateHit && String(duplicateHit.id) !== String(editingId || '')
+  );
+  const showDup = conflicts || dupNotice;
   const methods = Array.isArray(METHODS) ? METHODS : [];
   const lookupMethods = Array.isArray(LOOKUP_METHODS) ? LOOKUP_METHODS : [];
   const sortedList = useMemo(
@@ -164,12 +170,22 @@ function WordToIntScreen({ navigation, route }) {
 
   const alertDuplicate = () => {
     setDupNotice(true);
-    const msg = 'that word is already saved in the list!';
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
-      window.alert(msg);
-      return;
-    }
-    Alert.alert('Already saved', msg);
+  };
+
+  const startEdit = (item) => {
+    if (!item) return;
+    setEditingId(item.id);
+    setPhrase(item.phrase || '');
+    setNotes(item.notes || '');
+    setMethod(item.preferred || 'ordinal');
+    setDupNotice(false);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setPhrase('');
+    setNotes('');
+    setDupNotice(false);
   };
 
   const loadList = useCallback(async () => {
@@ -238,24 +254,33 @@ function WordToIntScreen({ navigation, route }) {
   };
 
   const handleSaveList = async () => {
+    if (savingRef.current) return;
     if (!result.phrase) {
       Alert.alert('Missing phrase', 'Type a word or short phrase first.');
       return;
     }
-    if (findSavedPhrase(list, result.phrase)) {
+    if (conflicts) {
       alertDuplicate();
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       const saved = await saveWordNumber({
+        id: editingId || undefined,
+        createdAt: editingItem?.createdAt,
         phrase: result.phrase,
         notes,
         preferred: method,
       });
+      const wasEdit = !!editingId;
+      setPhrase('');
+      setNotes('');
+      setEditingId(null);
+      setDupNotice(false);
       await loadList();
       Alert.alert(
-        saved.cloudSaved ? 'Saved on phone and Firebase' : 'Saved on this phone only',
+        saved.cloudSaved ? (wasEdit ? 'Updated' : 'Saved on phone and Firebase') : 'Saved on this phone only',
         saved.cloudSaved
           ? `"${saved.phrase}" = ${preferredNumber(saved)} (${saved.preferred || method})`
           : `"${saved.phrase}" is on this device. Firebase: ${saved.cloudError || 'not signed in or Firestore is off'}.`
@@ -268,23 +293,28 @@ function WordToIntScreen({ navigation, route }) {
         Alert.alert('Error', e?.message || 'Could not save this number.');
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const handleSaveTimeline = async () => {
+    if (savingRef.current) return;
     if (!result.phrase) {
       Alert.alert('Missing phrase', 'Type a word or short phrase first.');
       return;
     }
-    if (findSavedPhrase(list, result.phrase)) {
+    if (conflicts) {
       alertDuplicate();
       return;
     }
     const number = currentNumber();
+    savingRef.current = true;
     setSaving(true);
     try {
       const saved = await saveWordNumber({
+        id: editingId || undefined,
+        createdAt: editingItem?.createdAt,
         phrase: result.phrase,
         notes,
         preferred: method,
@@ -311,6 +341,10 @@ function WordToIntScreen({ navigation, route }) {
         wordNumberId: saved.id,
         wordNumberValue: number,
       });
+      setPhrase('');
+      setNotes('');
+      setEditingId(null);
+      setDupNotice(false);
       await loadList();
       Alert.alert(
         saved.cloudSaved ? 'Saved on phone, timeline and Firebase' : 'Saved on this phone only',
@@ -326,6 +360,7 @@ function WordToIntScreen({ navigation, route }) {
         Alert.alert('Error', e?.message || 'Could not save to the timeline.');
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -433,9 +468,7 @@ function WordToIntScreen({ navigation, route }) {
   };
 
   const reuseItem = (item) => {
-    setPhrase(item.phrase);
-    setNotes(item.notes || '');
-    setMethod(item.preferred || 'ordinal');
+    startEdit(item);
   };
 
   const handleUseAsDayCount = () => {
@@ -550,9 +583,12 @@ function WordToIntScreen({ navigation, route }) {
         returnKeyType="done"
         blurOnSubmit
         onSubmitEditing={() => {
-          if (!saving) handleSaveList();
+          if (!savingRef.current) handleSaveList();
         }}
       />
+      {editingId ? (
+        <Text style={styles.meta}>Editing this saved word. Update keeps the same row.</Text>
+      ) : null}
       {showDup ? (
         <Text style={styles.dupMsg}>that word is already saved in the list!</Text>
       ) : null}
@@ -615,21 +651,30 @@ function WordToIntScreen({ navigation, route }) {
       />
 
       <TouchableOpacity
-        style={[styles.button, showDup && styles.buttonDisabled]}
-        onPress={handleSaveList}
-        disabled={saving || showDup}
+        style={styles.button}
+        onPress={() => (showDup && duplicateHit && !editingId ? startEdit(duplicateHit) : handleSaveList())}
+        disabled={saving}
       >
-        <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save to number list'}</Text>
+        <Text style={styles.buttonText}>
+          {saving ? 'Saving…' : showDup && !editingId ? 'Edit saved word' : editingId ? 'Update this word' : 'Save to number list'}
+        </Text>
       </TouchableOpacity>
       {showDup ? (
         <Text style={styles.dupMsg}>that word is already saved in the list!</Text>
       ) : null}
+      {editingId ? (
+        <TouchableOpacity style={[styles.button, styles.ghost]} onPress={cancelEdit} disabled={saving}>
+          <Text style={styles.ghostText}>Cancel edit</Text>
+        </TouchableOpacity>
+      ) : null}
       <TouchableOpacity
-        style={[styles.button, styles.ghost, showDup && styles.buttonDisabled]}
+        style={[styles.button, styles.ghost, showDup && !editingId && styles.buttonDisabled]}
         onPress={handleSaveTimeline}
-        disabled={saving || showDup}
+        disabled={saving || (showDup && !editingId)}
       >
-        <Text style={styles.ghostText}>Save list + add to timeline</Text>
+        <Text style={styles.ghostText}>
+          {editingId ? 'Update list + add to timeline' : 'Save list + add to timeline'}
+        </Text>
       </TouchableOpacity>
 
       <Text style={styles.listTitle}>Saved numbers</Text>
@@ -744,6 +789,9 @@ function WordToIntScreen({ navigation, route }) {
             )}
             {!pickMode ? (
             <View style={styles.itemActions}>
+              <TouchableOpacity onPress={() => startEdit(item)}>
+                <Text style={styles.link}>Edit</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => copyText(preferredNumber(item))}>
                 <Text style={styles.link}>Copy</Text>
               </TouchableOpacity>
