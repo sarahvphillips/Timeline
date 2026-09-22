@@ -490,6 +490,13 @@ function nudgeApart(pos, nodes, width, height) {
   return next;
 }
 
+function unscalePoint(x, y, width, height, zoom) {
+  const z = zoom || 1;
+  const cx = width / 2;
+  const cy = height / 2;
+  return { x: cx + (x - cx) / z, y: cy + (y - cy) / z };
+}
+
 function xml(text) {
   return String(text ?? '')
     .replace(/&/g, '&' + 'amp;')
@@ -615,6 +622,11 @@ export default function WordGraphScreen({ onClose }) {
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [savingImage, setSavingImage] = useState(false);
   const [previewUri, setPreviewUri] = useState('');
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
+  const sizeRef = useRef({ width, height });
+  sizeRef.current = { width, height };
   const scrollRef = useRef(null);
   const tableY = useRef(0);
   const scrollSetter = useRef(setScrollEnabled);
@@ -741,15 +753,18 @@ export default function WordGraphScreen({ onClose }) {
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
         scrollSetter.current(false);
-        const { locationX, locationY } = e.nativeEvent;
+        const rawX = e.nativeEvent.locationX;
+        const rawY = e.nativeEvent.locationY;
+        const { width: w, height: h } = sizeRef.current;
+        const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
         const nodes = graphRef.current.nodes || [];
         let best = null;
-        let bestD = 36;
+        let bestD = 36 / (zoomRef.current || 1);
         nodes.forEach((node) => {
           const p = posRef.current[node.id];
           if (!p) return;
-          const dx = p.x - locationX;
-          const dy = p.y - locationY;
+          const dx = p.x - point.x;
+          const dy = p.y - point.y;
           const d = Math.sqrt(dx * dx + dy * dy);
           if (d < bestD) {
             best = node;
@@ -760,8 +775,8 @@ export default function WordGraphScreen({ onClose }) {
         const id = best?.id || null;
         holdRef.current = {
           id,
-          x: locationX,
-          y: locationY,
+          x: rawX,
+          y: rawY,
           moved: false,
           fired: false,
           timer: setTimeout(() => {
@@ -781,11 +796,11 @@ export default function WordGraphScreen({ onClose }) {
       },
       onPanResponderMove: (e) => {
         const hold = holdRef.current;
-        const x = e.nativeEvent.locationX;
-        const y = e.nativeEvent.locationY;
+        const rawX = e.nativeEvent.locationX;
+        const rawY = e.nativeEvent.locationY;
         if (hold && !hold.moved) {
-          const dx = x - hold.x;
-          const dy = y - hold.y;
+          const dx = rawX - hold.x;
+          const dy = rawY - hold.y;
           if (dx * dx + dy * dy > 36) {
             hold.moved = true;
             clearTimeout(hold.timer);
@@ -794,11 +809,13 @@ export default function WordGraphScreen({ onClose }) {
         if (hold && !hold.moved) return;
         const id = dragRef.current;
         if (!id || !posRef.current[id]) return;
-        posRef.current[id].x = x;
-        posRef.current[id].y = y;
+        const { width: w, height: h } = sizeRef.current;
+        const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
+        posRef.current[id].x = point.x;
+        posRef.current[id].y = point.y;
         posRef.current[id].vx = 0;
         posRef.current[id].vy = 0;
-        if (posRef.current[id].userPin) pinnedRef.current[id] = { x, y };
+        if (posRef.current[id].userPin) pinnedRef.current[id] = { x: point.x, y: point.y };
         setTick((n) => n + 1);
       },
       onPanResponderRelease: () => {
@@ -831,16 +848,18 @@ export default function WordGraphScreen({ onClose }) {
       if (!root || !root.contains(event.target)) return;
       event.preventDefault();
       const rect = root.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
+      const rawX = event.clientX - rect.left;
+      const rawY = event.clientY - rect.top;
+      const { width: w, height: h } = sizeRef.current;
+      const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
       const nodes = graphRef.current?.nodes || [];
       let best = null;
-      let bestD = 36;
+      let bestD = 36 / (zoomRef.current || 1);
       nodes.forEach((node) => {
         const p = posRef.current[node.id];
         if (!p) return;
-        const dx = p.x - x;
-        const dy = p.y - y;
+        const dx = p.x - point.x;
+        const dy = p.y - point.y;
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d < bestD) {
           best = node;
@@ -1050,7 +1069,9 @@ export default function WordGraphScreen({ onClose }) {
       ) : graph.nodes.length === 0 ? (
         <Text style={styles.intro}>No saved words yet.</Text>
       ) : (
+        <View style={{ width, alignSelf: 'center' }}>
         <View nativeID="word-graph-canvas" style={[styles.canvas, { width, height }]} {...pan.panHandlers}>
+          <View pointerEvents="none" style={{ width, height, transform: [{ scale: zoom }] }}>
           {graph.edges.map((e) => {
             const a = posRef.current[e.a];
             const b = posRef.current[e.b];
@@ -1125,6 +1146,22 @@ export default function WordGraphScreen({ onClose }) {
               </View>
             );
           })}
+          </View>
+        </View>
+        <View style={styles.zoomBar}>
+          <TouchableOpacity
+            style={styles.zoomBtn}
+            onPress={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.25) * 100) / 100))}
+          >
+            <Text style={styles.zoomLabel}>+</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.zoomBtn}
+            onPress={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100))}
+          >
+            <Text style={styles.zoomLabel}>−</Text>
+          </TouchableOpacity>
+        </View>
         </View>
       )}
       {graph.truncated ? (
@@ -1297,6 +1334,25 @@ function screenStyles(c) {
     borderColor: c.cardBorder,
     overflow: 'hidden',
   },
+  zoomBar: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    gap: 6,
+    zIndex: 5,
+  },
+  zoomBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+  },
+  zoomLabel: { color: c.text, fontSize: 22, fontWeight: '800', marginTop: -2 },
   nodeLabel: { color: c.text, fontSize: 11, marginTop: 2, maxWidth: 88 },
   nodeLabelOn: { color: c.accent, fontWeight: '800' },
   hubText: { color: c.text, fontSize: 11, fontWeight: '800' },

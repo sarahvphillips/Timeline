@@ -161,6 +161,7 @@ export default function PeopleDateGraphScreen() {
   const [spans, setSpans] = useState([]);
   const [sets, setSets] = useState(['people']);
   const [loading, setLoading] = useState(true);
+  const [zoom, setZoom] = useState(1);
 
   useFocusEffect(
     useCallback(() => {
@@ -218,7 +219,9 @@ export default function PeopleDateGraphScreen() {
       ) : graph.nodes.length === 0 ? (
         <Text style={styles.intro}>Nothing saved for the sets that are on.</Text>
       ) : (
+        <View style={{ width, alignSelf: 'center' }}>
         <View style={[styles.canvas, { width, height }]}>
+          <View pointerEvents="none" style={{ width, height, transform: [{ scale: zoom }] }}>
           {graph.edges.map((e) => {
             const a = pos[e.a];
             const b = pos[e.b];
@@ -275,6 +278,22 @@ export default function PeopleDateGraphScreen() {
               </View>
             );
           })}
+          </View>
+        </View>
+        <View style={styles.zoomBar}>
+          <TouchableOpacity
+            style={styles.zoomBtn}
+            onPress={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.25) * 100) / 100))}
+          >
+            <Text style={styles.zoomLabel}>+</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.zoomBtn}
+            onPress={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100))}
+          >
+            <Text style={styles.zoomLabel}>−</Text>
+          </TouchableOpacity>
+        </View>
         </View>
       )}
 
@@ -367,6 +386,18 @@ const styles = StyleSheet.create({
     borderColor: '#1e293b',
     overflow: 'hidden',
   },
+  zoomBar: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 6, zIndex: 5 },
+  zoomBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  zoomLabel: { color: '#f8fafc', fontSize: 22, fontWeight: '800', marginTop: -2 },
   hubText: { color: '#e2e8f0', fontSize: 10, fontWeight: '800' },
   nodeLabel: { color: '#e2e8f0', fontSize: 11, marginTop: 2, maxWidth: 88 },
   tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
