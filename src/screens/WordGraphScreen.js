@@ -870,6 +870,21 @@ export default function WordGraphScreen({ onClose }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.chip}
+          onPress={() => {
+            pinnedRef.current = {};
+            Object.keys(posRef.current).forEach((id) => {
+              const p = posRef.current[id];
+              if (!p) return;
+              p.userPin = false;
+              p.pin = false;
+            });
+            setTick((n) => n + 1);
+          }}
+        >
+          <Text style={styles.chipText}>Unpin all</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.chip}
           onPress={() => scrollRef.current?.scrollTo({ y: Math.max(0, tableY.current - 8), animated: true })}
         >
           <Text style={styles.chipText}>Data table</Text>
