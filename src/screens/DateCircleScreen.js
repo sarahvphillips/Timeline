@@ -120,6 +120,9 @@ export default function DateCircleScreen({ navigation }) {
   const [picked, setPicked] = useState([]);
   const [initials, setInitials] = useState('');
   const [birth, setBirth] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editingPairId, setEditingPairId] = useState(null);
+  const [pairDraft, setPairDraft] = useState(null);
   const [savedPairs, setSavedPairs] = useState([]);
   const [words, setWords] = useState([]);
   const [events, setEvents] = useState([]);
@@ -283,10 +286,29 @@ export default function DateCircleScreen({ navigation }) {
     };
   }, [pair, words]);
 
+  function startEdit(person) {
+    setEditingId(person.id);
+    setInitials(person.initials || '');
+    setBirth(person.date || '');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setInitials('');
+    setBirth('');
+  }
+
   function addPerson() {
     const label = initials.trim().toUpperCase();
     if (!label || !/^\d{4}-\d{2}-\d{2}$/.test(birth.trim())) {
       Alert.alert('Need initials and date', 'Date as YYYY-MM-DD. Shown as DD/MM/YYYY.');
+      return;
+    }
+    if (editingId) {
+      setPeople((list) =>
+        list.map((p) => (p.id === editingId ? { ...p, initials: label, date: birth.trim() } : p))
+      );
+      cancelEdit();
       return;
     }
     const used = ring.map((p) => p.angle);
@@ -304,6 +326,59 @@ export default function DateCircleScreen({ navigation }) {
     ]);
     setInitials('');
     setBirth('');
+  }
+
+  function startPairEdit(row) {
+    setEditingPairId(row.id);
+    setPairDraft({
+      aInitials: row.aInitials || '',
+      aDate: row.aDate || '',
+      bInitials: row.bInitials || '',
+      bDate: row.bDate || '',
+      focus: row.focus || focus,
+    });
+  }
+
+  function savePairEdit() {
+    if (!editingPairId || !pairDraft) return;
+    const aInitials = pairDraft.aInitials.trim().toUpperCase();
+    const bInitials = pairDraft.bInitials.trim().toUpperCase();
+    const aDate = pairDraft.aDate.trim();
+    const bDate = pairDraft.bDate.trim();
+    const focusDate = pairDraft.focus.trim();
+    if (
+      !aInitials ||
+      !bInitials ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(aDate) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(bDate) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(focusDate)
+    ) {
+      Alert.alert('Check the dates', 'Initials, both dates, and the top date, as YYYY-MM-DD.');
+      return;
+    }
+    const span = spanYmd(aDate, bDate);
+    setSavedPairs((list) =>
+      list.map((row) => {
+        if (row.id !== editingPairId) return row;
+        const useExclude = row.excludeEnd !== false;
+        return {
+          ...row,
+          aInitials,
+          bInitials,
+          aDate,
+          bDate,
+          focus: focusDate,
+          excludeEnd: useExclude,
+          untilA: daysUntilNext(focusDate, aDate, { excludeEndDate: useExclude }),
+          untilB: daysUntilNext(focusDate, bDate, { excludeEndDate: useExclude }),
+          birthdayGap: daysBetweenBirthdays(focusDate, aDate, bDate, { excludeEndDate: useExclude }),
+          fullSpan: formatSpan(span),
+          dmy: formatDmy(span),
+        };
+      })
+    );
+    setEditingPairId(null);
+    setPairDraft(null);
   }
 
   function setHub(id) {
@@ -746,6 +821,9 @@ export default function DateCircleScreen({ navigation }) {
               <Text style={styles.bodyStrong}>{p.initials}</Text>
               <Text style={styles.meta}>{formatUk(p.date)}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.chip} onPress={() => startEdit(p)}>
+              <Text style={styles.chipText}>Edit</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.chip} onPress={() => setHub(p.id)}>
               <Text style={styles.chipText}>{p.role === 'hub' ? 'Hub' : 'Make hub'}</Text>
             </TouchableOpacity>
@@ -753,7 +831,12 @@ export default function DateCircleScreen({ navigation }) {
         </View>
       ))}
 
-      <Text style={styles.label}>Add person</Text>
+      <Text style={styles.label}>{editingId ? 'Edit person' : 'Add person'}</Text>
+      <Text style={styles.hint}>
+        {editingId
+          ? 'Change the initials or date, then save. The person stays on the wheel.'
+          : 'Initials and date of birth. Shown on the wheel as DD/MM/YYYY.'}
+      </Text>
       <TextInput
         style={styles.input}
         value={initials}
@@ -770,8 +853,13 @@ export default function DateCircleScreen({ navigation }) {
         autoCapitalize="none"
       />
       <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={addPerson}>
-        <Text style={styles.buttonText}>Add to wheel</Text>
+        <Text style={styles.buttonText}>{editingId ? 'Save changes' : 'Add to wheel'}</Text>
       </TouchableOpacity>
+      {editingId ? (
+        <TouchableOpacity onPress={cancelEdit} style={{ marginTop: 8 }}>
+          <Text style={styles.delete}>Cancel</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <Text style={styles.subHead}>Birthday-gap list</Text>
       <Text style={styles.hint}>Own list, like Word to int. Not added to the Timeline.</Text>
@@ -780,17 +868,80 @@ export default function DateCircleScreen({ navigation }) {
       ) : (
         savedPairs.map((row) => (
           <View key={row.id} style={styles.listItem}>
-            <Text style={styles.bodyStrong}>
-              {row.aInitials} → {row.bInitials}
-            </Text>
-            <Text style={styles.accent}>{row.dmy || row.fullSpan}</Text>
-            <Text style={styles.hint}>
-              {row.birthdayGap}d between days-until · {row.untilA}d to {row.aInitials} · {row.untilB}d
-              to {row.bInitials}
-            </Text>
-            <TouchableOpacity onPress={() => setSavedPairs((list) => list.filter((x) => x.id !== row.id))}>
-              <Text style={styles.delete}>Delete</Text>
-            </TouchableOpacity>
+            {editingPairId === row.id && pairDraft ? (
+              <>
+                <Text style={styles.bodyStrong}>Edit saved pair</Text>
+                <TextInput
+                  style={styles.input}
+                  value={pairDraft.aInitials}
+                  onChangeText={(v) => setPairDraft((d) => ({ ...d, aInitials: v }))}
+                  placeholder="First initials"
+                  placeholderTextColor="#64748b"
+                />
+                <TextInput
+                  style={[styles.input, { marginTop: 8 }]}
+                  value={pairDraft.aDate}
+                  onChangeText={(v) => setPairDraft((d) => ({ ...d, aDate: v }))}
+                  placeholder="First date YYYY-MM-DD"
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                />
+                <TextInput
+                  style={[styles.input, { marginTop: 8 }]}
+                  value={pairDraft.bInitials}
+                  onChangeText={(v) => setPairDraft((d) => ({ ...d, bInitials: v }))}
+                  placeholder="Second initials"
+                  placeholderTextColor="#64748b"
+                />
+                <TextInput
+                  style={[styles.input, { marginTop: 8 }]}
+                  value={pairDraft.bDate}
+                  onChangeText={(v) => setPairDraft((d) => ({ ...d, bDate: v }))}
+                  placeholder="Second date YYYY-MM-DD"
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                />
+                <TextInput
+                  style={[styles.input, { marginTop: 8 }]}
+                  value={pairDraft.focus}
+                  onChangeText={(v) => setPairDraft((d) => ({ ...d, focus: v }))}
+                  placeholder="Top date YYYY-MM-DD"
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={savePairEdit}>
+                  <Text style={styles.buttonText}>Save changes</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingPairId(null);
+                    setPairDraft(null);
+                  }}
+                  style={{ marginTop: 8 }}
+                >
+                  <Text style={styles.delete}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.bodyStrong}>
+                  {row.aInitials} → {row.bInitials}
+                </Text>
+                <Text style={styles.accent}>{row.dmy || row.fullSpan}</Text>
+                <Text style={styles.hint}>
+                  {row.birthdayGap}d between days-until · {row.untilA}d to {row.aInitials} · {row.untilB}d
+                  to {row.bInitials}
+                </Text>
+                <View style={styles.peopleRow}>
+                  <TouchableOpacity onPress={() => startPairEdit(row)}>
+                    <Text style={styles.link}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSavedPairs((list) => list.filter((x) => x.id !== row.id))}>
+                    <Text style={styles.delete}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         ))
       )}
