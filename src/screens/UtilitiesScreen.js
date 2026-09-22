@@ -29,6 +29,15 @@ export default function UtilitiesScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('PeopleDateGraph')}
+        >
+          <Text style={styles.buttonText}>People and dates graph</Text>
+        </TouchableOpacity>
+        <Text style={[styles.hint, { color: colors.muted }]}>
+          People and saved day-counts on one graph. Turn both on to see where a day-count matches two birthdays.
+        </Text>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
           onPress={() => navigation.navigate('WordToInt')}
         >
           <Text style={styles.buttonText}>Word to int</Text>
