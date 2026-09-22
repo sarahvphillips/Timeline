@@ -20,6 +20,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import TimelineScreen from './src/screens/TimelineScreen';
 import AddEventScreen from './src/screens/AddEventScreen';
 import AddPoemScreen from './src/screens/AddPoemScreen';
+import AddSingingScreen from './src/screens/AddSingingScreen';
 import AddFoodScreen from './src/screens/AddFoodScreen';
 import AddWashLoadScreen from './src/screens/AddWashLoadScreen';
 import PickFromGmailScreen from './src/screens/PickFromGmailScreen';
@@ -254,6 +255,14 @@ function AppShell() {
                 component={AddPoemScreen}
                 options={({ route }) => ({
                   title: route.params?.event ? 'Edit Poem' : 'Add Poem',
+                })}
+              />
+
+              <Stack.Screen
+                name="AddSinging"
+                component={AddSingingScreen}
+                options={({ route }) => ({
+                  title: route.params?.event ? 'Edit take' : 'Singing / music',
                 })}
               />
 

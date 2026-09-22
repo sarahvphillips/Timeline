@@ -251,6 +251,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
               { label: 'Email', action: () => navigation.navigate('AddEvent', { fromEmail: true }) },
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
+              { label: 'Singing / music', action: () => navigation.navigate('AddSinging') },
               { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'Spotify', action: () => navigation.navigate('Spotify') },
               { label: 'SMS', action: () => navigation.navigate('AddSms') },

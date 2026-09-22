@@ -2,6 +2,7 @@
 export const ADD_KINDS = [
   { id: 'event', label: 'Event', blurb: 'A dated note on the timeline' },
   { id: 'poem', label: 'Poem', blurb: 'Poem, album, cover photo', screen: 'AddPoem' },
+  { id: 'singing', label: 'Singing / music', blurb: 'A take of you singing or playing', screen: 'AddSinging' },
   { id: 'sms', label: 'SMS', blurb: 'Sent or received text', screen: 'AddSms' },
   { id: 'call', label: 'Phone call', blurb: 'Incoming, outgoing, or missed', screen: 'AddCall' },
   { id: 'person', label: 'Person', blurb: 'A friend, even if they don’t use Timeline', screen: 'People' },

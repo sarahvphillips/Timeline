@@ -21,7 +21,7 @@
 - [x] User register as new account (basic)  
   *(Welcome letter in-app after register; inbox send still Blaze)*
 - [x] User add things like hobbies (MVP)  
-  Poetry (title + poem text), Singing/Music (title + description + file note), Reading (progress). Full audio file attach still open.
+  Poetry (title + poem text), Singing/Music (title + take file on-device), Reading (progress).
 - [x] Add poem â own screen (`AddPoemScreen`)
 - [x] Home â simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
 - [x] Year overview timeline (centre line, count bubbles, tap year â months)
@@ -106,7 +106,7 @@ Product map:
 ### Media & content
 
 - [x] User add image (camera, gallery, or files; Google Photos appears via the Android system gallery - no separate OAuth)
-- [ ] Full audio file attach for singing/music
+- [x] **Singing / music takes (22 Sep 2026):** Add event → Singing / music. Attach or record a take (on-device, not Firestore). How it felt, optional lyrics, optional link to a saved poem. Timeline **Singing** filter. Call recordings stay credit-gated; this is free.
 - [x] Labels shown on expanded timeline card (20 Sep 2026): Settings labels picker on Add Event / Poem / SMS / Calls. Purple chips on expanded Timeline cards and year/month/week bubble sheets.
 - [x] Customisable poem types (Settings UI says Type; AsyncStorage/Firestore key poemCategories unchanged)
 - [x] Label / tag system basics (Settings can edit labels list locally; showing on expanded cards still open)

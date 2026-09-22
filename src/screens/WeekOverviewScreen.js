@@ -206,6 +206,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
     else if (item.source === 'location') navigation.navigate('AddLocation', { event: item });
     else if (item.source === 'life') navigation.navigate('AddLifeEvent', { event: item });
     else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
+    else if (item.hobbyType === 'singing' || item.hobbyType === 'music') navigation.navigate('AddSinging', { event: item });
     else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
     else navigation.navigate('AddEvent', { event: item });
   };
@@ -301,6 +302,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
               { label: 'Email', action: () => navigation.navigate('AddEvent', { fromEmail: true }) },
               { label: 'Hobby', action: () => navigation.navigate('AddEvent', { fromHobby: true }) },
               { label: 'Poem', action: () => navigation.navigate('AddPoem') },
+              { label: 'Singing / music', action: () => navigation.navigate('AddSinging') },
               { label: 'YouTube', action: () => navigation.navigate('YouTube') },
               { label: 'Spotify', action: () => navigation.navigate('Spotify') },
               { label: 'SMS', action: () => navigation.navigate('AddSms') },

@@ -43,6 +43,8 @@ function openTimelineEvent(navigation, item) {
   else if (item.source === 'life') navigation.navigate('AddLifeEvent', { event: item });
   else if (item.hobbyType === 'poetry' || item.source === 'poem') {
     navigation.navigate('AddPoem', { event: item });
+  } else if (item.hobbyType === 'singing' || item.hobbyType === 'music') {
+    navigation.navigate('AddSinging', { event: item });
   } else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
   else navigation.navigate('AddEvent', { event: item });
 }

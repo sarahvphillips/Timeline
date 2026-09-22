@@ -1442,6 +1442,7 @@ export function buildWashTitle(washStatus, washItems, washSetting) {
 export const TIMELINE_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'poems', label: 'Poems', color: '#8b5cf6', itemView: true },
+  { id: 'singing', label: 'Singing', color: '#c4b5fd', itemView: true },
   { id: 'games', label: 'Games', color: '#818cf8', itemView: true },
   { id: 'social', label: 'Social', color: '#38bdf8', itemView: true },
   { id: 'sms', label: 'SMS', color: '#22c55e', itemView: true },
@@ -1469,6 +1470,7 @@ export function eventMatchesTimelineFilter(event, filterId) {
   const hobby = String(event?.hobbyType || '').toLowerCase();
   const category = String(event?.category || '').toLowerCase();
   if (filterId === 'poems') return hobby === 'poetry' || source === 'poem';
+  if (filterId === 'singing') return hobby === 'singing' || hobby === 'music';
   if (filterId === 'games') return source === 'game';
   if (filterId === 'social') return source === 'social';
   if (filterId === 'sms') return source === 'sms';

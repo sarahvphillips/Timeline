@@ -29,7 +29,14 @@ export default function CallAudioField({
   onUnlock,
   onShop,
   onNeedMore,
+  gated = true,
+  label = 'Call recording',
+  hint,
+  showScreen = true,
+  screenLabel = 'Screen recording',
+  recordLabel = 'Record note',
 }) {
+  const allowed = !gated || unlocked;
   const [recording, setRecording] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -51,7 +58,7 @@ export default function CallAudioField({
   };
 
   const attachFile = async () => {
-    if (!unlocked) {
+    if (!allowed) {
       notify('Credits perk', `Call recordings cost ${cost} credits. Unlock in the shop.`);
       return;
     }
@@ -83,7 +90,7 @@ export default function CallAudioField({
   };
 
   const attachScreen = async () => {
-    if (!unlocked) {
+    if (!allowed) {
       notify('Credits perk', `Call recordings cost ${cost} credits. Unlock in the shop.`);
       return;
     }
@@ -110,7 +117,7 @@ export default function CallAudioField({
   };
 
   const startMemo = async () => {
-    if (!unlocked) {
+    if (!allowed) {
       notify('Credits perk', `Call recordings cost ${cost} credits. Unlock in the shop.`);
       return;
     }
@@ -145,7 +152,7 @@ export default function CallAudioField({
     try {
       await rec.stopAndUnloadAsync();
       const uri = rec.getURI();
-      if (uri) onChange({ uri, name: 'voice-note.m4a', kind: 'audio' });
+      if (uri) onChange({ uri, name: gated ? 'voice-note.m4a' : 'singing-take.m4a', kind: 'audio' });
     } catch (e) {
       notify('Record', e?.message || 'Could not save the voice note.');
     }
@@ -170,12 +177,12 @@ export default function CallAudioField({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>Call recording</Text>
+      <Text style={styles.label}>{label}</Text>
       <Text style={styles.hint}>
-        Timeline cannot tap the live phone line. Attach Voice Recorder, the phone’s call recorder, or a
-        screen recording from Gallery. Stays on this device.
+        {hint ||
+          'Timeline cannot tap the live phone line. Attach Voice Recorder, the phone’s call recorder, or a screen recording from Gallery. Stays on this device.'}
       </Text>
-      {!unlocked ? (
+      {gated && !unlocked ? (
         <View style={styles.lock}>
           <Text style={styles.lockTitle}>Credits perk · {cost} credits</Text>
           <Text style={styles.hint}>
@@ -210,21 +217,23 @@ export default function CallAudioField({
           {audioName || 'Saved on this device'}
         </Text>
       ) : null}
-      {unlocked ? (
+      {allowed ? (
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={attachFile} disabled={busy}>
           <Text style={styles.btnText}>{busy ? 'Working…' : audioUri ? 'Change file' : 'Attach file'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.btn} onPress={attachScreen} disabled={busy}>
-          <Text style={styles.btnText}>Screen recording</Text>
-        </TouchableOpacity>
+        {showScreen ? (
+          <TouchableOpacity style={styles.btn} onPress={attachScreen} disabled={busy}>
+            <Text style={styles.btnText}>{screenLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
         {recording ? (
           <TouchableOpacity style={[styles.btn, styles.stop]} onPress={stopMemo}>
             <Text style={styles.btnText}>Stop</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.btn} onPress={startMemo}>
-            <Text style={styles.btnText}>Record note</Text>
+            <Text style={styles.btnText}>{recordLabel}</Text>
           </TouchableOpacity>
         )}
       </View>

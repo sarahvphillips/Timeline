@@ -108,6 +108,7 @@ function friendshipSpan(events) {
 function cardGlyph(ev) {
   const blob = `${ev?.category || ''} ${ev?.source || ''} ${ev?.hobbyType || ''} ${ev?.title || ''}`.toLowerCase();
   if (/poem|poetry|verse/.test(blob)) return '📖';
+  if (/sing|music|song/.test(blob)) return '♪';
   if (/food|coffee|meal|eat/.test(blob)) return '☕';
   if (/walk|hike|outdoors/.test(blob)) return '🏔️';
   if (/gratitude|love|heart/.test(blob)) return '♡';
@@ -188,6 +189,7 @@ function navigateToEvent(navigation, event) {
   if (event.source === 'food') navigation.navigate('AddFood', { event });
   else if (event.source === 'laundry') navigation.navigate('AddWashLoad', { event });
   else if (event.hobbyType === 'poetry') navigation.navigate('AddPoem', { event });
+  else if (event.hobbyType === 'singing' || event.hobbyType === 'music') navigation.navigate('AddSinging', { event });
   if (event.source === 'sms') navigation.navigate('AddSms', { event });
   else if (event.source === 'call') navigation.navigate('AddCall', { event });
   else if (event.source === 'location') navigation.navigate('AddLocation', { event });
