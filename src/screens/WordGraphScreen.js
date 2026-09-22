@@ -82,15 +82,20 @@ function seedPositions(nodes, width, height) {
   return pos;
 }
 
-function stepForces(pos, nodes, edges, width, height) {
+function stepForces(pos, nodes, edges, width, height, mode) {
   const cx = width / 2;
   const cy = height / 2;
+  const frucht = mode === 'frucht';
+  const gravity = frucht ? 0.002 : 0.01;
+  const repulse = frucht ? 1600 : 780;
+  const rest = frucht ? 130 : 78;
+  const damp = frucht ? 0.86 : 0.8;
   const ids = nodes.map((n) => n.id);
   ids.forEach((id) => {
     const p = pos[id];
     if (!p || p.pin) return;
-    p.vx += (cx - p.x) * 0.008;
-    p.vy += (cy - p.y) * 0.008;
+    p.vx += (cx - p.x) * gravity;
+    p.vy += (cy - p.y) * gravity;
   });
   for (let i = 0; i < ids.length; i += 1) {
     for (let j = i + 1; j < ids.length; j += 1) {
@@ -106,7 +111,7 @@ function stepForces(pos, nodes, edges, width, height) {
         d2 = dx * dx + dy * dy;
       }
       const dist = Math.sqrt(d2);
-      const force = 900 / d2;
+      const force = repulse / d2;
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
       if (!a.pin) {
@@ -126,7 +131,7 @@ function stepForces(pos, nodes, edges, width, height) {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const force = (dist - 92) * 0.02;
+    const force = (dist - rest) * 0.02;
     const fx = (dx / dist) * force;
     const fy = (dy / dist) * force;
     if (!a.pin) {
@@ -142,19 +147,165 @@ function stepForces(pos, nodes, edges, width, height) {
   ids.forEach((id) => {
     const p = pos[id];
     if (!p || p.pin) return;
-    p.vx *= 0.82;
-    p.vy *= 0.82;
+    p.vx *= damp;
+    p.vy *= damp;
     p.x = Math.max(pad, Math.min(width - pad, p.x + p.vx));
     p.y = Math.max(pad, Math.min(height - pad, p.y + p.vy));
   });
 }
 
+const LAYOUTS = [
+  { id: 'force', label: 'ForceAtlas' },
+  { id: 'frucht', label: 'Fruchterman' },
+  { id: 'circle', label: 'Circle' },
+  { id: 'radial', label: 'Radial' },
+  { id: 'grid', label: 'Grid' },
+  { id: 'random', label: 'Random' },
+];
+
+function blankPos(x, y) {
+  return { x, y, vx: 0, vy: 0, pin: false };
+}
+
+function placeCircle(nodes, width, height) {
+  const pos = {};
+  const cx = width / 2;
+  const cy = height / 2;
+  const ordered = [...nodes].sort((a, b) => String(a.label).localeCompare(String(b.label)));
+  const r = Math.min(width, height) * 0.38;
+  ordered.forEach((node, i) => {
+    const ang = (i / Math.max(ordered.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    pos[node.id] = blankPos(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+  });
+  return pos;
+}
+
+function placeRadial(nodes, edges, width, height) {
+  const hubs = nodes.filter((n) => n.kind === 'number');
+  if (!hubs.length) return placeCircle(nodes, width, height);
+  const cx = width / 2;
+  const cy = height / 2;
+  const pos = {};
+  const inner = Math.min(width, height) * 0.2;
+  const outer = Math.min(width, height) * 0.4;
+  const membersOf = {};
+  hubs.forEach((h) => {
+    membersOf[h.id] = [];
+  });
+  edges.forEach((e) => {
+    if (membersOf[e.b]) membersOf[e.b].push(e.a);
+    else if (membersOf[e.a]) membersOf[e.a].push(e.b);
+  });
+  const linked = new Set();
+  hubs.forEach((hub, i) => {
+    const ang = (i / hubs.length) * Math.PI * 2 - Math.PI / 2;
+    pos[hub.id] = blankPos(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
+    const members = membersOf[hub.id] || [];
+    const spread = Math.min(Math.PI * 0.7, 0.35 + members.length * 0.12);
+    members.forEach((id, k) => {
+      const t = members.length === 1 ? 0 : (k / (members.length - 1)) * 2 - 1;
+      const a = ang + t * spread;
+      pos[id] = blankPos(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
+      linked.add(id);
+    });
+    linked.add(hub.id);
+  });
+  const isolates = nodes.filter((n) => !linked.has(n.id));
+  isolates.forEach((node, i) => {
+    const ang = (i / Math.max(isolates.length, 1)) * Math.PI * 2;
+    pos[node.id] = blankPos(cx + Math.cos(ang) * outer * 0.72, cy + Math.sin(ang) * outer * 0.72);
+  });
+  return pos;
+}
+
+function placeGrid(nodes, width, height) {
+  const ordered = [...nodes].sort(
+    (a, b) => (Number(a.n) || 0) - (Number(b.n) || 0) || String(a.label).localeCompare(String(b.label))
+  );
+  const cols = Math.max(1, Math.ceil(Math.sqrt(ordered.length)));
+  const rows = Math.max(1, Math.ceil(ordered.length / cols));
+  const padX = 40;
+  const padY = 46;
+  const cellW = (width - padX * 2) / cols;
+  const cellH = (height - padY * 2) / rows;
+  const pos = {};
+  ordered.forEach((node, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    pos[node.id] = blankPos(padX + cellW * (c + 0.5), padY + cellH * (r + 0.5));
+  });
+  return pos;
+}
+
+function placeRandom(nodes, width, height) {
+  const pos = {};
+  nodes.forEach((node) => {
+    pos[node.id] = blankPos(36 + Math.random() * (width - 72), 40 + Math.random() * (height - 80));
+  });
+  return pos;
+}
+
+function scaleFromCenter(pos, width, height, factor) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const next = {};
+  Object.keys(pos || {}).forEach((id) => {
+    const p = pos[id];
+    if (!p) return;
+    next[id] = blankPos(
+      Math.max(28, Math.min(width - 28, cx + (p.x - cx) * factor)),
+      Math.max(28, Math.min(height - 28, cy + (p.y - cy) * factor))
+    );
+  });
+  return next;
+}
+
+function nudgeApart(pos, nodes, width, height) {
+  const next = {};
+  nodes.forEach((node) => {
+    const p = pos[node.id];
+    if (p) next[node.id] = { ...p, vx: 0, vy: 0, pin: false };
+  });
+  const ids = nodes.map((n) => n.id);
+  const minDist = 48;
+  for (let step = 0; step < 40; step += 1) {
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const a = next[ids[i]];
+        const b = next[ids[j]];
+        if (!a || !b) continue;
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist >= minDist) continue;
+        if (dist < 0.1) {
+          dx = 1;
+          dy = 0.3;
+          dist = 1;
+        }
+        const push = (minDist - dist) / 2;
+        a.x += (dx / dist) * push;
+        a.y += (dy / dist) * push;
+        b.x -= (dx / dist) * push;
+        b.y -= (dy / dist) * push;
+      }
+    }
+    ids.forEach((id) => {
+      const p = next[id];
+      if (!p) return;
+      p.x = Math.max(28, Math.min(width - 28, p.x));
+      p.y = Math.max(28, Math.min(height - 28, p.y));
+    });
+  }
+  return next;
+}
+
 function xml(text) {
   return String(text ?? '')
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"');
+    .replace(/&/g, '&' + 'amp;')
+    .replace(/</g, '&' + 'lt;')
+    .replace(/>/g, '&' + 'gt;')
+    .replace(/"/g, '&' + 'quot;');
 }
 
 function buildGraphSvg(nodes, edges, pos, width, height, method) {
@@ -255,6 +406,7 @@ export default function WordGraphScreen({ onClose }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [method, setMethod] = useState('ordinal');
+  const [layoutId, setLayoutId] = useState('force');
   const [selected, setSelected] = useState(null);
   const [tick, setTick] = useState(0);
   const [layoutKey, setLayoutKey] = useState(0);
@@ -287,19 +439,46 @@ export default function WordGraphScreen({ onClose }) {
   );
 
   useEffect(() => {
-    posRef.current = seedPositions(graph.nodes, width, height);
+    const nodes = graph.nodes;
+    const edges = graph.edges;
+    if (layoutId === 'circle') {
+      posRef.current = placeCircle(nodes, width, height);
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
+    if (layoutId === 'radial') {
+      posRef.current = placeRadial(nodes, edges, width, height);
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
+    if (layoutId === 'grid') {
+      posRef.current = placeGrid(nodes, width, height);
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
+    if (layoutId === 'random') {
+      posRef.current = placeRandom(nodes, width, height);
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
+    posRef.current = seedPositions(nodes, width, height);
     setSelected(null);
     let frame = 0;
     let raf = 0;
+    const limit = layoutId === 'frucht' ? 300 : 220;
     const run = () => {
-      stepForces(posRef.current, graph.nodes, graph.edges, width, height);
+      stepForces(posRef.current, nodes, edges, width, height, layoutId);
       frame += 1;
       if (frame % 2 === 0) setTick((n) => n + 1);
-      if (frame < 240) raf = requestAnimationFrame(run);
+      if (frame < limit) raf = requestAnimationFrame(run);
     };
     raf = requestAnimationFrame(run);
     return () => cancelAnimationFrame(raf);
-  }, [graph, width, height, layoutKey]);
+  }, [graph, width, height, layoutKey, layoutId]);
 
   const pan = useRef(
     PanResponder.create({
@@ -432,6 +611,18 @@ export default function WordGraphScreen({ onClose }) {
     }
   };
 
+  const pickLayout = (id) => {
+    if (id === layoutId) setLayoutKey((n) => n + 1);
+    else setLayoutId(id);
+  };
+
+  const adjustLayout = (id) => {
+    if (id === 'expand') posRef.current = scaleFromCenter(posRef.current, width, height, 1.28);
+    else if (id === 'contract') posRef.current = scaleFromCenter(posRef.current, width, height, 0.78);
+    else posRef.current = nudgeApart(posRef.current, graph.nodes, width, height);
+    setTick((n) => n + 1);
+  };
+
   return (
     <ScrollView
       style={styles.wrap}
@@ -449,8 +640,10 @@ export default function WordGraphScreen({ onClose }) {
       </View>
       <Text style={styles.heading}>Graph</Text>
       <Text style={styles.intro}>
-        Words that share a number sit on the same hub. Drag a node. A word with no match stays alone.
+        Words that share a number sit on the same hub. Drag a node. Pick a layout, then save an image of
+        where you left it.
       </Text>
+      <Text style={styles.layoutLabel}>Number</Text>
       <View style={styles.row}>
         {METHODS.map((m) => (
           <TouchableOpacity
@@ -461,8 +654,32 @@ export default function WordGraphScreen({ onClose }) {
             <Text style={[styles.chipText, method === m.id && styles.chipTextOn]}>{m.label}</Text>
           </TouchableOpacity>
         ))}
+      </View>
+      <Text style={styles.layoutLabel}>Layout</Text>
+      <View style={styles.row}>
+        {LAYOUTS.map((opt) => (
+          <TouchableOpacity
+            key={opt.id}
+            style={[styles.chip, layoutId === opt.id && styles.chipOn]}
+            onPress={() => pickLayout(opt.id)}
+          >
+            <Text style={[styles.chipText, layoutId === opt.id && styles.chipTextOn]}>{opt.label}</Text>
+          </TouchableOpacity>
+        ))}
         <TouchableOpacity style={styles.chip} onPress={() => setLayoutKey((n) => n + 1)}>
-          <Text style={styles.chipText}>Layout again</Text>
+          <Text style={styles.chipText}>Run again</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.layoutLabel}>On this arrangement</Text>
+      <View style={styles.row}>
+        <TouchableOpacity style={styles.chip} onPress={() => adjustLayout('expand')}>
+          <Text style={styles.chipText}>Expand</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.chip} onPress={() => adjustLayout('contract')}>
+          <Text style={styles.chipText}>Contract</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.chip} onPress={() => adjustLayout('noverlap')}>
+          <Text style={styles.chipText}>No overlap</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.chip} onPress={saveImage} disabled={savingImage}>
           <Text style={styles.chipText}>{savingImage ? 'Saving…' : 'Save image'}</Text>
@@ -596,6 +813,14 @@ const styles = StyleSheet.create({
   heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800' },
   intro: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  layoutLabel: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   chip: {
     borderWidth: 1,
     borderColor: '#334155',
