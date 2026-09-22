@@ -7,6 +7,11 @@ import {
   PanResponder,
   ActivityIndicator,
   useWindowDimensions,
+  ScrollView,
+  Image,
+  Platform,
+  Alert,
+  Share,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
@@ -144,6 +149,105 @@ function stepForces(pos, nodes, edges, width, height) {
   });
 }
 
+function xml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"');
+}
+
+function buildGraphSvg(nodes, edges, pos, width, height, method) {
+  const w = Math.round(width);
+  const h = Math.round(height);
+  const lines = edges
+    .map((e) => {
+      const a = pos[e.a];
+      const b = pos[e.b];
+      if (!a || !b) return '';
+      return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#94a3b8" stroke-opacity="0.7" stroke-width="1" />`;
+    })
+    .join('');
+  const dots = nodes
+    .map((node) => {
+      const p = pos[node.id];
+      if (!p) return '';
+      if (node.kind === 'number') {
+        return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="18" fill="#0f172a" stroke="${colorFor(node.n)}" stroke-width="2" />
+<text x="${p.x.toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="sans-serif">${xml(node.label)}</text>
+<text x="${p.x.toFixed(1)}" y="${(p.y + 28).toFixed(1)}" text-anchor="middle" fill="#64748b" font-size="10" font-family="sans-serif">${node.count} words</text>`;
+      }
+      const label = xml(node.label);
+      return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="${colorFor(node.n)}" />
+<text x="${p.x.toFixed(1)}" y="${(p.y + 20).toFixed(1)}" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="sans-serif">${label}</text>`;
+    })
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+<rect width="100%" height="100%" fill="#0a0a0b"/>
+<text x="16" y="28" fill="#93c5fd" font-size="14" font-family="sans-serif">Word graph · ${xml(method)}</text>
+${lines}
+${dots}
+</svg>`;
+}
+
+function pngFromLayout(nodes, edges, pos, width, height, method) {
+  if (typeof document === 'undefined') return '';
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.scale(scale, scale);
+  ctx.fillStyle = '#0a0a0b';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#93c5fd';
+  ctx.font = '14px sans-serif';
+  ctx.fillText(`Word graph · ${method}`, 16, 28);
+  ctx.strokeStyle = 'rgba(148,163,184,0.7)';
+  ctx.lineWidth = 1;
+  edges.forEach((e) => {
+    const a = pos[e.a];
+    const b = pos[e.b];
+    if (!a || !b) return;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  });
+  nodes.forEach((node) => {
+    const p = pos[node.id];
+    if (!p) return;
+    if (node.kind === 'number') {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = colorFor(node.n);
+      ctx.stroke();
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(node.label), p.x, p.y + 4);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(`${node.count} words`, p.x, p.y + 28);
+      return;
+    }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = colorFor(node.n);
+    ctx.fill();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(node.label || ''), p.x, p.y + 20);
+  });
+  return canvas.toDataURL('image/png');
+}
+
 export default function WordGraphScreen({ onClose }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const width = Math.max(280, winW - 16);
@@ -154,6 +258,11 @@ export default function WordGraphScreen({ onClose }) {
   const [selected, setSelected] = useState(null);
   const [tick, setTick] = useState(0);
   const [layoutKey, setLayoutKey] = useState(0);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [savingImage, setSavingImage] = useState(false);
+  const [previewUri, setPreviewUri] = useState('');
+  const scrollSetter = useRef(setScrollEnabled);
+  scrollSetter.current = setScrollEnabled;
   const graph = useMemo(() => buildGraph(list, method), [list, method]);
   const posRef = useRef({});
   const dragRef = useRef(null);
@@ -197,6 +306,7 @@ export default function WordGraphScreen({ onClose }) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
+        scrollSetter.current(false);
         const { locationX, locationY } = e.nativeEvent;
         const nodes = graphRef.current.nodes || [];
         let best = null;
@@ -233,6 +343,11 @@ export default function WordGraphScreen({ onClose }) {
         const id = dragRef.current;
         if (id && posRef.current[id]) posRef.current[id].pin = false;
         dragRef.current = null;
+        scrollSetter.current(true);
+      },
+      onPanResponderTerminate: () => {
+        dragRef.current = null;
+        scrollSetter.current(true);
       },
     })
   ).current;
@@ -266,8 +381,64 @@ export default function WordGraphScreen({ onClose }) {
 
   void tick;
 
+  const saveImage = async () => {
+    if (savingImage) return;
+    if (!graph.nodes.length) {
+      Alert.alert('Nothing to save', 'Add some words first.');
+      return;
+    }
+    setSavingImage(true);
+    try {
+      const positions = {};
+      graph.nodes.forEach((node) => {
+        const p = posRef.current[node.id];
+        if (p) positions[node.id] = { x: p.x, y: p.y };
+      });
+      const png = pngFromLayout(graph.nodes, graph.edges, positions, width, height, method);
+      const svg = buildGraphSvg(graph.nodes, graph.edges, positions, width, height, method);
+      if (png && Platform.OS === 'web' && typeof document !== 'undefined') {
+        const a = document.createElement('a');
+        a.href = png;
+        a.download = `word-graph-${method}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setPreviewUri(png);
+        return;
+      }
+      const FileSystem = require('expo-file-system/legacy');
+      const name = `word-graph-${method}-${Date.now()}.svg`;
+      const dest = FileSystem.cacheDirectory + name;
+      await FileSystem.writeAsStringAsync(dest, svg);
+      setPreviewUri('');
+      try {
+        const Sharing = require('expo-sharing');
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(dest, {
+            mimeType: 'image/svg+xml',
+            dialogTitle: 'Save word graph',
+            UTI: 'public.svg-image',
+          });
+          return;
+        }
+      } catch {
+        /* expo-sharing is optional */
+      }
+      await Share.share({ title: 'Word graph', url: dest, message: 'Word graph layout' });
+    } catch (e) {
+      Alert.alert('Could not save image', e?.message || 'Try again from the browser (press w) to download a PNG.');
+    } finally {
+      setSavingImage(false);
+    }
+  };
+
   return (
-    <View style={styles.wrap}>
+    <ScrollView
+      style={styles.wrap}
+      contentContainerStyle={styles.content}
+      scrollEnabled={scrollEnabled}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.kicker}>Word to int</Text>
       <View style={styles.row}>
         {onClose ? (
@@ -292,6 +463,9 @@ export default function WordGraphScreen({ onClose }) {
         ))}
         <TouchableOpacity style={styles.chip} onPress={() => setLayoutKey((n) => n + 1)}>
           <Text style={styles.chipText}>Layout again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.chip} onPress={saveImage} disabled={savingImage}>
+          <Text style={styles.chipText}>{savingImage ? 'Saving…' : 'Save image'}</Text>
         </TouchableOpacity>
       </View>
       {loading ? (
@@ -399,12 +573,19 @@ export default function WordGraphScreen({ onClose }) {
           </Text>
         </View>
       ) : null}
-    </View>
+      {previewUri ? (
+        <View style={styles.detail}>
+          <Text style={styles.meta}>Saved image of this layout. On a laptop it also downloaded as a PNG.</Text>
+          <Image source={{ uri: previewUri }} style={{ width, height: Math.round(height * 0.45), marginTop: 8 }} resizeMode="contain" />
+        </View>
+      ) : null}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0a0a0b', padding: 12 },
+  wrap: { flex: 1, backgroundColor: '#0a0a0b' },
+  content: { padding: 12, paddingBottom: 48 },
   kicker: {
     color: '#93c5fd',
     fontSize: 12,
