@@ -775,6 +775,7 @@ export default function WordGraphScreen({ onClose }) {
     setSelected(id);
     setTick((n) => n + 1);
   };
+  const layoutRaf = useRef(0);
   const graphRef = useRef(graph);
   graphRef.current = graph;
 
@@ -860,12 +861,32 @@ export default function WordGraphScreen({ onClose }) {
     const limit = layoutId === 'frucht' ? 300 : layoutId === 'yifan' ? 260 : 220;
     const run = () => {
       stepForces(posRef.current, nodes, edges, width, height, layoutId);
+      Object.keys(pinnedRef.current).forEach((id) => {
+        const saved = pinnedRef.current[id];
+        const p = posRef.current[id];
+        if (!saved || !p) return;
+        p.x = saved.x;
+        p.y = saved.y;
+        p.vx = 0;
+        p.vy = 0;
+        p.pin = true;
+        p.userPin = true;
+      });
       frame += 1;
       if (frame % 2 === 0) setTick((n) => n + 1);
-      if (frame < limit) raf = requestAnimationFrame(run);
+      if (frame < limit) {
+        raf = requestAnimationFrame(run);
+        layoutRaf.current = raf;
+      } else {
+        layoutRaf.current = 0;
+      }
     };
     raf = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(raf);
+    layoutRaf.current = raf;
+    return () => {
+      cancelAnimationFrame(raf);
+      layoutRaf.current = 0;
+    };
   }, [graph, width, height, layoutKey, layoutId]);
 
   const pan = useRef(
@@ -1270,9 +1291,24 @@ export default function WordGraphScreen({ onClose }) {
   };
 
   const adjustLayout = (id) => {
+    if (layoutRaf.current) {
+      cancelAnimationFrame(layoutRaf.current);
+      layoutRaf.current = 0;
+    }
     if (id === 'expand') posRef.current = scaleFromCenter(posRef.current, width, height, 1.28);
     else if (id === 'contract') posRef.current = scaleFromCenter(posRef.current, width, height, 0.78);
     else posRef.current = nudgeApart(posRef.current, graph.nodes, width, height);
+    Object.keys(pinnedRef.current).forEach((pinId) => {
+      const saved = pinnedRef.current[pinId];
+      const p = posRef.current[pinId];
+      if (!saved || !p) return;
+      p.x = saved.x;
+      p.y = saved.y;
+      p.vx = 0;
+      p.vy = 0;
+      p.pin = true;
+      p.userPin = true;
+    });
     setTick((n) => n + 1);
   };
 
