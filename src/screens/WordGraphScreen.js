@@ -28,6 +28,39 @@ const OVERLAP_COLOR = '#fbbf24';
 
 const PALETTE = ['#93c5fd', '#c4b5fd', '#f9a8d4', '#86efac', '#fcd34d', '#67e8f9', '#fda4af', '#a5b4fc'];
 
+/** Kept until the app process closes. Not written to the phone or Firebase. */
+let sessionLayout = null;
+
+function captureLayout(pos, pinned, zoom, methods, layoutId) {
+  const positions = {};
+  Object.keys(pos || {}).forEach((id) => {
+    const p = pos[id];
+    if (!p) return;
+    const held = pinned?.[id];
+    positions[id] = {
+      x: held?.x ?? p.x,
+      y: held?.y ?? p.y,
+      userPin: !!(p.userPin || held),
+    };
+  });
+  return {
+    positions,
+    zoom: zoom || 1,
+    methods: Array.isArray(methods) ? [...methods] : ['ordinal'],
+    layoutId: layoutId || 'force',
+  };
+}
+
+function placeNewNodes(ids, width, height) {
+  const pos = {};
+  ids.forEach((id, i) => {
+    const col = Math.floor(i / 10);
+    const row = i % 10;
+    pos[id] = blankPos(Math.max(36, width - 46 - col * 72), 42 + row * 36);
+  });
+  return pos;
+}
+
 function numberFor(entry, method) {
   if (!entry) return null;
   if (method === 'pythagorean') return entry.pythagorean;
@@ -716,7 +749,7 @@ function snipPng(dataUrl, width, height, zoom, rect) {
   });
 }
 
-export default function WordGraphScreen({ onClose }) {
+export default function WordGraphScreen({ onClose, navigation }) {
   const { colors } = useTheme();
   const styles = useMemo(() => screenStyles(colors), [colors]);
   const { width: winW, height: winH } = useWindowDimensions();
@@ -724,8 +757,10 @@ export default function WordGraphScreen({ onClose }) {
   const height = Math.max(320, Math.min(winH - 210, 640));
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [methods, setMethods] = useState(['ordinal']);
-  const [layoutId, setLayoutId] = useState('force');
+  const [methods, setMethods] = useState(() =>
+    sessionLayout?.methods?.length ? [...sessionLayout.methods] : ['ordinal']
+  );
+  const [layoutId, setLayoutId] = useState(() => sessionLayout?.layoutId || 'force');
   const [selected, setSelected] = useState(null);
   const [tableSort, setTableSort] = useState({ key: 'word', dir: 'asc' });
   const [tick, setTick] = useState(0);
@@ -736,7 +771,7 @@ export default function WordGraphScreen({ onClose }) {
   const [snipMode, setSnipMode] = useState(false);
   const [snipSquare, setSnipSquare] = useState(false);
   const [snipRect, setSnipRect] = useState(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(() => sessionLayout?.zoom || 1);
   const zoomRef = useRef(1);
   zoomRef.current = zoom;
   const sizeRef = useRef({ width, height });
@@ -778,6 +813,11 @@ export default function WordGraphScreen({ onClose }) {
   const layoutRaf = useRef(0);
   const graphRef = useRef(graph);
   graphRef.current = graph;
+  const restoredRef = useRef(false);
+  const layoutTouchedRef = useRef(false);
+  const leavingRef = useRef(false);
+  const pendingLeave = useRef(null);
+  const [exitAsk, setExitAsk] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -797,8 +837,43 @@ export default function WordGraphScreen({ onClose }) {
   );
 
   useEffect(() => {
+    if (loading) return undefined;
     const nodes = graph.nodes;
     const edges = graph.edges;
+    if (sessionLayout && !layoutTouchedRef.current) {
+      if (!nodes.length) return undefined;
+      if (restoredRef.current) return undefined;
+      restoredRef.current = true;
+      const pos = {};
+      const added = [];
+      nodes.forEach((node) => {
+        const saved = sessionLayout.positions?.[node.id];
+        if (!saved) {
+          added.push(node.id);
+          return;
+        }
+        pos[node.id] = {
+          x: Math.max(16, Math.min(width - 16, saved.x)),
+          y: Math.max(16, Math.min(height - 16, saved.y)),
+          vx: 0,
+          vy: 0,
+          pin: !!saved.userPin,
+          userPin: !!saved.userPin,
+        };
+      });
+      Object.assign(pos, placeNewNodes(added, width, height));
+      pinnedRef.current = {};
+      Object.keys(pos).forEach((id) => {
+        if (pos[id].userPin) pinnedRef.current[id] = { x: pos[id].x, y: pos[id].y };
+      });
+      posRef.current = pos;
+      setSelected(null);
+      setTick((n) => n + 1);
+      if (added.length) {
+        Alert.alert('Graph', 'New data nodes found, added to layout');
+      }
+      return undefined;
+    }
     const keepPins = (pos) => {
       Object.keys(pinnedRef.current).forEach((id) => {
         const saved = pinnedRef.current[id];
@@ -887,7 +962,7 @@ export default function WordGraphScreen({ onClose }) {
       cancelAnimationFrame(raf);
       layoutRaf.current = 0;
     };
-  }, [graph, width, height, layoutKey, layoutId]);
+  }, [graph, width, height, layoutKey, layoutId, loading]);
 
   const pan = useRef(
     PanResponder.create({
@@ -1286,9 +1361,44 @@ export default function WordGraphScreen({ onClose }) {
   };
 
   const pickLayout = (id) => {
+    layoutTouchedRef.current = true;
+    restoredRef.current = false;
     if (id === layoutId) setLayoutKey((n) => n + 1);
     else setLayoutId(id);
   };
+
+  const requestLeave = (action) => {
+    pendingLeave.current = action || null;
+    setExitAsk(true);
+  };
+
+  const finishLeave = (save) => {
+    if (save) {
+      sessionLayout = captureLayout(posRef.current, pinnedRef.current, zoomRef.current, methods, layoutId);
+    } else {
+      sessionLayout = null;
+    }
+    const action = pendingLeave.current;
+    pendingLeave.current = null;
+    setExitAsk(false);
+    leavingRef.current = true;
+    if (action && navigation?.dispatch) {
+      navigation.dispatch(action);
+      return;
+    }
+    if (onClose) onClose();
+  };
+
+  useEffect(() => {
+    if (!navigation?.addListener) return undefined;
+    const unsub = navigation.addListener('beforeRemove', (event) => {
+      if (leavingRef.current) return;
+      event.preventDefault();
+      pendingLeave.current = event.data.action;
+      setExitAsk(true);
+    });
+    return unsub;
+  }, [navigation]);
 
   const adjustLayout = (id) => {
     if (layoutRaf.current) {
@@ -1399,11 +1509,30 @@ export default function WordGraphScreen({ onClose }) {
       <Text style={styles.kicker}>Word to int</Text>
       <View style={styles.row}>
         {onClose ? (
-          <TouchableOpacity style={styles.chip} onPress={onClose}>
+          <TouchableOpacity style={styles.chip} onPress={() => requestLeave(null)}>
             <Text style={styles.chipText}>Back to list</Text>
           </TouchableOpacity>
         ) : null}
       </View>
+      {exitAsk ? (
+        <View style={styles.exitCard}>
+          <Text style={styles.detailTitle}>Save before exiting?</Text>
+          <Text style={styles.meta}>
+            This will keep the layout until you next visit, unless you close the app.
+          </Text>
+          <View style={styles.row}>
+            <TouchableOpacity style={[styles.chip, styles.chipOn]} onPress={() => finishLeave(true)}>
+              <Text style={[styles.chipText, styles.chipTextOn]}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.chip} onPress={() => finishLeave(false)}>
+              <Text style={styles.chipText}>Don't save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.chip} onPress={() => setExitAsk(false)}>
+              <Text style={styles.chipText}>Stay</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
       <Text style={styles.heading}>Graph</Text>
       <Text style={styles.intro}>
         Each word stays joined to its number, even when nothing else shares it. Turn on more than one
@@ -1439,7 +1568,14 @@ export default function WordGraphScreen({ onClose }) {
             <Text style={[styles.chipText, layoutId === opt.id && styles.chipTextOn]}>{opt.label}</Text>
           </TouchableOpacity>
         ))}
-        <TouchableOpacity style={styles.chip} onPress={() => setLayoutKey((n) => n + 1)}>
+        <TouchableOpacity
+          style={styles.chip}
+          onPress={() => {
+            layoutTouchedRef.current = true;
+            restoredRef.current = false;
+            setLayoutKey((n) => n + 1);
+          }}
+        >
           <Text style={styles.chipText}>Run again</Text>
         </TouchableOpacity>
       </View>
@@ -1831,6 +1967,14 @@ function screenStyles(c) {
   nodeLabelOn: { color: c.accent, fontWeight: '800' },
   hubText: { color: c.text, fontSize: 11, fontWeight: '800', userSelect: 'none' },
   hubMeta: { color: c.faint, fontSize: 10, marginTop: 2, userSelect: 'none' },
+  exitCard: {
+    marginTop: 8,
+    backgroundColor: c.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: c.blueSoft,
+  },
   detail: {
     marginTop: 10,
     backgroundColor: c.card,
