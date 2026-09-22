@@ -637,6 +637,7 @@ export default function WordGraphScreen({ onClose }) {
   const [methods, setMethods] = useState(['ordinal']);
   const [layoutId, setLayoutId] = useState('force');
   const [selected, setSelected] = useState(null);
+  const [tableSort, setTableSort] = useState({ key: 'word', dir: 'asc' });
   const [tick, setTick] = useState(0);
   const [layoutKey, setLayoutKey] = useState(0);
   const [scrollEnabled, setScrollEnabled] = useState(true);
@@ -1066,6 +1067,73 @@ export default function WordGraphScreen({ onClose }) {
 
   const labelOf = (id) => graph.nodes.find((n) => n.id === id)?.label || id;
 
+  const toggleTableSort = (key) => {
+    setTableSort((cur) => {
+      if (cur.key === key) return { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' };
+      return { key, dir: key === 'pinned' ? 'desc' : 'asc' };
+    });
+  };
+
+  const sortedTableRows = graph.nodes
+    .filter((n) => n.kind === 'word')
+    .map((node) => {
+      const entry = node.entry || {};
+      const pinned = !!posRef.current[node.id]?.userPin;
+      const pairs = (graph.overlaps || []).filter((row) => row.a === node.id || row.b === node.id);
+      const withWords = pairs
+        .map((row) => {
+          const other = row.a === node.id ? row.b : row.a;
+          const via = (row.via || [])
+            .map((id) => METHODS.find((m) => m.id === id)?.label || id)
+            .join(' + ');
+          return `${labelOf(other)} (${via})`;
+        })
+        .join(', ');
+      return {
+        node,
+        entry,
+        pinned,
+        withWords,
+        cells: [
+          pinned ? 'Yes' : 'No',
+          node.label,
+          entry.ordinal ?? '—',
+          entry.pythagorean ?? '—',
+          entry.reverse ?? '—',
+          entry.reduced ?? '—',
+          preferredNumber(entry) ?? '—',
+          withWords || '—',
+          entry.notes || '—',
+        ],
+      };
+    })
+    .sort((a, b) => {
+      const pick = (row) => {
+        if (tableSort.key === 'pinned') return row.pinned ? 1 : 0;
+        if (tableSort.key === 'word') return String(row.node.label).toLowerCase();
+        if (tableSort.key === 'ordinal') return Number(row.entry.ordinal);
+        if (tableSort.key === 'pythagorean') return Number(row.entry.pythagorean);
+        if (tableSort.key === 'reverse') return Number(row.entry.reverse);
+        if (tableSort.key === 'reduced') return Number(row.entry.reduced);
+        if (tableSort.key === 'preferred') return Number(preferredNumber(row.entry));
+        if (tableSort.key === 'overlap') return row.withWords.toLowerCase();
+        return String(row.entry.notes || '').toLowerCase();
+      };
+      const va = pick(a);
+      const vb = pick(b);
+      let cmp = 0;
+      if (typeof va === 'number' && typeof vb === 'number') {
+        const na = Number.isFinite(va) ? va : -Infinity;
+        const nb = Number.isFinite(vb) ? vb : -Infinity;
+        cmp = na - nb;
+      } else {
+        cmp = String(va).localeCompare(String(vb));
+      }
+      if (cmp === 0) cmp = String(a.node.label).localeCompare(String(b.node.label));
+      return tableSort.dir === 'asc' ? cmp : -cmp;
+    });
+  void tick;
+
   return (
     <ScrollView
       ref={scrollRef}
@@ -1215,7 +1283,7 @@ export default function WordGraphScreen({ onClose }) {
                     height: node.kind === 'number' ? size : 14,
                     borderRadius: size,
                     backgroundColor: node.kind === 'number' ? colors.card : colorFor(node.n),
-                    borderWidth: pinned || node.overlap || node.kind === 'number' || on ? 2 : 0,
+                    borderWidth: pinned ? 3 : node.overlap || node.kind === 'number' || on ? 2 : 0,
                     borderColor: pinned ? '#fbbf24' : node.overlap ? OVERLAP_COLOR : on ? colors.text : node.color || colorFor(node.n),
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1227,12 +1295,10 @@ export default function WordGraphScreen({ onClose }) {
                 </View>
                 {node.kind === 'word' ? (
                   <Text style={[styles.nodeLabel, on && styles.nodeLabelOn]} numberOfLines={1}>
-                    {pinned ? 'Pinned · ' : ''}
                     {node.label}
                   </Text>
                 ) : (
                   <Text style={styles.hubMeta}>
-                    {pinned ? 'Pinned · ' : ''}
                     {METHODS.find((m) => m.id === node.method)?.label || 'Number'} · {node.count}
                   </Text>
                 )}
@@ -1281,7 +1347,7 @@ export default function WordGraphScreen({ onClose }) {
               {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
             </Text>
           </TouchableOpacity>
-          <Text style={styles.meta}>Long-press the node on a phone. Right-click it in the browser.</Text>
+          <Text style={styles.meta}>Gold outline means pinned. Long-press on a phone. Right-click in the browser.</Text>
         </View>
       ) : selectedNode?.kind === 'number' ? (
         <View style={styles.detail}>
@@ -1294,7 +1360,7 @@ export default function WordGraphScreen({ onClose }) {
               {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
             </Text>
           </TouchableOpacity>
-          <Text style={styles.meta}>Long-press the node on a phone. Right-click it in the browser.</Text>
+          <Text style={styles.meta}>Gold outline means pinned. Long-press on a phone. Right-click in the browser.</Text>
         </View>
       ) : null}
 
@@ -1305,8 +1371,9 @@ export default function WordGraphScreen({ onClose }) {
       >
         <Text style={styles.layoutLabel}>Data table</Text>
         <Text style={styles.meta}>
-          Tap a row to highlight that word on the graph. Gold means that word shares a link in more than
-          one selected number set. Scroll sideways for every column.
+          Tap a row to highlight that word. Tap a heading to sort, and tap it again to reverse. A gold
+          outline on the graph means that node is pinned. Gold text means the word shares a link in more
+          than one selected number set.
         </Text>
         {graph.nodes.filter((n) => n.kind === 'word').length === 0 ? (
           <Text style={styles.meta}>No saved words yet.</Text>
@@ -1314,39 +1381,32 @@ export default function WordGraphScreen({ onClose }) {
           <ScrollView horizontal showsHorizontalScrollIndicator>
             <View>
               <View style={styles.tableRow}>
-                {['Word', 'Ordinal', 'Pythagorean', 'Reverse', 'Reduced', 'Preferred', 'Overlap with', 'Note'].map(
-                  (h) => (
-                    <Text key={h} style={[styles.tableCell, styles.tableHead, h === 'Word' && styles.tableWord, (h === 'Overlap with' || h === 'Note') && styles.tableWide]}>
-                      {h}
-                    </Text>
-                  )
-                )}
+                {[
+                  ['pinned', 'Pinned'],
+                  ['word', 'Word'],
+                  ['ordinal', 'Ordinal'],
+                  ['pythagorean', 'Pythagorean'],
+                  ['reverse', 'Reverse'],
+                  ['reduced', 'Reduced'],
+                  ['preferred', 'Preferred'],
+                  ['overlap', 'Overlap with'],
+                  ['note', 'Note'],
+                ].map(([key, label]) => {
+                  const on = tableSort.key === key;
+                  const arrow = on ? (tableSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+                  const wide = key === 'overlap' || key === 'note' || key === 'word';
+                  return (
+                    <TouchableOpacity key={key} onPress={() => toggleTableSort(key)}>
+                      <Text style={[styles.tableCell, styles.tableHead, wide && (key === 'word' ? styles.tableWord : styles.tableWide)]}>
+                        {label}
+                        {arrow}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              {graph.nodes
-                .filter((n) => n.kind === 'word')
-                .sort((a, b) => String(a.label).localeCompare(String(b.label)))
-                .map((node) => {
-                  const entry = node.entry || {};
-                  const pairs = (graph.overlaps || []).filter((row) => row.a === node.id || row.b === node.id);
-                  const withWords = pairs
-                    .map((row) => {
-                      const other = row.a === node.id ? row.b : row.a;
-                      const via = (row.via || [])
-                        .map((id) => METHODS.find((m) => m.id === id)?.label || id)
-                        .join(' + ');
-                      return `${labelOf(other)} (${via})`;
-                    })
-                    .join(', ');
-                  const cells = [
-                    node.label,
-                    entry.ordinal ?? '—',
-                    entry.pythagorean ?? '—',
-                    entry.reverse ?? '—',
-                    entry.reduced ?? '—',
-                    preferredNumber(entry) ?? '—',
-                    withWords || '—',
-                    entry.notes || '—',
-                  ];
+              {sortedTableRows.map((row) => {
+                  const { node, cells } = row;
                   return (
                     <TouchableOpacity
                       key={node.id}
@@ -1361,10 +1421,11 @@ export default function WordGraphScreen({ onClose }) {
                           key={`${node.id}-${i}`}
                           style={[
                             styles.tableCell,
-                            i === 0 && styles.tableWord,
-                            (i === 6 || i === 7) && styles.tableWide,
-                            i === 0 && node.overlap && { color: OVERLAP_COLOR },
-                            selected === node.id && i === 0 && { color: colors.accent },
+                            i === 1 && styles.tableWord,
+                            (i === 7 || i === 8) && styles.tableWide,
+                            i === 0 && row.pinned && { color: '#fbbf24', fontWeight: '800' },
+                            i === 1 && node.overlap && { color: OVERLAP_COLOR },
+                            selected === node.id && i === 1 && { color: colors.accent },
                           ]}
                         >
                           {String(value)}
