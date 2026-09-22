@@ -46,6 +46,7 @@ import {
   SHARE_WORDS_PERK,
 } from '../services/rewardsService';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
+import WordGraphScreen from './WordGraphScreen';
 
 function isDayCount(n) {
   return Number.isInteger(n) && n >= 1 && n <= 200000;
@@ -131,6 +132,7 @@ function WordToIntScreen({ navigation, route }) {
   const [staff, setStaff] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [showGraph, setShowGraph] = useState(false);
   const lastPhraseParam = useRef(null);
 
   const result =
@@ -457,6 +459,10 @@ function WordToIntScreen({ navigation, route }) {
   const number = currentNumber();
   const showDayCount = isDayCount(number);
 
+  if (showGraph) {
+    return <WordGraphScreen onClose={() => setShowGraph(false)} />;
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Word to Int</Text>
@@ -627,11 +633,9 @@ function WordToIntScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <Text style={styles.listTitle}>Saved numbers</Text>
-      {list.length > 0 ? (
-        <TouchableOpacity style={[styles.button, styles.ghost]} onPress={() => navigation.navigate('WordGraph')}>
-          <Text style={styles.ghostText}>Graph — words that share a number</Text>
-        </TouchableOpacity>
-      ) : null}
+      <TouchableOpacity style={[styles.button, styles.ghost]} onPress={() => setShowGraph(true)}>
+        <Text style={styles.ghostText}>Graph — words that share a number</Text>
+      </TouchableOpacity>
       {list.length > 0 ? (
         <View style={styles.shareBar}>
           {!wordsUnlocked ? (

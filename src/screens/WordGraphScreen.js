@@ -144,7 +144,7 @@ function stepForces(pos, nodes, edges, width, height) {
   });
 }
 
-export default function WordGraphScreen() {
+export default function WordGraphScreen({ onClose }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const width = Math.max(280, winW - 16);
   const height = Math.max(320, Math.min(winH - 210, 640));
@@ -154,9 +154,10 @@ export default function WordGraphScreen() {
   const [selected, setSelected] = useState(null);
   const [tick, setTick] = useState(0);
   const [layoutKey, setLayoutKey] = useState(0);
+  const graph = useMemo(() => buildGraph(list, method), [list, method]);
   const posRef = useRef({});
   const dragRef = useRef(null);
-  const graphRef = useRef({ nodes: [], edges: [] });
+  const graphRef = useRef(graph);
   graphRef.current = graph;
 
   useFocusEffect(
@@ -175,8 +176,6 @@ export default function WordGraphScreen() {
       };
     }, [])
   );
-
-  const graph = useMemo(() => buildGraph(list, method), [list, method]);
 
   useEffect(() => {
     posRef.current = seedPositions(graph.nodes, width, height);
@@ -270,6 +269,13 @@ export default function WordGraphScreen() {
   return (
     <View style={styles.wrap}>
       <Text style={styles.kicker}>Word to int</Text>
+      <View style={styles.row}>
+        {onClose ? (
+          <TouchableOpacity style={styles.chip} onPress={onClose}>
+            <Text style={styles.chipText}>Back to list</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
       <Text style={styles.heading}>Graph</Text>
       <Text style={styles.intro}>
         Words that share a number sit on the same hub. Drag a node. A word with no match stays alone.
