@@ -485,6 +485,26 @@ export default function WordGraphScreen({ onClose }) {
   const graph = useMemo(() => buildGraph(list, methods), [list, methods]);
   const posRef = useRef({});
   const dragRef = useRef(null);
+  const pinnedRef = useRef({});
+  const holdRef = useRef(null);
+  const togglePinRef = useRef(() => {});
+  togglePinRef.current = (id) => {
+    const p = posRef.current[id];
+    if (!p) return;
+    if (p.userPin) {
+      p.userPin = false;
+      p.pin = false;
+      delete pinnedRef.current[id];
+    } else {
+      p.userPin = true;
+      p.pin = true;
+      p.vx = 0;
+      p.vy = 0;
+      pinnedRef.current[id] = { x: p.x, y: p.y };
+    }
+    setSelected(id);
+    setTick((n) => n + 1);
+  };
   const graphRef = useRef(graph);
   graphRef.current = graph;
 
@@ -508,31 +528,44 @@ export default function WordGraphScreen({ onClose }) {
   useEffect(() => {
     const nodes = graph.nodes;
     const edges = graph.edges;
+    const keepPins = (pos) => {
+      Object.keys(pinnedRef.current).forEach((id) => {
+        const saved = pinnedRef.current[id];
+        if (!saved || !pos[id]) return;
+        pos[id].x = saved.x;
+        pos[id].y = saved.y;
+        pos[id].vx = 0;
+        pos[id].vy = 0;
+        pos[id].pin = true;
+        pos[id].userPin = true;
+      });
+      return pos;
+    };
     if (layoutId === 'circle') {
-      posRef.current = placeCircle(nodes, width, height);
+      posRef.current = keepPins(placeCircle(nodes, width, height));
       setSelected(null);
       setTick((n) => n + 1);
       return undefined;
     }
     if (layoutId === 'radial') {
-      posRef.current = placeRadial(nodes, edges, width, height);
+      posRef.current = keepPins(placeRadial(nodes, edges, width, height));
       setSelected(null);
       setTick((n) => n + 1);
       return undefined;
     }
     if (layoutId === 'grid') {
-      posRef.current = placeGrid(nodes, width, height);
+      posRef.current = keepPins(placeGrid(nodes, width, height));
       setSelected(null);
       setTick((n) => n + 1);
       return undefined;
     }
     if (layoutId === 'random') {
-      posRef.current = placeRandom(nodes, width, height);
+      posRef.current = keepPins(placeRandom(nodes, width, height));
       setSelected(null);
       setTick((n) => n + 1);
       return undefined;
     }
-    posRef.current = seedPositions(nodes, width, height);
+    posRef.current = keepPins(seedPositions(nodes, width, height));
     setSelected(null);
     let frame = 0;
     let raf = 0;
@@ -568,7 +601,22 @@ export default function WordGraphScreen({ onClose }) {
             bestD = d;
           }
         });
-        dragRef.current = best?.id || null;
+        if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
+        const id = best?.id || null;
+        holdRef.current = {
+          id,
+          x: locationX,
+          y: locationY,
+          moved: false,
+          fired: false,
+          timer: setTimeout(() => {
+            const hold = holdRef.current;
+            if (!hold || hold.moved || !hold.id) return;
+            hold.fired = true;
+            togglePinRef.current(hold.id);
+          }, 480),
+        };
+        dragRef.current = id;
         if (best && posRef.current[best.id]) {
           posRef.current[best.id].pin = true;
           setSelected(best.id);
@@ -577,26 +625,78 @@ export default function WordGraphScreen({ onClose }) {
         }
       },
       onPanResponderMove: (e) => {
+        const hold = holdRef.current;
+        const x = e.nativeEvent.locationX;
+        const y = e.nativeEvent.locationY;
+        if (hold && !hold.moved) {
+          const dx = x - hold.x;
+          const dy = y - hold.y;
+          if (dx * dx + dy * dy > 36) {
+            hold.moved = true;
+            clearTimeout(hold.timer);
+          }
+        }
+        if (hold && !hold.moved) return;
         const id = dragRef.current;
         if (!id || !posRef.current[id]) return;
-        posRef.current[id].x = e.nativeEvent.locationX;
-        posRef.current[id].y = e.nativeEvent.locationY;
+        posRef.current[id].x = x;
+        posRef.current[id].y = y;
         posRef.current[id].vx = 0;
         posRef.current[id].vy = 0;
+        if (posRef.current[id].userPin) pinnedRef.current[id] = { x, y };
         setTick((n) => n + 1);
       },
       onPanResponderRelease: () => {
+        if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
         const id = dragRef.current;
-        if (id && posRef.current[id]) posRef.current[id].pin = false;
+        if (id && posRef.current[id]) {
+          const p = posRef.current[id];
+          p.pin = !!p.userPin;
+          if (p.userPin) pinnedRef.current[id] = { x: p.x, y: p.y };
+        }
         dragRef.current = null;
+        holdRef.current = null;
         scrollSetter.current(true);
       },
       onPanResponderTerminate: () => {
+        if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
+        const id = dragRef.current;
+        if (id && posRef.current[id]) posRef.current[id].pin = !!posRef.current[id].userPin;
         dragRef.current = null;
+        holdRef.current = null;
         scrollSetter.current(true);
       },
     })
   ).current;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const onMenu = (event) => {
+      const root = document.getElementById('word-graph-canvas');
+      if (!root || !root.contains(event.target)) return;
+      event.preventDefault();
+      const rect = root.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const nodes = graphRef.current?.nodes || [];
+      let best = null;
+      let bestD = 36;
+      nodes.forEach((node) => {
+        const p = posRef.current[node.id];
+        if (!p) return;
+        const dx = p.x - x;
+        const dy = p.y - y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < bestD) {
+          best = node;
+          bestD = d;
+        }
+      });
+      if (best) togglePinRef.current(best.id);
+    };
+    document.addEventListener('contextmenu', onMenu);
+    return () => document.removeEventListener('contextmenu', onMenu);
+  }, []);
 
   const byId = useMemo(() => {
     const map = {};
@@ -780,7 +880,7 @@ export default function WordGraphScreen({ onClose }) {
       ) : graph.nodes.length === 0 ? (
         <Text style={styles.intro}>No saved words yet.</Text>
       ) : (
-        <View style={[styles.canvas, { width, height }]} {...pan.panHandlers}>
+        <View nativeID="word-graph-canvas" style={[styles.canvas, { width, height }]} {...pan.panHandlers}>
           {graph.edges.map((e) => {
             const a = posRef.current[e.a];
             const b = posRef.current[e.b];
@@ -812,6 +912,7 @@ export default function WordGraphScreen({ onClose }) {
             const on = selected === node.id;
             const dim = selected && !linkedIds.has(node.id);
             const size = node.kind === 'number' ? 36 : 14;
+            const pinned = !!p.userPin;
             return (
               <View
                 key={node.id}
@@ -830,8 +931,8 @@ export default function WordGraphScreen({ onClose }) {
                     height: node.kind === 'number' ? size : 14,
                     borderRadius: size,
                     backgroundColor: node.kind === 'number' ? '#0f172a' : colorFor(node.n),
-                    borderWidth: node.overlap || node.kind === 'number' || on ? 2 : 0,
-                    borderColor: node.overlap ? OVERLAP_COLOR : on ? '#fff' : node.color || colorFor(node.n),
+                    borderWidth: pinned || node.overlap || node.kind === 'number' || on ? 2 : 0,
+                    borderColor: pinned ? '#fbbf24' : node.overlap ? OVERLAP_COLOR : on ? '#fff' : node.color || colorFor(node.n),
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -842,10 +943,12 @@ export default function WordGraphScreen({ onClose }) {
                 </View>
                 {node.kind === 'word' ? (
                   <Text style={[styles.nodeLabel, on && styles.nodeLabelOn]} numberOfLines={1}>
+                    {pinned ? 'Pinned · ' : ''}
                     {node.label}
                   </Text>
                 ) : (
                   <Text style={styles.hubMeta}>
+                    {pinned ? 'Pinned · ' : ''}
                     {METHODS.find((m) => m.id === node.method)?.label || 'Number'} · {node.count}
                   </Text>
                 )}
@@ -873,6 +976,12 @@ export default function WordGraphScreen({ onClose }) {
                   .join(', ') || 'only this word on the hub'}`
               : 'No other saved word shares this number.'}
           </Text>
+          <TouchableOpacity style={styles.chip} onPress={() => togglePinRef.current(selectedNode.id)}>
+            <Text style={styles.chipText}>
+              {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.meta}>Long-press the node on a phone. Right-click it in the browser.</Text>
         </View>
       ) : selectedNode?.kind === 'number' ? (
         <View style={styles.detail}>
@@ -880,6 +989,12 @@ export default function WordGraphScreen({ onClose }) {
           <Text style={styles.meta}>
             {neighbours.map((n) => n.label).join(' · ')}
           </Text>
+          <TouchableOpacity style={styles.chip} onPress={() => togglePinRef.current(selectedNode.id)}>
+            <Text style={styles.chipText}>
+              {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.meta}>Long-press the node on a phone. Right-click it in the browser.</Text>
         </View>
       ) : null}
 
