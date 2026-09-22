@@ -150,11 +150,12 @@ function seedPositions(nodes, width, height) {
 function stepForces(pos, nodes, edges, width, height, mode) {
   const cx = width / 2;
   const cy = height / 2;
+  const yifan = mode === 'yifan';
   const frucht = mode === 'frucht';
-  const gravity = frucht ? 0.002 : 0.01;
-  const repulse = frucht ? 1600 : 780;
-  const rest = frucht ? 130 : 78;
-  const damp = frucht ? 0.86 : 0.8;
+  const gravity = yifan ? 0.004 : frucht ? 0.002 : 0.01;
+  const repulse = yifan ? 480 : frucht ? 1600 : 780;
+  const rest = yifan ? 100 : frucht ? 130 : 78;
+  const damp = yifan ? 0.78 : frucht ? 0.86 : 0.8;
   const ids = nodes.map((n) => n.id);
   ids.forEach((id) => {
     const p = pos[id];
@@ -176,7 +177,7 @@ function stepForces(pos, nodes, edges, width, height, mode) {
         d2 = dx * dx + dy * dy;
       }
       const dist = Math.sqrt(d2);
-      const force = repulse / d2;
+      const force = yifan ? repulse / dist : repulse / d2;
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
       if (!a.pin) {
@@ -222,8 +223,12 @@ function stepForces(pos, nodes, edges, width, height, mode) {
 const LAYOUTS = [
   { id: 'force', label: 'ForceAtlas' },
   { id: 'frucht', label: 'Fruchterman' },
+  { id: 'yifan', label: 'Yifan Hu' },
+  { id: 'kamada', label: 'Kamada-Kawai' },
   { id: 'circle', label: 'Circle' },
   { id: 'radial', label: 'Radial' },
+  { id: 'arc', label: 'Arc' },
+  { id: 'layers', label: 'By number' },
   { id: 'grid', label: 'Grid' },
   { id: 'random', label: 'Random' },
 ];
@@ -307,6 +312,125 @@ function placeRandom(nodes, width, height) {
   nodes.forEach((node) => {
     pos[node.id] = blankPos(36 + Math.random() * (width - 72), 40 + Math.random() * (height - 80));
   });
+  return pos;
+}
+
+function placeArc(nodes, width, height) {
+  const pos = {};
+  const words = nodes
+    .filter((n) => n.kind === 'word')
+    .sort((a, b) => String(a.label).localeCompare(String(b.label)));
+  const hubs = nodes
+    .filter((n) => n.kind === 'number')
+    .sort((a, b) => (Number(a.n) || 0) - (Number(b.n) || 0));
+  const pad = 28;
+  const span = (count, i) =>
+    count <= 1 ? width / 2 : pad + ((width - pad * 2) * i) / (count - 1);
+  words.forEach((node, i) => {
+    pos[node.id] = blankPos(span(words.length, i), height - 42);
+  });
+  hubs.forEach((node, i) => {
+    pos[node.id] = blankPos(span(hubs.length, i), 48);
+  });
+  nodes.forEach((node) => {
+    if (!pos[node.id]) pos[node.id] = blankPos(width / 2, height / 2);
+  });
+  return pos;
+}
+
+function placeLayers(nodes, edges, width, height) {
+  const pos = {};
+  const hubs = nodes
+    .filter((n) => n.kind === 'number')
+    .sort((a, b) => (Number(a.n) || 0) - (Number(b.n) || 0) || String(a.label).localeCompare(String(b.label)));
+  const byHub = {};
+  hubs.forEach((hub) => {
+    byHub[hub.id] = [];
+  });
+  edges.forEach((e) => {
+    if (byHub[e.b]) byHub[e.b].push(e.a);
+    else if (byHub[e.a]) byHub[e.a].push(e.b);
+  });
+  const bands = Math.max(hubs.length, 1);
+  const rowH = (height - 36) / bands;
+  const placed = new Set();
+  hubs.forEach((hub, i) => {
+    const y = 24 + rowH * (i + 0.5);
+    pos[hub.id] = blankPos(36, y);
+    placed.add(hub.id);
+    const members = byHub[hub.id] || [];
+    const slot = Math.max(48, (width - 90) / Math.max(members.length, 1));
+    members.forEach((id, k) => {
+      if (placed.has(id)) return;
+      pos[id] = blankPos(Math.min(width - 28, 78 + k * slot), y);
+      placed.add(id);
+    });
+  });
+  const left = nodes.filter((n) => !placed.has(n.id));
+  left.forEach((node, i) => {
+    pos[node.id] = blankPos(40 + (i % 6) * 48, height - 28);
+  });
+  return pos;
+}
+
+function placeKamada(nodes, edges, width, height) {
+  const pos = placeCircle(nodes, width, height);
+  if (nodes.length < 2) return pos;
+  const adj = {};
+  nodes.forEach((n) => {
+    adj[n.id] = [];
+  });
+  edges.forEach((e) => {
+    if (!adj[e.a] || !adj[e.b]) return;
+    adj[e.a].push(e.b);
+    adj[e.b].push(e.a);
+  });
+  const hopsOf = {};
+  nodes.forEach((src) => {
+    const d = { [src.id]: 0 };
+    const queue = [src.id];
+    while (queue.length) {
+      const id = queue.shift();
+      if (d[id] >= 4) continue;
+      (adj[id] || []).forEach((next) => {
+        if (d[next] != null) return;
+        d[next] = d[id] + 1;
+        queue.push(next);
+      });
+    }
+    hopsOf[src.id] = d;
+  });
+  const idealUnit = Math.min(width, height) / Math.max(7, Math.sqrt(nodes.length));
+  const ids = nodes.map((n) => n.id);
+  for (let step = 0; step < 40; step += 1) {
+    const gain = 0.06 * (1 - step / 50);
+    ids.forEach((id, i) => {
+      const a = pos[id];
+      if (!a) return;
+      let fx = 0;
+      let fy = 0;
+      for (let j = 0; j < ids.length; j += 1) {
+        if (i === j) continue;
+        const b = pos[ids[j]];
+        if (!b) continue;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let mag = Math.sqrt(dx * dx + dy * dy);
+        if (mag < 1) {
+          dx = 1;
+          dy = 0.25;
+          mag = 1;
+        }
+        const hops = hopsOf[id]?.[ids[j]];
+        const ideal = (hops == null ? 4 : Math.max(1, hops)) * idealUnit;
+        const pull = mag - ideal;
+        fx += (dx / mag) * pull;
+        fy += (dy / mag) * pull;
+      }
+      a.x = Math.max(28, Math.min(width - 28, a.x + fx * gain));
+      a.y = Math.max(28, Math.min(height - 28, a.y + fy * gain));
+    });
+  }
   return pos;
 }
 
@@ -559,6 +683,24 @@ export default function WordGraphScreen({ onClose }) {
       setTick((n) => n + 1);
       return undefined;
     }
+    if (layoutId === 'arc') {
+      posRef.current = keepPins(placeArc(nodes, width, height));
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
+    if (layoutId === 'layers') {
+      posRef.current = keepPins(placeLayers(nodes, edges, width, height));
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
+    if (layoutId === 'kamada') {
+      posRef.current = keepPins(placeKamada(nodes, edges, width, height));
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
     if (layoutId === 'random') {
       posRef.current = keepPins(placeRandom(nodes, width, height));
       setSelected(null);
@@ -569,7 +711,7 @@ export default function WordGraphScreen({ onClose }) {
     setSelected(null);
     let frame = 0;
     let raf = 0;
-    const limit = layoutId === 'frucht' ? 300 : 220;
+    const limit = layoutId === 'frucht' ? 300 : layoutId === 'yifan' ? 260 : 220;
     const run = () => {
       stepForces(posRef.current, nodes, edges, width, height, layoutId);
       frame += 1;
