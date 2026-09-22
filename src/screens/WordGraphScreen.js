@@ -17,11 +17,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
 
 const METHODS = [
-  { id: 'ordinal', label: 'Ordinal' },
-  { id: 'pythagorean', label: 'Pythagorean' },
-  { id: 'reverse', label: 'Reverse' },
-  { id: 'reduced', label: 'Reduced' },
+  { id: 'ordinal', label: 'Ordinal', color: '#93c5fd' },
+  { id: 'pythagorean', label: 'Pythagorean', color: '#c4b5fd' },
+  { id: 'reverse', label: 'Reverse', color: '#f9a8d4' },
+  { id: 'reduced', label: 'Reduced', color: '#86efac' },
 ];
+
+const OVERLAP_COLOR = '#fbbf24';
 
 const PALETTE = ['#93c5fd', '#c4b5fd', '#f9a8d4', '#86efac', '#fcd34d', '#67e8f9', '#fda4af', '#a5b4fc'];
 
@@ -33,30 +35,93 @@ function numberFor(entry, method) {
   return entry.ordinal;
 }
 
-function buildGraph(list, method) {
+function buildGraph(list, methods) {
+  const chosen = (methods && methods.length ? methods : ['ordinal']).filter((id) =>
+    METHODS.some((m) => m.id === id)
+  );
   const words = (list || []).filter((w) => w?.phrase && w?.id).slice(0, 200);
-  const groups = new Map();
-  words.forEach((w) => {
-    const n = Number(numberFor(w, method));
-    if (!Number.isFinite(n)) return;
-    if (!groups.has(n)) groups.set(n, []);
-    groups.get(n).push(w);
-  });
   const nodes = words.map((w) => ({
     id: w.id,
     kind: 'word',
     label: w.phrase,
-    n: Number(numberFor(w, method)),
+    n: Number(numberFor(w, chosen[0])),
     entry: w,
   }));
   const edges = [];
-  groups.forEach((members, n) => {
-    if (members.length < 2) return;
-    const hid = `hub:${method}:${n}`;
-    nodes.push({ id: hid, kind: 'number', label: String(n), n, count: members.length });
-    members.forEach((w) => edges.push({ id: `${w.id}->${hid}`, a: w.id, b: hid }));
+  const pairMethods = new Map();
+  chosen.forEach((method) => {
+    const color = METHODS.find((m) => m.id === method)?.color || '#94a3b8';
+    const groups = new Map();
+    words.forEach((w) => {
+      const n = Number(numberFor(w, method));
+      if (!Number.isFinite(n)) return;
+      if (!groups.has(n)) groups.set(n, []);
+      groups.get(n).push(w);
+    });
+    groups.forEach((members, n) => {
+      if (members.length < 2) return;
+      const hid = `hub:${method}:${n}`;
+      nodes.push({
+        id: hid,
+        kind: 'number',
+        label: String(n),
+        n,
+        count: members.length,
+        method,
+        color,
+      });
+      members.forEach((w) => {
+        edges.push({
+          id: `${w.id}->${hid}`,
+          a: w.id,
+          b: hid,
+          method,
+          color,
+          overlap: false,
+        });
+      });
+      for (let i = 0; i < members.length; i += 1) {
+        for (let j = i + 1; j < members.length; j += 1) {
+          const left = members[i].id < members[j].id ? members[i].id : members[j].id;
+          const right = members[i].id < members[j].id ? members[j].id : members[i].id;
+          const key = `${left}|${right}`;
+          if (!pairMethods.has(key)) pairMethods.set(key, new Set());
+          pairMethods.get(key).add(method);
+        }
+      }
+    });
   });
-  return { nodes, edges, truncated: (list || []).length > words.length };
+  const overlaps = [];
+  pairMethods.forEach((set, key) => {
+    if (set.size < 2) return;
+    const [a, b] = key.split('|');
+    const via = [...set];
+    overlaps.push({ a, b, via });
+    edges.push({
+      id: `overlap:${key}`,
+      a,
+      b,
+      method: 'overlap',
+      color: OVERLAP_COLOR,
+      overlap: true,
+      via,
+    });
+  });
+  const overlapIds = new Set();
+  overlaps.forEach((row) => {
+    overlapIds.add(row.a);
+    overlapIds.add(row.b);
+  });
+  nodes.forEach((node) => {
+    if (node.kind === 'word') node.overlap = overlapIds.has(node.id);
+  });
+  return {
+    nodes,
+    edges,
+    overlaps,
+    methods: chosen,
+    truncated: (list || []).length > words.length,
+  };
 }
 
 function colorFor(n) {
@@ -316,7 +381,7 @@ function buildGraphSvg(nodes, edges, pos, width, height, method) {
       const a = pos[e.a];
       const b = pos[e.b];
       if (!a || !b) return '';
-      return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#94a3b8" stroke-opacity="0.7" stroke-width="1" />`;
+      return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${e.color || '#94a3b8'}" stroke-opacity="${e.overlap ? '1' : '0.75'}" stroke-width="${e.overlap ? '2.5' : '1'}" />`;
     })
     .join('');
   const dots = nodes
@@ -356,13 +421,13 @@ function pngFromLayout(nodes, edges, pos, width, height, method) {
   ctx.fillStyle = '#93c5fd';
   ctx.font = '14px sans-serif';
   ctx.fillText(`Word graph · ${method}`, 16, 28);
-  ctx.strokeStyle = 'rgba(148,163,184,0.7)';
-  ctx.lineWidth = 1;
   edges.forEach((e) => {
     const a = pos[e.a];
     const b = pos[e.b];
     if (!a || !b) return;
     ctx.beginPath();
+    ctx.strokeStyle = e.color || 'rgba(148,163,184,0.7)';
+    ctx.lineWidth = e.overlap ? 2.5 : 1;
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
@@ -405,7 +470,7 @@ export default function WordGraphScreen({ onClose }) {
   const height = Math.max(320, Math.min(winH - 210, 640));
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [method, setMethod] = useState('ordinal');
+  const [methods, setMethods] = useState(['ordinal']);
   const [layoutId, setLayoutId] = useState('force');
   const [selected, setSelected] = useState(null);
   const [tick, setTick] = useState(0);
@@ -415,7 +480,7 @@ export default function WordGraphScreen({ onClose }) {
   const [previewUri, setPreviewUri] = useState('');
   const scrollSetter = useRef(setScrollEnabled);
   scrollSetter.current = setScrollEnabled;
-  const graph = useMemo(() => buildGraph(list, method), [list, method]);
+  const graph = useMemo(() => buildGraph(list, methods), [list, methods]);
   const posRef = useRef({});
   const dragRef = useRef(null);
   const graphRef = useRef(graph);
@@ -573,12 +638,13 @@ export default function WordGraphScreen({ onClose }) {
         const p = posRef.current[node.id];
         if (p) positions[node.id] = { x: p.x, y: p.y };
       });
-      const png = pngFromLayout(graph.nodes, graph.edges, positions, width, height, method);
-      const svg = buildGraphSvg(graph.nodes, graph.edges, positions, width, height, method);
+      const methodLabel = (graph.methods || methods).join('-');
+      const png = pngFromLayout(graph.nodes, graph.edges, positions, width, height, methodLabel);
+      const svg = buildGraphSvg(graph.nodes, graph.edges, positions, width, height, methodLabel);
       if (png && Platform.OS === 'web' && typeof document !== 'undefined') {
         const a = document.createElement('a');
         a.href = png;
-        a.download = `word-graph-${method}.png`;
+        a.download = `word-graph-${methodLabel}.png`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -586,7 +652,7 @@ export default function WordGraphScreen({ onClose }) {
         return;
       }
       const FileSystem = require('expo-file-system/legacy');
-      const name = `word-graph-${method}-${Date.now()}.svg`;
+      const name = `word-graph-${methodLabel}-${Date.now()}.svg`;
       const dest = FileSystem.cacheDirectory + name;
       await FileSystem.writeAsStringAsync(dest, svg);
       setPreviewUri('');
@@ -623,6 +689,15 @@ export default function WordGraphScreen({ onClose }) {
     setTick((n) => n + 1);
   };
 
+  const toggleMethod = (id) => {
+    setMethods((cur) => {
+      if (cur.includes(id)) return cur.length === 1 ? cur : cur.filter((m) => m !== id);
+      return [...cur, id];
+    });
+  };
+
+  const labelOf = (id) => graph.nodes.find((n) => n.id === id)?.label || id;
+
   return (
     <ScrollView
       style={styles.wrap}
@@ -640,21 +715,27 @@ export default function WordGraphScreen({ onClose }) {
       </View>
       <Text style={styles.heading}>Graph</Text>
       <Text style={styles.intro}>
-        Words that share a number sit on the same hub. Drag a node. Pick a layout, then save an image of
-        where you left it.
+        Turn on more than one number set to compare edges. A gold line means the same two words are
+        linked in both sets. Drag a node, then save an image of where you left it.
       </Text>
-      <Text style={styles.layoutLabel}>Number</Text>
+      <Text style={styles.layoutLabel}>Number sets — tap to combine</Text>
       <View style={styles.row}>
-        {METHODS.map((m) => (
-          <TouchableOpacity
-            key={m.id}
-            style={[styles.chip, method === m.id && styles.chipOn]}
-            onPress={() => setMethod(m.id)}
-          >
-            <Text style={[styles.chipText, method === m.id && styles.chipTextOn]}>{m.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {METHODS.map((m) => {
+          const on = methods.includes(m.id);
+          return (
+            <TouchableOpacity
+              key={m.id}
+              style={[styles.chip, on && { backgroundColor: m.color, borderColor: m.color }]}
+              onPress={() => toggleMethod(m.id)}
+            >
+              <Text style={[styles.chipText, on && { color: '#0a0a0b' }]}>{m.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
+      <Text style={styles.meta}>
+        Gold edges are the overlap. Each other colour is one number set. At least one set stays on.
+      </Text>
       <Text style={styles.layoutLabel}>Layout</Text>
       <View style={styles.row}>
         {LAYOUTS.map((opt) => (
@@ -709,8 +790,8 @@ export default function WordGraphScreen({ onClose }) {
                   left: (a.x + b.x) / 2 - dist / 2,
                   top: (a.y + b.y) / 2,
                   width: dist,
-                  height: 1,
-                  backgroundColor: dim ? 'rgba(100,116,139,0.15)' : 'rgba(148,163,184,0.55)',
+                  height: e.overlap ? 3 : 1,
+                  backgroundColor: dim ? 'rgba(100,116,139,0.15)' : e.color || 'rgba(148,163,184,0.55)',
                   transform: [{ rotate: `${angle}rad` }],
                 }}
               />
@@ -740,8 +821,8 @@ export default function WordGraphScreen({ onClose }) {
                     height: node.kind === 'number' ? size : 14,
                     borderRadius: size,
                     backgroundColor: node.kind === 'number' ? '#0f172a' : colorFor(node.n),
-                    borderWidth: node.kind === 'number' || on ? 2 : 0,
-                    borderColor: on ? '#fff' : colorFor(node.n),
+                    borderWidth: node.overlap || node.kind === 'number' || on ? 2 : 0,
+                    borderColor: node.overlap ? OVERLAP_COLOR : on ? '#fff' : node.color || colorFor(node.n),
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -755,7 +836,9 @@ export default function WordGraphScreen({ onClose }) {
                     {node.label}
                   </Text>
                 ) : (
-                  <Text style={styles.hubMeta}>{node.count} words</Text>
+                  <Text style={styles.hubMeta}>
+                    {METHODS.find((m) => m.id === node.method)?.label || 'Number'} · {node.count}
+                  </Text>
                 )}
               </View>
             );
@@ -775,7 +858,7 @@ export default function WordGraphScreen({ onClose }) {
           </Text>
           <Text style={styles.meta}>
             {neighbours.length
-              ? `Same ${method}: ${neighbours
+              ? `Same numbers: ${neighbours
                   .filter((n) => n.kind === 'word')
                   .map((n) => n.label)
                   .join(', ') || 'only this word on the hub'}`
@@ -790,6 +873,54 @@ export default function WordGraphScreen({ onClose }) {
           </Text>
         </View>
       ) : null}
+
+      <Text style={styles.layoutLabel}>Table</Text>
+      <Text style={styles.meta}>Every saved word on this graph. Gold means that word sits on an overlap edge.</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator>
+        <View>
+          <View style={styles.tableRow}>
+            {['Word', 'Ordinal', 'Pythagorean', 'Reverse', 'Reduced', 'Overlap with'].map((h) => (
+              <Text key={h} style={[styles.tableCell, styles.tableHead]}>
+                {h}
+              </Text>
+            ))}
+          </View>
+          {graph.nodes
+            .filter((n) => n.kind === 'word')
+            .sort((a, b) => String(a.label).localeCompare(String(b.label)))
+            .map((node) => {
+              const entry = node.entry || {};
+              const pairs = (graph.overlaps || []).filter((row) => row.a === node.id || row.b === node.id);
+              const withWords = pairs
+                .map((row) => {
+                  const other = row.a === node.id ? row.b : row.a;
+                  const via = row.via.map((id) => METHODS.find((m) => m.id === id)?.label || id).join('+');
+                  return `${labelOf(other)} (${via})`;
+                })
+                .join(', ');
+              return (
+                <View key={node.id} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, styles.tableWord, node.overlap && { color: OVERLAP_COLOR }]}>
+                    {node.label}
+                  </Text>
+                  <Text style={styles.tableCell}>{entry.ordinal ?? '—'}</Text>
+                  <Text style={styles.tableCell}>{entry.pythagorean ?? '—'}</Text>
+                  <Text style={styles.tableCell}>{entry.reverse ?? '—'}</Text>
+                  <Text style={styles.tableCell}>{entry.reduced ?? '—'}</Text>
+                  <Text style={[styles.tableCell, styles.tableWide]}>{withWords || '—'}</Text>
+                </View>
+              );
+            })}
+        </View>
+      </ScrollView>
+      {(graph.overlaps || []).length ? (
+        <Text style={styles.meta}>
+          {graph.overlaps.length} overlap edge{graph.overlaps.length === 1 ? '' : 's'} between the selected sets.
+        </Text>
+      ) : (
+        <Text style={styles.meta}>No overlap yet. Turn on a second number set, such as Ordinal and Reduced.</Text>
+      )}
+
       {previewUri ? (
         <View style={styles.detail}>
           <Text style={styles.meta}>Saved image of this layout. On a laptop it also downloaded as a PNG.</Text>
@@ -852,5 +983,10 @@ const styles = StyleSheet.create({
     borderColor: '#1e293b',
   },
   detailTitle: { color: '#f8fafc', fontWeight: '800', fontSize: 16 },
-  meta: { color: '#94a3b8', fontSize: 12, lineHeight: 17, marginTop: 4 },
+  meta: { color: '#94a3b8', fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 8 },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  tableCell: { color: '#e2e8f0', fontSize: 12, width: 88, paddingVertical: 8, paddingHorizontal: 6 },
+  tableHead: { color: '#93c5fd', fontWeight: '800', fontSize: 11 },
+  tableWord: { width: 120, fontWeight: '700' },
+  tableWide: { width: 220 },
 });
