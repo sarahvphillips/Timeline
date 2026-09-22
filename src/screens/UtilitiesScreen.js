@@ -35,6 +35,15 @@ export default function UtilitiesScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('WordGraph')}
+        >
+          <Text style={styles.buttonText}>Word graph</Text>
+        </TouchableOpacity>
+        <Text style={[styles.hint, { color: colors.muted }]}>
+          Words that share a number, laid out like a network.
+        </Text>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
           onPress={() => navigation.navigate('YearOverview')}
         >
           <Text style={styles.buttonText}>Checksums</Text>

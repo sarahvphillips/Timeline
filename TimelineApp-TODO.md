@@ -118,7 +118,7 @@ Product map:
 - [x] **Social media** (20 Sep 2026): paste X / Instagram / Facebook / TikTok / Threads / Reddit / LinkedIn / Bluesky link (or type a title). Posted/Shared/Saved/Liked/Replied. Timeline + **Social** filter chip (item bubbles). No live feed login.
 - [x] Home slim (20 Sep 2026): SMS, calls, People, Gmail, social, games, YouTube, etc. live under **Add event** picker. Timeline **+** opens the same picker. People also in Settings.
 - [x] Credits in Firestore (20 Sep 2026): `users/{uid}/settings/rewards` + `rewardsIndex/{email}` for admin lookup. Admin screen can set / +5 / −5. Publish `firestore.rules`. Device AsyncStorage is cache.
-- [x] **Word-to-int graph (22 Sep 2026):** Utilities → Word to int → Graph. Force layout. Words link through a number hub when they share Ordinal / Pythagorean / Reverse / Reduced. Drag nodes. Not Gephi itself.
+- [x] **Word-to-int graph (22 Sep 2026):** Utilities → Word graph. Also a button on Word to int. Force layout. Words link through a number hub when they share Ordinal / Pythagorean / Reverse / Reduced. Drag nodes. Not Gephi itself.
 - [ ] User add friends photos from social media
 - [ ] User add social media feeds (live import — later; APIs are locked down)
 
