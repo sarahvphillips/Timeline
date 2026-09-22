@@ -441,6 +441,10 @@ function scaleFromCenter(pos, width, height, factor) {
   Object.keys(pos || {}).forEach((id) => {
     const p = pos[id];
     if (!p) return;
+    if (p.userPin) {
+      next[id] = { ...p, vx: 0, vy: 0, pin: true, userPin: true };
+      return;
+    }
     next[id] = blankPos(
       Math.max(28, Math.min(width - 28, cx + (p.x - cx) * factor)),
       Math.max(28, Math.min(height - 28, cy + (p.y - cy) * factor))
@@ -453,7 +457,14 @@ function nudgeApart(pos, nodes, width, height) {
   const next = {};
   nodes.forEach((node) => {
     const p = pos[node.id];
-    if (p) next[node.id] = { ...p, vx: 0, vy: 0, pin: false };
+    if (!p) return;
+    next[node.id] = {
+      ...p,
+      vx: 0,
+      vy: 0,
+      pin: !!p.userPin,
+      userPin: !!p.userPin,
+    };
   });
   const ids = nodes.map((n) => n.id);
   const minDist = 48;
@@ -462,7 +473,7 @@ function nudgeApart(pos, nodes, width, height) {
       for (let j = i + 1; j < ids.length; j += 1) {
         const a = next[ids[i]];
         const b = next[ids[j]];
-        if (!a || !b) continue;
+        if (!a || !b || (a.userPin && b.userPin)) continue;
         let dx = a.x - b.x;
         let dy = a.y - b.y;
         let dist = Math.sqrt(dx * dx + dy * dy);
@@ -473,15 +484,23 @@ function nudgeApart(pos, nodes, width, height) {
           dist = 1;
         }
         const push = (minDist - dist) / 2;
-        a.x += (dx / dist) * push;
-        a.y += (dy / dist) * push;
-        b.x -= (dx / dist) * push;
-        b.y -= (dy / dist) * push;
+        if (a.userPin) {
+          b.x -= (dx / dist) * push * 2;
+          b.y -= (dy / dist) * push * 2;
+        } else if (b.userPin) {
+          a.x += (dx / dist) * push * 2;
+          a.y += (dy / dist) * push * 2;
+        } else {
+          a.x += (dx / dist) * push;
+          a.y += (dy / dist) * push;
+          b.x -= (dx / dist) * push;
+          b.y -= (dy / dist) * push;
+        }
       }
     }
     ids.forEach((id) => {
       const p = next[id];
-      if (!p) return;
+      if (!p || p.userPin) return;
       p.x = Math.max(28, Math.min(width - 28, p.x));
       p.y = Math.max(28, Math.min(height - 28, p.y));
     });
