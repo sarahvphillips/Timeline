@@ -30,6 +30,7 @@ import {
   formatResultLine,
   digitSum,
   concatNumbers,
+  getSpans,
 } from '../services/dateSpanService';
 import { getWordNumbers, findPhrasesForNumber } from '../services/wordToIntService';
 import { saveEvent } from '../services/eventService';
@@ -49,6 +50,13 @@ const SAMPLE = [
 const STORE = '@timeline_date_circle_v2';
 const PAIR_STORE = '@timeline_date_circle_pairs_v1';
 const NODE = 64;
+
+const DATE_LAYERS = [
+  { id: 'full', label: 'Full dates', color: '#93c5fd' },
+  { id: 'year', label: 'Year ignored', color: '#86efac' },
+  { id: 'focus', label: 'From top date', color: '#c4b5fd' },
+  { id: 'saved', label: 'Saved days between', color: '#fbbf24' },
+];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -87,17 +95,18 @@ function Spoke({ x1, y1, x2, y2, color, thick, label, labelColor, bg }) {
           pointerEvents="none"
           style={{
             position: 'absolute',
-            left: lx - 34,
+            left: lx - 46,
             top: ly - 10,
-            width: 68,
-            height: 20,
+            width: 92,
+            minHeight: 18,
             borderRadius: 4,
             backgroundColor: bg,
             alignItems: 'center',
             justifyContent: 'center',
+            paddingVertical: 1,
           }}
         >
-          <Text style={{ color: labelColor, fontSize: 11, fontWeight: '700' }}>{label}</Text>
+          <Text style={{ color: labelColor, fontSize: 10, fontWeight: '700', textAlign: 'center' }}>{label}</Text>
         </View>
       ) : null}
     </>
@@ -120,6 +129,8 @@ export default function DateCircleScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [wheelSize, setWheelSize] = useState(320);
   const [ready, setReady] = useState(false);
+  const [spans, setSpans] = useState([]);
+  const [layers, setLayers] = useState(['full']);
 
   useEffect(() => {
     (async () => {
@@ -137,6 +148,8 @@ export default function DateCircleScreen({ navigation }) {
         }
         const w = await getWordNumbers();
         setWords(w || []);
+        const saved = await getSpans();
+        setSpans(Array.isArray(saved) ? saved : []);
       } catch {
         /* ignore */
       } finally {
@@ -181,6 +194,49 @@ export default function DateCircleScreen({ navigation }) {
     }
     return lines;
   }, [people]);
+
+  function toggleLayer(id) {
+    setLayers((cur) => {
+      if (cur.includes(id)) return cur.length === 1 ? cur : cur.filter((x) => x !== id);
+      return [...cur, id];
+    });
+  }
+
+  function measures(a, b) {
+    if (!a?.date || !b?.date) {
+      return { span: null, year: null, focusGap: null, saved: [] };
+    }
+    const span = spanYmd(a.date, b.date);
+    const year = daysBetweenAnniversaries(a.date, b.date);
+    const untilA = daysUntilNext(focus, a.date, { excludeEndDate: excludeEnd });
+    const untilB = daysUntilNext(focus, b.date, { excludeEndDate: excludeEnd });
+    const savedHits = spans.filter((item) => {
+      const days = Number(item.totalDays);
+      return days === year || days === span.totalDays;
+    });
+    return {
+      span,
+      year,
+      focusGap: Math.abs(untilA - untilB),
+      saved: savedHits,
+    };
+  }
+
+  function layerLabel(a, b) {
+    const m = measures(a, b);
+    const parts = [];
+    if (layers.includes('full') && m.span) parts.push(formatDmy(m.span));
+    if (layers.includes('year') && m.year != null) parts.push(`${m.year}d`);
+    if (layers.includes('focus') && m.focusGap != null) parts.push(`top ${m.focusGap}d`);
+    if (layers.includes('saved')) {
+      parts.push(m.saved.length ? m.saved.map((s) => s.title || `${s.totalDays}d`).join(', ') : '—');
+    }
+    const savedOn = layers.includes('saved') && m.saved.length > 0;
+    const color = savedOn
+      ? '#fbbf24'
+      : DATE_LAYERS.find((layer) => layers.includes(layer.id))?.color || '#93c5fd';
+    return { text: parts.join(' · '), color, savedOn, m };
+  }
 
   function tap(id) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -392,6 +448,26 @@ export default function DateCircleScreen({ navigation }) {
         ))}
       </View>
 
+      <Text style={styles.subHead}>Dates between — tap to combine</Text>
+      <View style={styles.chipRow}>
+        {DATE_LAYERS.map((layer) => {
+          const on = layers.includes(layer.id);
+          return (
+            <TouchableOpacity
+              key={layer.id}
+              style={[styles.chip, on && { backgroundColor: layer.color, borderColor: layer.color }]}
+              onPress={() => toggleLayer(layer.id)}
+            >
+              <Text style={[styles.chipText, on && { color: '#0a0a0b' }]}>{layer.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={styles.hint}>
+        Full dates keeps the years. Year ignored is the birthday gap. From top date uses the date in the box.
+        Saved days between turns a spoke gold when a saved day-count matches that pair. Tap again to turn one off.
+      </Text>
+
       <View
         style={[styles.wheel, { width: wheelSize, height: wheelSize }]}
         onLayout={(e) => {
@@ -415,6 +491,7 @@ export default function DateCircleScreen({ navigation }) {
           const a = xy(hub);
           const b = xy(p);
           const hot = picked.includes(p.id) && picked.includes(hub?.id);
+          const shown = hub ? layerLabel(hub, p) : { text: '', color: '#334155', savedOn: false };
           return (
             <Spoke
               key={`spoke-${p.id}`}
@@ -422,10 +499,10 @@ export default function DateCircleScreen({ navigation }) {
               y1={a.y}
               x2={b.x}
               y2={b.y}
-              color={hot ? '#3b82f6' : '#334155'}
-              thick={hot ? 3 : 1.5}
-              label={hub ? formatDmy(spanYmd(hub.date, p.date)) : ''}
-              labelColor={hot ? '#93c5fd' : '#94a3b8'}
+              color={shown.savedOn ? '#fbbf24' : hot ? '#3b82f6' : '#334155'}
+              thick={shown.savedOn || hot ? 3 : 1.5}
+              label={shown.text}
+              labelColor={shown.color}
               bg="#0f1024"
             />
           );
@@ -438,8 +515,8 @@ export default function DateCircleScreen({ navigation }) {
             y2={pb.y}
             color="#3b82f6"
             thick={3}
-            label={formatDmy(pair.span)}
-            labelColor="#93c5fd"
+            label={layerLabel(pair.a, pair.b).text}
+            labelColor={layerLabel(pair.a, pair.b).color}
             bg="#0f1024"
           />
         ) : null}
@@ -478,8 +555,43 @@ export default function DateCircleScreen({ navigation }) {
         })}
       </View>
       <Text style={styles.hint}>
-        Numbers on the spokes = 14y 6m 6d from the hub. Ring shows days until that birthday.
+        Spoke labels use the highlighted sets. Scroll the table for every pair.
       </Text>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator>
+        <View>
+          <View style={styles.tableRow}>
+            {['Pair', 'Full dates', 'Days', 'Year ignored', 'From top date', 'Saved match'].map((h) => (
+              <Text key={h} style={[styles.tableCell, styles.tableHead]}>
+                {h}
+              </Text>
+            ))}
+          </View>
+          {spokePairs.map((row) => {
+            const m = measures(row.a, row.b);
+            const cells = [
+              `${row.a.initials} · ${row.b.initials}`,
+              m.span ? formatDmy(m.span) : '—',
+              m.span ? String(m.span.totalDays) : '—',
+              m.year == null ? '—' : `${m.year}d`,
+              m.focusGap == null ? '—' : `${m.focusGap}d`,
+              m.saved.length ? m.saved.map((s) => s.title || `${s.totalDays}d`).join(', ') : '—',
+            ];
+            return (
+              <View key={`${row.a.id}-${row.b.id}`} style={styles.tableRow}>
+                {cells.map((value, i) => (
+                  <Text
+                    key={`${row.a.id}-${i}`}
+                    style={[styles.tableCell, i === 5 && m.saved.length ? { color: '#fbbf24' } : null]}
+                  >
+                    {value}
+                  </Text>
+                ))}
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
 
       {pair ? (
         <View style={styles.card}>
@@ -726,6 +838,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   hint: { color: '#64748b', fontSize: 12, marginTop: 6, lineHeight: 18 },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  tableCell: { color: '#e2e8f0', width: 120, fontSize: 12, paddingVertical: 8, paddingHorizontal: 6 },
+  tableHead: { color: '#93c5fd', fontWeight: '800', fontSize: 11 },
   toggle: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 12, gap: 10 },
   box: {
     width: 22,
