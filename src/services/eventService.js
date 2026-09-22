@@ -697,9 +697,47 @@ export const NEXT_ACTIONS = [
   { id: 'done', label: 'Done / Archive' },
 ];
 
-export function getCategoryColor(categoryId) {
-  const cat = CATEGORIES.find((c) => c.id === categoryId);
+export function slugCategoryId(label) {
+  const s = String(label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  return s || `cat_${Date.now()}`;
+}
+
+export const CATEGORY_COLOR_CYCLE = [
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#22c55e',
+  '#f59e0b',
+  '#38bdf8',
+  '#06b6d4',
+  '#f97316',
+  '#14b8a6',
+  '#e879f9',
+];
+
+export function getCategoryColor(categoryId, extras = []) {
+  const cat = [...CATEGORIES, ...(extras || [])].find((c) => c.id === categoryId);
   return cat ? cat.color : '#64748b';
+}
+
+export function extraTimelineFilters(categories) {
+  const builtIn = new Set(CATEGORIES.map((c) => c.id));
+  return (categories || [])
+    .filter((c) => c && c.id && !builtIn.has(c.id))
+    .map((c) => ({
+      id: `cat:${c.id}`,
+      label: c.label || c.id,
+      color: c.color || '#64748b',
+      itemView: true,
+    }));
+}
+
+export function timelineFiltersFor(categories) {
+  return [...TIMELINE_FILTERS, ...extraTimelineFilters(categories)];
 }
 
 export function getNextActionLabel(actionId) {

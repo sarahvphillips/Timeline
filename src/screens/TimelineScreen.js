@@ -33,6 +33,7 @@ import {
   washStatusLabel,
   washTumbleLabel,
   TIMELINE_FILTERS,
+  timelineFiltersFor,
   eventMatchesTimelineFilter,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
@@ -46,7 +47,7 @@ import {
   countPendingSuggestions,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
-import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
+import { getShowFoodInMenu, getShowWashInMenu, getEventCategories } from '../services/profileService';
 
 const GROK_URL = 'https://grok.x.ai';
 
@@ -61,6 +62,8 @@ export default function TimelineScreen({ navigation, route }) {
   const [expandedId, setExpandedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(!!route.params?.openMenu);
   const [filterId, setFilterId] = useState(route.params?.filter || 'all');
+  const [eventCats, setEventCats] = useState(CATEGORIES);
+  const [filters, setFilters] = useState(TIMELINE_FILTERS);
   const [showFoodInMenu, setShowFoodInMenu] = useState(false);
   const [showWashInMenu, setShowWashInMenu] = useState(true);
   const [shareNotices, setShareNotices] = useState({});
@@ -123,6 +126,14 @@ export default function TimelineScreen({ navigation, route }) {
       loadEvents();
       getShowFoodInMenu().then(setShowFoodInMenu).catch(() => setShowFoodInMenu(false));
       getShowWashInMenu().then(setShowWashInMenu).catch(() => setShowWashInMenu(true));
+      getEventCategories()
+        .then((list) => {
+          if (Array.isArray(list) && list.length) {
+            setEventCats(list);
+            setFilters(timelineFiltersFor(list));
+          }
+        })
+        .catch(() => {});
     }, [loadEvents])
   );
 
@@ -134,7 +145,7 @@ export default function TimelineScreen({ navigation, route }) {
     .filter((e) => eventMatchesTimelineFilter(e, filterId))
     .slice()
     .sort((a, b) => new Date(a.date) - new Date(b.date));
-  const activeFilter = TIMELINE_FILTERS.find((f) => f.id === filterId) || TIMELINE_FILTERS[0];
+  const activeFilter = filters.find((f) => f.id === filterId) || filters[0];
   const useSpine =
     (year != null && month != null && width >= 400) ||
     (activeFilter.itemView && width >= 360);
@@ -228,7 +239,7 @@ export default function TimelineScreen({ navigation, route }) {
   };
 
   const renderCard = (item) => {
-    const color = getCategoryColor(item.category);
+    const color = getCategoryColor(item.category, eventCats);
     const expanded = expandedId === item.id;
     const labels = item.labels || [];
 
@@ -243,7 +254,7 @@ export default function TimelineScreen({ navigation, route }) {
           <Text style={styles.date}>{formatDate(item.date)}</Text>
           <View style={[styles.categoryBadge, { backgroundColor: color + '33' }]}>
             <Text style={[styles.categoryText, { color }]}>
-              {CATEGORIES.find((c) => c.id === item.category)?.label || 'Other'}
+              {eventCats.find((c) => c.id === item.category)?.label || 'Other'}
             </Text>
           </View>
         </View>
@@ -440,7 +451,7 @@ export default function TimelineScreen({ navigation, route }) {
     <View style={styles.container}>
       <Text style={styles.heading}>{heading}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {TIMELINE_FILTERS.map((f) => {
+        {filters.map((f) => {
           const on = filterId === f.id;
           return (
             <TouchableOpacity

@@ -23,6 +23,9 @@ import {
   saveLabels,
   getPoemCategories,
   savePoemCategories,
+  getEventCategories,
+  saveEventCategories,
+  addCustomEventCategory,
   getShowFoodInMenu,
   saveShowFoodInMenu,
   getShowWashInMenu,
@@ -37,7 +40,7 @@ import {
   otherRecentSessions,
 } from '../services/deviceSession';
 import { syncAcceptedJoins } from '../services/peopleService';
-import { applyJoinRewards, perkLabel } from '../services/rewardsService';
+import { applyJoinRewards, perkLabel, getRewards, hasPerk } from '../services/rewardsService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -75,8 +78,11 @@ export default function SettingsScreen({ navigation }) {
   const [visibility, setVisibility] = useState('private');
   const [labels, setLabels] = useState([]);
   const [poemCats, setPoemCats] = useState([]);
+  const [eventCats, setEventCats] = useState([]);
   const [newLabel, setNewLabel] = useState('');
   const [newPoemCat, setNewPoemCat] = useState('');
+  const [newEventCat, setNewEventCat] = useState('');
+  const [canCustomCats, setCanCustomCats] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
   const [cacheNotice, setCacheNotice] = useState('');
@@ -92,12 +98,14 @@ export default function SettingsScreen({ navigation }) {
   const about = appAboutInfo();
 
   const load = useCallback(async () => {
-    const [profile, labs, cats, foodOn, washOn] = await Promise.all([
+    const [profile, labs, cats, evCats, foodOn, washOn, rewards] = await Promise.all([
       getProfile(),
       getLabels(),
       getPoemCategories(),
+      getEventCategories(),
       getShowFoodInMenu(),
       getShowWashInMenu(),
+      getRewards().catch(() => null),
     ]);
     setDisplayName(profile.displayName);
     setDateOfBirth(profile.dateOfBirth);
@@ -105,6 +113,8 @@ export default function SettingsScreen({ navigation }) {
     setVisibility(profile.visibility === 'public' ? 'public' : 'private');
     setLabels(labs);
     setPoemCats(cats);
+    setEventCats(evCats);
+    setCanCustomCats(hasPerk(rewards, 'customCategories'));
     setShowFoodInMenu(!!foodOn);
     setShowWashInMenu(washOn !== false);
     try {
@@ -511,6 +521,90 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        <Text style={[styles.section, { color: colors.muted }]}>Event categories</Text>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Built-in stay. Add your own after unlocking Custom event categories in the Credits shop.
+          Custom chips: tap × to remove. Events already saved keep their old category id.
+        </Text>
+        <View style={styles.row}>
+          {eventCats.map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[
+                styles.chip,
+                { borderColor: cat.color || colors.cardBorder, backgroundColor: colors.card },
+              ]}
+              onPress={() => {
+                if (!cat.custom) {
+                  Alert.alert(cat.label, 'Built-in category. Add extras below.');
+                  return;
+                }
+                Alert.alert('Remove ' + cat.label + '?', 'Existing events keep this category.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                      const next = await saveEventCategories(eventCats.filter((c) => c.id !== cat.id));
+                      setEventCats(next);
+                    },
+                  },
+                ]);
+              }}
+            >
+              <Text style={[styles.chipText, { color: cat.color || colors.text }]}>
+                {cat.label}
+                {cat.custom ? '  ×' : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {canCustomCats ? (
+          <View style={styles.addRow}>
+            <TextInput
+              style={[styles.input, styles.flex, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
+              value={newEventCat}
+              onChangeText={setNewEventCat}
+              placeholder="New category"
+              placeholderTextColor={colors.faint}
+              returnKeyType="done"
+              blurOnSubmit={true}
+              onSubmitEditing={async () => {
+                const { next, error } = addCustomEventCategory(eventCats, newEventCat);
+                if (error) {
+                  Alert.alert('Categories', error);
+                  return;
+                }
+                const saved = await saveEventCategories(next);
+                setEventCats(saved);
+                setNewEventCat('');
+              }}
+            />
+            <TouchableOpacity
+              style={[styles.addBtn, { backgroundColor: colors.blue }]}
+              onPress={async () => {
+                const { next, error } = addCustomEventCategory(eventCats, newEventCat);
+                if (error) {
+                  Alert.alert('Categories', error);
+                  return;
+                }
+                const saved = await saveEventCategories(next);
+                setEventCats(saved);
+                setNewEventCat('');
+              }}
+            >
+              <Text style={styles.saveBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder }]}
+            onPress={() => navigation.navigate('CreditsShop')}
+          >
+            <Text style={[styles.saveBtnText, { color: colors.text }]}>Unlock in Credits shop</Text>
+          </TouchableOpacity>
+        )}
+
         <Text style={[styles.section, { color: colors.muted }]}>Account</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
           Signed-in devices use the same sessions list as Home (Firestore users/.../sessions).
@@ -552,7 +646,6 @@ export default function SettingsScreen({ navigation }) {
         {renderSoonRow("Extra account", "Signing in with an extra account")}
 
         <Text style={[styles.section, { color: colors.muted }]}>Timeline</Text>
-        {renderSoonRow("Custom event categories", "Custom event categories")}
         {renderSoonRow("Default add type", "Choosing a default add type")}
         <View
           style={[

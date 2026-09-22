@@ -41,7 +41,7 @@ import {
 } from '../services/shareService';
 import { auth } from '../services/firebase';
 import { ADD_KINDS } from '../constants/addKinds';
-import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
+import { getShowFoodInMenu, getShowWashInMenu, getEventCategories } from '../services/profileService';
 import { PLACE_PRESETS } from '../services/placesService';
 
 export default function AddEventScreen({ navigation, route }) {
@@ -60,6 +60,7 @@ export default function AddEventScreen({ navigation, route }) {
   const [showPicker, setShowPicker] = useState(!skipPicker);
   const [showFoodInMenu, setShowFoodInMenu] = useState(true);
   const [showWashInMenu, setShowWashInMenu] = useState(true);
+  const [eventCats, setEventCats] = useState(CATEGORIES);
 
   const initialSource = existing?.source
     || route.params?.source
@@ -137,6 +138,11 @@ export default function AddEventScreen({ navigation, route }) {
     getShowWashInMenu()
       .then((on) => setShowWashInMenu(on !== false))
       .catch(() => setShowWashInMenu(true));
+    getEventCategories()
+      .then((list) => {
+        if (Array.isArray(list) && list.length) setEventCats(list);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -795,7 +801,7 @@ export default function AddEventScreen({ navigation, route }) {
 
         <Text style={styles.label}>Category</Text>
         <View style={styles.categories}>
-          {CATEGORIES.map((cat) => {
+          {eventCats.map((cat) => {
             const selected = category === cat.id;
             return (
               <TouchableOpacity

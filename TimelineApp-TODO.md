@@ -160,7 +160,7 @@ Product map:
 
 ### Account & setup
 
-- [ ] User add their own categories
+- [x] **Custom event categories (22 Sep 2026):** Settings. Built-in stay. Extra names after unlocking **Custom event categories** (4 credits). Add Event / Poem chips + Timeline filters pick them up. Synced in Firestore `settings/eventCategories`.
 - [x] Light mode and dark mode (Settings: match device / light / dark). Home and headers follow the theme; other screens still have mixed hardcoded colours.
 - [x] User-chosen colour scheme in Settings (Slate/cyan, Teal, Purple, Rose, Amber, High-contrast)
 

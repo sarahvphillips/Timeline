@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from '../theme';
-import { buildProfileLink } from '../utils/inviteCode';
 
 const LEGACY_PROFILE_KEY = '@timeline_profile';
 const LEGACY_LABELS_KEY = '@timeline_labels';
@@ -16,6 +15,9 @@ function labelsKey(uid) {
 }
 function poemCatsKey(uid) {
   return uid ? `@timeline_poem_categories_${uid}` : '@timeline_poem_categories_guest';
+}
+function eventCatsKey(uid) {
+  return uid ? `@timeline_event_categories_${uid}` : '@timeline_event_categories_guest';
 }
 function foodPrefsKey(uid) {
   return uid ? `@timeline_food_prefs_${uid}` : '@timeline_food_prefs_guest';
@@ -75,6 +77,62 @@ export const DEFAULT_LABELS = [
 export const DEFAULT_POEM_CATEGORIES = [
   'Lyric', 'Free verse', 'Sonnet', 'Song', 'Spoken word', 'Other',
 ];
+
+export const BUILTIN_EVENT_CATEGORIES = [
+  { id: 'personal', label: 'Personal', color: '#3b82f6', builtin: true },
+  { id: 'work', label: 'Work', color: '#8b5cf6', builtin: true },
+  { id: 'family', label: 'Family', color: '#ec4899', builtin: true },
+  { id: 'health', label: 'Health', color: '#22c55e', builtin: true },
+  { id: 'travel', label: 'Travel', color: '#f59e0b', builtin: true },
+  { id: 'hobby', label: 'Hobby', color: '#8b5cf6', builtin: true },
+  { id: 'household', label: 'Household', color: '#38bdf8', builtin: true },
+  { id: 'days_between', label: 'Days Between', color: '#06b6d4', builtin: true },
+  { id: 'other', label: 'Other', color: '#64748b', builtin: true },
+];
+
+const CAT_COLOR_CYCLE = [
+  '#3b82f6', '#8b5cf6', '#ec4899', '#22c55e', '#f59e0b',
+  '#38bdf8', '#06b6d4', '#f97316', '#14b8a6', '#e879f9',
+];
+
+function slugCategoryId(label) {
+  const s = String(label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  return s || `cat_${Date.now()}`;
+}
+
+function normalizeEventCategories(list) {
+  const custom = [];
+  const seen = new Set(BUILTIN_EVENT_CATEGORIES.map((c) => c.id));
+  (Array.isArray(list) ? list : []).forEach((row) => {
+    if (!row) return;
+    if (typeof row === 'string') {
+      const id = slugCategoryId(row);
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      custom.push({
+        id,
+        label: String(row).trim(),
+        color: CAT_COLOR_CYCLE[custom.length % CAT_COLOR_CYCLE.length],
+        custom: true,
+      });
+      return;
+    }
+    const id = String(row.id || slugCategoryId(row.label || '')).trim();
+    if (!id || seen.has(id) || BUILTIN_EVENT_CATEGORIES.some((b) => b.id === id)) return;
+    seen.add(id);
+    custom.push({
+      id,
+      label: String(row.label || id).trim(),
+      color: row.color || CAT_COLOR_CYCLE[custom.length % CAT_COLOR_CYCLE.length],
+      custom: true,
+    });
+  });
+  return [...BUILTIN_EVENT_CATEGORIES, ...custom];
+}
 
 function getUid() {
   return auth.currentUser?.uid || null;
@@ -331,6 +389,54 @@ export async function savePoemCategories(list) {
   return next;
 }
 
+export async function getEventCategories() {
+  const uid = getUid();
+  try {
+    const raw = await AsyncStorage.getItem(eventCatsKey(uid));
+    if (!raw) return normalizeEventCategories([]);
+    return normalizeEventCategories(JSON.parse(raw));
+  } catch {
+    return normalizeEventCategories([]);
+  }
+}
+
+export async function saveEventCategories(list) {
+  const uid = getUid();
+  const next = normalizeEventCategories(list);
+  await AsyncStorage.setItem(eventCatsKey(uid), JSON.stringify(next));
+  if (uid) {
+    try {
+      await pushSettingsDoc('eventCategories', {
+        items: next,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Could not sync event categories to the cloud. Saved on this device.', e);
+    }
+  }
+  return next;
+}
+
+export function nextCategoryColor(existing) {
+  const used = new Set((existing || []).map((c) => c.color));
+  return CAT_COLOR_CYCLE.find((c) => !used.has(c)) || CAT_COLOR_CYCLE[(existing || []).length % CAT_COLOR_CYCLE.length];
+}
+
+export function addCustomEventCategory(list, label) {
+  const name = String(label || '').trim();
+  if (!name) return { error: 'Need a name' };
+  const id = slugCategoryId(name);
+  const clash = (list || []).some(
+    (c) => c.id === id || String(c.label).toLowerCase() === name.toLowerCase(),
+  );
+  if (clash) return { error: 'That category is already in the list' };
+  const next = normalizeEventCategories([
+    ...(list || []),
+    { id, label: name, color: nextCategoryColor(list), custom: true },
+  ]);
+  return { next };
+}
+
 /** Default OFF — Food stays out of the + menu until the user opts in. */
 export async function getShowFoodInMenu() {
   const uid = getUid();
@@ -574,6 +680,7 @@ export async function syncSettingsFromCloud(uid) {
       profile: await getProfile(),
       labels: await getLabels(),
       poemCategories: await getPoemCategories(),
+      eventCategories: await getEventCategories(),
       theme: await loadThemePrefs(),
       showFoodInMenu: await getShowFoodInMenu(),
       showWashInMenu: await getShowWashInMenu(),
@@ -585,6 +692,7 @@ export async function syncSettingsFromCloud(uid) {
   let profile = await getProfile();
   let labels = await getLabels();
   let poemCategories = await getPoemCategories();
+  let eventCategories = await getEventCategories();
   let theme = await loadThemePrefs();
   let showFoodInMenu = await getShowFoodInMenu();
   let showWashInMenu = await getShowWashInMenu();
@@ -622,6 +730,19 @@ export async function syncSettingsFromCloud(uid) {
   }
 
   try {
+    eventCategories = await syncListFromCloud(
+      uid,
+      'eventCategories',
+      eventCatsKey(uid),
+      eventCategories,
+    );
+    eventCategories = normalizeEventCategories(eventCategories);
+    await AsyncStorage.setItem(eventCatsKey(uid), JSON.stringify(eventCategories));
+  } catch (e) {
+    console.warn('Could not sync event categories from the cloud. Using local.', e);
+  }
+
+  try {
     theme = await syncThemeFromCloud(uid);
   } catch (e) {
     console.warn('Could not sync theme from the cloud. Using local.', e);
@@ -639,5 +760,5 @@ export async function syncSettingsFromCloud(uid) {
     console.warn('Could not sync wash prefs from the cloud. Using local.', e);
   }
 
-  return { profile, labels, poemCategories, theme, showFoodInMenu, showWashInMenu };
+  return { profile, labels, poemCategories, eventCategories, theme, showFoodInMenu, showWashInMenu };
 }

@@ -17,9 +17,11 @@ import {
   getYearBubblePreviewBlurbs,
   getItemBubblesByYear,
   TIMELINE_FILTERS,
+  timelineFiltersFor,
   EVENTS_FIRESTORE_SYNC_ENABLED,
   saveEvent,
 } from '../services/eventService';
+import { getEventCategories } from '../services/profileService';
 import { pickFromGallery } from '../services/imagePicker';
 import HomeFab from '../components/HomeFab';
 import DesignTargetButton from '../components/DesignTargetButton';
@@ -51,13 +53,16 @@ export default function YearOverviewScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState(null);
   const [filterId, setFilterId] = useState(route.params?.filter || 'all');
-  const activeFilter = TIMELINE_FILTERS.find((f) => f.id === filterId) || TIMELINE_FILTERS[0];
+  const [filters, setFilters] = useState(TIMELINE_FILTERS);
+  const activeFilter = filters.find((f) => f.id === filterId) || filters[0];
   const itemView = !!activeFilter.itemView;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getEvents();
+      const cats = await getEventCategories().catch(() => []);
+      setFilters(timelineFiltersFor(cats));
       setEvents(data);
       setYears(
         (filterId && filterId !== 'all'
@@ -193,7 +198,7 @@ export default function YearOverviewScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {TIMELINE_FILTERS.map((f) => {
+        {filters.map((f) => {
           const on = filterId === f.id;
           return (
             <TouchableOpacity

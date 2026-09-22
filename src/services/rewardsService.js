@@ -102,7 +102,7 @@ export const SHOP_ITEMS = [
   {
     id: 'customCategories',
     title: 'Custom event categories',
-    blurb: 'Add your own categories in Settings.',
+    blurb: 'Add your own categories in Settings. Built-in Personal / Work / Family stay.',
     cost: 4,
     perk: 'customCategories',
   },

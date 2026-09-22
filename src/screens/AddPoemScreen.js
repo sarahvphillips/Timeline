@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { saveEvent, CATEGORIES } from '../services/eventService';
+import { getEventCategories } from '../services/profileService';
 import ImageAttachField from '../components/ImageAttachField';
 import LabelPicker from '../components/LabelPicker';
 
@@ -29,6 +30,15 @@ export default function AddPoemScreen({ navigation, route }) {
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
   const [labels, setLabels] = useState(existing?.labels || []);
   const [saving, setSaving] = useState(false);
+  const [eventCats, setEventCats] = useState(CATEGORIES);
+
+  useEffect(() => {
+    getEventCategories()
+      .then((list) => {
+        if (Array.isArray(list) && list.length) setEventCats(list);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -93,7 +103,7 @@ export default function AddPoemScreen({ navigation, route }) {
 
         <Text style={styles.label}>Category</Text>
         <View style={styles.row}>
-          {CATEGORIES.map((cat) => {
+          {eventCats.map((cat) => {
             const selected = category === cat.id;
             return (
               <TouchableOpacity
