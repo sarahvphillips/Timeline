@@ -31,7 +31,6 @@ import {
   formatAddedAt,
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
 } from '../services/wordToIntService';
-import { findSavedPhrase } from '../services/wordPhrase';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
 import { auth } from '../services/firebase';
@@ -52,6 +51,52 @@ function isDayCount(n) {
   return Number.isInteger(n) && n >= 1 && n <= 200000;
 }
 
+function phraseKey(phrase) {
+  return String(phrase || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function findSavedPhrase(list, phrase) {
+  const key = phraseKey(phrase);
+  if (!key) return null;
+  const letters = key.replace(/[^a-z]/g, '');
+  return (
+    (Array.isArray(list) ? list : []).find((item) => {
+      const itemKey = phraseKey(item?.phrase);
+      if (itemKey === key) return true;
+      const itemLetters = itemKey.replace(/[^a-z]/g, '');
+      return !!(letters && itemLetters === letters);
+    }) || null
+  );
+}
+
+class WordToIntBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0f1024', padding: 24 }}>
+          <Text style={{ color: '#f8fafc', fontSize: 22, fontWeight: '800' }}>Word to int</Text>
+          <Text style={{ color: '#fca5a5', marginTop: 12, fontSize: 15, lineHeight: 22 }}>
+            {String(this.state.error?.message || this.state.error)}
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function displayHash(item) {
   if (item?.hashCode != null && !Number.isNaN(Number(item.hashCode))) {
     return item.hashCode;
@@ -59,7 +104,15 @@ function displayHash(item) {
   return javaHashCode(item?.phrase || '');
 }
 
-export default function WordToIntScreen({ navigation, route }) {
+export default function WordToIntRoute(props) {
+  return (
+    <WordToIntBoundary>
+      <WordToIntScreen {...props} />
+    </WordToIntBoundary>
+  );
+}
+
+function WordToIntScreen({ navigation, route }) {
   const [phrase, setPhrase] = useState('');
   const [notes, setNotes] = useState('');
   const [method, setMethod] = useState('ordinal');
@@ -80,10 +133,27 @@ export default function WordToIntScreen({ navigation, route }) {
   const [sharing, setSharing] = useState(false);
   const lastPhraseParam = useRef(null);
 
-  const result = convertPhrase(phrase);
+  const result =
+    typeof convertPhrase === 'function'
+      ? convertPhrase(phrase)
+      : {
+          phrase: String(phrase || '').trim(),
+          ordinal: 0,
+          pythagorean: 0,
+          reverse: 0,
+          hashCode: 0,
+          letterCount: 0,
+          reducedOrdinal: { value: 0 },
+          breakdown: [],
+        };
   const duplicateHit = findSavedPhrase(list, result.phrase || phrase);
   const showDup = !!(dupNotice || duplicateHit);
-  const sortedList = useMemo(() => sortWordNumberList(list, sortMode), [list, sortMode]);
+  const methods = Array.isArray(METHODS) ? METHODS : [];
+  const lookupMethods = Array.isArray(LOOKUP_METHODS) ? LOOKUP_METHODS : [];
+  const sortedList = useMemo(
+    () => (typeof sortWordNumberList === 'function' ? sortWordNumberList(list, sortMode) : list),
+    [list, sortMode]
+  );
 
   const pickSort = async (id) => {
     setSortMode(id);
@@ -109,8 +179,8 @@ export default function WordToIntScreen({ navigation, route }) {
         getSpans(),
         getListSort(),
       ]);
-      setList(words);
-      setSpans(savedSpans);
+      setList(Array.isArray(words) ? words : []);
+      setSpans(Array.isArray(savedSpans) ? savedSpans : []);
       setSortMode(savedSort);
     } finally {
       setListLoading(false);
@@ -221,7 +291,7 @@ export default function WordToIntScreen({ navigation, route }) {
         title: `${result.phrase} = ${number}`,
         description: [
           `Phrase: ${result.phrase}`,
-          `Method: ${METHODS.find((m) => m.id === method)?.label}`,
+          `Method: ${methods.find((m) => m.id === method)?.label}`,
           `Ordinal: ${result.ordinal}`,
           `Pythagorean: ${result.pythagorean}`,
           `Reverse: ${result.reverse}`,
@@ -381,8 +451,9 @@ export default function WordToIntScreen({ navigation, route }) {
     navigation.navigate('DateSpan', { span, t: Date.now() });
   };
 
-  const matches = findPhrasesForNumber(list, lookupNumber, lookupMethod);
-  const spanMatches = findSpansForNumber(spans, lookupNumber);
+  const matches =
+    typeof findPhrasesForNumber === 'function' ? findPhrasesForNumber(list, lookupNumber, lookupMethod) : [];
+  const spanMatches = typeof findSpansForNumber === 'function' ? findSpansForNumber(spans, lookupNumber) : [];
   const number = currentNumber();
   const showDayCount = isDayCount(number);
 
@@ -408,7 +479,7 @@ export default function WordToIntScreen({ navigation, route }) {
       />
       <Text style={styles.label}>Match using</Text>
       <View style={styles.methodRow}>
-        {LOOKUP_METHODS.map((m) => (
+        {lookupMethods.map((m) => (
           <TouchableOpacity
             key={m.id}
             style={[styles.methodChip, lookupMethod === m.id && styles.methodChipOn]}
@@ -482,7 +553,7 @@ export default function WordToIntScreen({ navigation, route }) {
 
       <Text style={styles.label}>Method</Text>
       <View style={styles.methodRow}>
-        {METHODS.map((m) => (
+        {methods.map((m) => (
           <TouchableOpacity
             key={m.id}
             style={[styles.methodChip, method === m.id && styles.methodChipOn]}
@@ -499,7 +570,7 @@ export default function WordToIntScreen({ navigation, route }) {
         <View style={styles.resultCard}>
           <Text style={styles.resultNumber}>{currentNumber()}</Text>
           <Text style={styles.resultHint}>
-            {METHODS.find((m) => m.id === method)?.label}
+            {methods.find((m) => m.id === method)?.label}
           </Text>
           {method === 'hashcode' ? (
             <Text style={styles.break}>
