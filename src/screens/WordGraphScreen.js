@@ -1212,8 +1212,8 @@ export default function WordGraphScreen({ onClose }) {
       >
         <Text style={styles.layoutLabel}>Data table</Text>
         <Text style={styles.meta}>
-          Every saved word. Gold means that word shares a link in more than one selected number set.
-          Scroll sideways for every column.
+          Tap a row to highlight that word on the graph. Gold means that word shares a link in more than
+          one selected number set. Scroll sideways for every column.
         </Text>
         {graph.nodes.filter((n) => n.kind === 'word').length === 0 ? (
           <Text style={styles.meta}>No saved words yet.</Text>
@@ -1255,7 +1255,14 @@ export default function WordGraphScreen({ onClose }) {
                     entry.notes || '—',
                   ];
                   return (
-                    <View key={node.id} style={styles.tableRow}>
+                    <TouchableOpacity
+                      key={node.id}
+                      onPress={() => {
+                        setSelected((cur) => (cur === node.id ? null : node.id));
+                        scrollRef.current?.scrollTo({ y: 0, animated: true });
+                      }}
+                      style={[styles.tableRow, selected === node.id && { backgroundColor: colors.card }]}
+                    >
                       {cells.map((value, i) => (
                         <Text
                           key={`${node.id}-${i}`}
@@ -1264,12 +1271,13 @@ export default function WordGraphScreen({ onClose }) {
                             i === 0 && styles.tableWord,
                             (i === 6 || i === 7) && styles.tableWide,
                             i === 0 && node.overlap && { color: OVERLAP_COLOR },
+                            selected === node.id && i === 0 && { color: colors.accent },
                           ]}
                         >
                           {String(value)}
                         </Text>
                       ))}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
             </View>

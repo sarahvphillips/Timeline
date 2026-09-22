@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -162,6 +162,8 @@ export default function PeopleDateGraphScreen() {
   const [sets, setSets] = useState(['people']);
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState(1);
+  const [selected, setSelected] = useState(null);
+  const scrollRef = useRef(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,6 +186,21 @@ export default function PeopleDateGraphScreen() {
 
   const graph = useMemo(() => buildGraph(people, spans, sets), [people, spans, sets]);
   const pos = useMemo(() => placeCircle(graph.nodes, width, height), [graph, width, height]);
+  const linkedIds = useMemo(() => {
+    const ids = new Set();
+    if (!selected) return ids;
+    ids.add(selected);
+    graph.edges.forEach((edge) => {
+      if (edge.a === selected) ids.add(edge.b);
+      if (edge.b === selected) ids.add(edge.a);
+    });
+    return ids;
+  }, [graph, selected]);
+
+  const pickRow = (id) => {
+    setSelected((cur) => (cur === id ? null : id));
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
 
   const toggle = (id) => {
     setSets((cur) => {
@@ -193,7 +210,7 @@ export default function PeopleDateGraphScreen() {
   };
 
   return (
-    <ScrollView style={styles.wrap} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.wrap} contentContainerStyle={styles.content}>
       <Text style={styles.kicker}>Utilities</Text>
       <Text style={styles.heading}>People and dates</Text>
       <Text style={styles.intro}>
@@ -230,6 +247,7 @@ export default function PeopleDateGraphScreen() {
             const dy = b.y - a.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             const angle = Math.atan2(dy, dx);
+            const dim = selected && e.a !== selected && e.b !== selected;
             return (
               <View
                 key={e.id}
@@ -240,7 +258,7 @@ export default function PeopleDateGraphScreen() {
                   top: (a.y + b.y) / 2,
                   width: dist,
                   height: e.overlap ? 3 : 1,
-                  backgroundColor: e.color,
+                  backgroundColor: dim ? 'rgba(100,116,139,0.2)' : e.color,
                   transform: [{ rotate: `${angle}rad` }],
                 }}
               />
@@ -250,11 +268,19 @@ export default function PeopleDateGraphScreen() {
             const p = pos[node.id];
             if (!p) return null;
             const size = node.kind === 'hub' ? 34 : 12;
+            const on = selected === node.id;
+            const dim = selected && !linkedIds.has(node.id);
             return (
               <View
                 key={node.id}
                 pointerEvents="none"
-                style={{ position: 'absolute', left: p.x - size / 2, top: p.y - size / 2, alignItems: 'center' }}
+                style={{
+                  position: 'absolute',
+                  left: p.x - size / 2,
+                  top: p.y - size / 2,
+                  alignItems: 'center',
+                  opacity: dim ? 0.28 : 1,
+                }}
               >
                 <View
                   style={{
@@ -262,8 +288,8 @@ export default function PeopleDateGraphScreen() {
                     height: size,
                     borderRadius: size,
                     backgroundColor: node.kind === 'hub' ? '#0f172a' : node.color,
-                    borderWidth: node.kind === 'hub' ? 2 : 0,
-                    borderColor: node.color,
+                    borderWidth: on || node.kind === 'hub' ? 2 : 0,
+                    borderColor: on ? '#fbbf24' : node.color,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -271,7 +297,7 @@ export default function PeopleDateGraphScreen() {
                   {node.kind === 'hub' ? <Text style={styles.hubText}>{node.label}</Text> : null}
                 </View>
                 {node.kind !== 'hub' ? (
-                  <Text style={styles.nodeLabel} numberOfLines={1}>
+                  <Text style={[styles.nodeLabel, on && { color: '#fbbf24', fontWeight: '800' }]} numberOfLines={1}>
                     {node.label}
                   </Text>
                 ) : null}
@@ -298,6 +324,7 @@ export default function PeopleDateGraphScreen() {
       )}
 
       <Text style={styles.layoutLabel}>Data table</Text>
+      <Text style={styles.intro}>Tap a row to highlight that item on the graph. Tap it again to clear.</Text>
       {sets.includes('people') ? (
         <ScrollView horizontal showsHorizontalScrollIndicator>
           <View>
@@ -309,14 +336,18 @@ export default function PeopleDateGraphScreen() {
               ))}
             </View>
             {people.map((person) => (
-              <View key={person.id} style={styles.tableRow}>
-                <Text style={[styles.cell, styles.wide]}>{person.name}</Text>
+              <TouchableOpacity
+                key={person.id}
+                onPress={() => pickRow(person.id)}
+                style={[styles.tableRow, selected === person.id && styles.tableOn]}
+              >
+                <Text style={[styles.cell, styles.wide, selected === person.id && { color: '#fbbf24' }]}>{person.name}</Text>
                 <Text style={[styles.cell, styles.wide]}>{person.birthday ? formatUk(person.birthday) : '—'}</Text>
                 <Text style={styles.cell}>
                   {person.birthday ? daysUntilNext(graph.focus, person.birthday) : '—'}
                 </Text>
                 <Text style={[styles.cell, styles.wide]}>{person.note || '—'}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </ScrollView>
@@ -332,13 +363,19 @@ export default function PeopleDateGraphScreen() {
               ))}
             </View>
             {spans.map((span) => (
-              <View key={span.id} style={styles.tableRow}>
-                <Text style={[styles.cell, styles.wide]}>{span.title || '—'}</Text>
+              <TouchableOpacity
+                key={span.id}
+                onPress={() => pickRow(`span:${span.id}`)}
+                style={[styles.tableRow, selected === `span:${span.id}` && styles.tableOn]}
+              >
+                <Text style={[styles.cell, styles.wide, selected === `span:${span.id}` && { color: '#fbbf24' }]}>
+                  {span.title || '—'}
+                </Text>
                 <Text style={[styles.cell, styles.wide]}>{formatUk(span.fromDate) || span.fromDate || '—'}</Text>
                 <Text style={[styles.cell, styles.wide]}>{formatUk(span.toDate) || span.toDate || '—'}</Text>
                 <Text style={[styles.cell, styles.wide]}>{span.totalDays ?? '—'}</Text>
                 <Text style={[styles.cell, styles.wide]}>{span.note || '—'}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </ScrollView>
@@ -401,6 +438,7 @@ const styles = StyleSheet.create({
   hubText: { color: '#e2e8f0', fontSize: 10, fontWeight: '800' },
   nodeLabel: { color: '#e2e8f0', fontSize: 11, marginTop: 2, maxWidth: 88 },
   tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  tableOn: { backgroundColor: '#1e293b' },
   cell: { color: '#e2e8f0', width: 88, fontSize: 12, paddingVertical: 8, paddingHorizontal: 6 },
   head: { color: '#93c5fd', fontWeight: '800', fontSize: 11 },
   wide: { width: 140 },
