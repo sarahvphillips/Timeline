@@ -510,6 +510,16 @@ function nearestNode(rawX, rawY, nodes, pos, width, height, zoom) {
   return best;
 }
 
+function graphFrame(rect, width, height, zoom) {
+  const a = unscalePoint(rect.x, rect.y, width, height, zoom);
+  const b = unscalePoint(rect.x + rect.w, rect.y + rect.h, width, height, zoom);
+  const x = Math.max(0, Math.min(a.x, b.x));
+  const y = Math.max(0, Math.min(a.y, b.y));
+  const x2 = Math.min(width, Math.max(a.x, b.x));
+  const y2 = Math.min(height, Math.max(a.y, b.y));
+  return { x, y, w: Math.max(1, x2 - x), h: Math.max(1, y2 - y) };
+}
+
 function unscalePoint(x, y, width, height, zoom) {
   const z = zoom || 1;
   const cx = width / 2;
@@ -525,7 +535,7 @@ function xml(text) {
     .replace(/"/g, '&' + 'quot;');
 }
 
-function buildGraphSvg(nodes, edges, pos, width, height, method, ink = {}) {
+function buildGraphSvg(nodes, edges, pos, width, height, method, ink = {}, frame) {
   const bg = ink.bg || '#0a0a0b';
   const text = ink.text || '#e2e8f0';
   const faint = ink.faint || '#64748b';
@@ -555,10 +565,15 @@ function buildGraphSvg(nodes, edges, pos, width, height, method, ink = {}) {
 <text x="${p.x.toFixed(1)}" y="${(p.y + 20).toFixed(1)}" text-anchor="middle" fill="${text}" font-size="11" font-family="sans-serif">${label}</text>`;
     })
     .join('');
+  const outW = frame ? Math.max(1, Math.round(frame.w)) : w;
+  const outH = frame ? Math.max(1, Math.round(frame.h)) : h;
+  const viewBox = frame
+    ? `${frame.x.toFixed(1)} ${frame.y.toFixed(1)} ${Math.max(frame.w, 1).toFixed(1)} ${Math.max(frame.h, 1).toFixed(1)}`
+    : `0 0 ${w} ${h}`;
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-<rect width="100%" height="100%" fill="${bg}"/>
-<text x="16" y="28" fill="${accent}" font-size="14" font-family="sans-serif">Word graph · ${xml(method)}</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="${outW}" height="${outH}" viewBox="${viewBox}">
+<rect x="${frame ? frame.x.toFixed(1) : 0}" y="${frame ? frame.y.toFixed(1) : 0}" width="${frame ? Math.max(frame.w, 1).toFixed(1) : '100%'}" height="${frame ? Math.max(frame.h, 1).toFixed(1) : '100%'}" fill="${bg}"/>
+${frame ? '' : `<text x="16" y="28" fill="${accent}" font-size="14" font-family="sans-serif">Word graph · ${xml(method)}</text>`}
 ${lines}
 ${dots}
 </svg>`;
@@ -626,6 +641,62 @@ function pngFromLayout(nodes, edges, pos, width, height, method, ink = {}) {
   return canvas.toDataURL('image/png');
 }
 
+function boxFromDrag(x0, y0, x1, y1, square) {
+  let w = x1 - x0;
+  let h = y1 - y0;
+  if (square) {
+    const side = Math.max(Math.abs(w), Math.abs(h));
+    w = (w < 0 ? -1 : 1) * side;
+    h = (h < 0 ? -1 : 1) * side;
+  }
+  return {
+    x: w < 0 ? x0 + w : x0,
+    y: h < 0 ? y0 + h : y0,
+    w: Math.abs(w),
+    h: Math.abs(h),
+  };
+}
+
+function snipPng(dataUrl, width, height, zoom, rect) {
+  return new Promise((resolve) => {
+    if (typeof Image === 'undefined') {
+      resolve('');
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const scale = 2;
+      const view = document.createElement('canvas');
+      view.width = Math.round(width * scale);
+      view.height = Math.round(height * scale);
+      const ctx = view.getContext('2d');
+      if (!ctx) {
+        resolve('');
+        return;
+      }
+      const z = zoom || 1;
+      ctx.translate((width * scale) / 2, (height * scale) / 2);
+      ctx.scale(z, z);
+      ctx.translate((-width * scale) / 2, (-height * scale) / 2);
+      ctx.drawImage(img, 0, 0);
+      const rw = Math.max(1, Math.round(rect.w * scale));
+      const rh = Math.max(1, Math.round(rect.h * scale));
+      const out = document.createElement('canvas');
+      out.width = rw;
+      out.height = rh;
+      const octx = out.getContext('2d');
+      if (!octx) {
+        resolve('');
+        return;
+      }
+      octx.drawImage(view, rect.x * scale, rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rw, rh);
+      resolve(out.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve('');
+    img.src = dataUrl;
+  });
+}
+
 export default function WordGraphScreen({ onClose }) {
   const { colors } = useTheme();
   const styles = useMemo(() => screenStyles(colors), [colors]);
@@ -643,6 +714,9 @@ export default function WordGraphScreen({ onClose }) {
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [savingImage, setSavingImage] = useState(false);
   const [previewUri, setPreviewUri] = useState('');
+  const [snipMode, setSnipMode] = useState(false);
+  const [snipSquare, setSnipSquare] = useState(false);
+  const [snipRect, setSnipRect] = useState(null);
   const [zoom, setZoom] = useState(1);
   const zoomRef = useRef(1);
   zoomRef.current = zoom;
@@ -652,6 +726,13 @@ export default function WordGraphScreen({ onClose }) {
   const tableY = useRef(0);
   const scrollSetter = useRef(setScrollEnabled);
   scrollSetter.current = setScrollEnabled;
+  const snipModeRef = useRef(false);
+  const snipSquareRef = useRef(false);
+  const snipDragRef = useRef(null);
+  const setSnipRectRef = useRef(setSnipRect);
+  snipModeRef.current = snipMode;
+  snipSquareRef.current = snipSquare;
+  setSnipRectRef.current = setSnipRect;
   const graph = useMemo(() => buildGraph(list, methods), [list, methods]);
   const posRef = useRef({});
   const dragRef = useRef(null);
@@ -773,9 +854,15 @@ export default function WordGraphScreen({ onClose }) {
       onStartShouldSetPanResponder: () => Platform.OS !== 'web',
       onMoveShouldSetPanResponder: () => Platform.OS !== 'web',
       onPanResponderGrant: (e) => {
-        scrollSetter.current(false);
         const rawX = e.nativeEvent.locationX;
         const rawY = e.nativeEvent.locationY;
+        if (snipModeRef.current) {
+          scrollSetter.current(false);
+          snipDragRef.current = { x: rawX, y: rawY };
+          setSnipRectRef.current({ x: rawX, y: rawY, w: 0, h: 0 });
+          return;
+        }
+        scrollSetter.current(false);
         const { width: w, height: h } = sizeRef.current;
         const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
         const best = nearestNode(rawX, rawY, graphRef.current.nodes, posRef.current, w, h, zoomRef.current);
@@ -808,9 +895,15 @@ export default function WordGraphScreen({ onClose }) {
         }
       },
       onPanResponderMove: (e) => {
-        const hold = holdRef.current;
         const rawX = e.nativeEvent.locationX;
         const rawY = e.nativeEvent.locationY;
+        if (snipDragRef.current) {
+          setSnipRectRef.current(
+            boxFromDrag(snipDragRef.current.x, snipDragRef.current.y, rawX, rawY, snipSquareRef.current)
+          );
+          return;
+        }
+        const hold = holdRef.current;
         if (hold && !hold.moved) {
           const dx = rawX - hold.x;
           const dy = rawY - hold.y;
@@ -834,6 +927,11 @@ export default function WordGraphScreen({ onClose }) {
         setTick((n) => n + 1);
       },
       onPanResponderRelease: () => {
+        if (snipDragRef.current) {
+          snipDragRef.current = null;
+          scrollSetter.current(true);
+          return;
+        }
         if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
         const id = dragRef.current;
         if (id && posRef.current[id]) {
@@ -846,6 +944,11 @@ export default function WordGraphScreen({ onClose }) {
         scrollSetter.current(true);
       },
       onPanResponderTerminate: () => {
+        if (snipDragRef.current) {
+          snipDragRef.current = null;
+          scrollSetter.current(true);
+          return;
+        }
         if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
         const id = dragRef.current;
         if (id && posRef.current[id]) posRef.current[id].pin = !!posRef.current[id].userPin;
@@ -900,6 +1003,13 @@ export default function WordGraphScreen({ onClose }) {
     const down = (event) => {
       if (event.button != null && event.button !== 0) return;
       const raw = place(event.clientX, event.clientY);
+      if (snipModeRef.current) {
+        event.preventDefault();
+        scrollSetter.current(false);
+        snipDragRef.current = { x: raw.x, y: raw.y };
+        setSnipRectRef.current({ x: raw.x, y: raw.y, w: 0, h: 0 });
+        return;
+      }
       const { width: w, height: h } = sizeRef.current;
       const best = nearestNode(raw.x, raw.y, graphRef.current?.nodes, posRef.current, w, h, zoomRef.current);
       if (!best || !posRef.current[best.id]) return;
@@ -926,6 +1036,14 @@ export default function WordGraphScreen({ onClose }) {
       setSelected(best.id);
     };
     const move = (event) => {
+      if (snipDragRef.current) {
+        event.preventDefault();
+        const raw = place(event.clientX, event.clientY);
+        setSnipRectRef.current(
+          boxFromDrag(snipDragRef.current.x, snipDragRef.current.y, raw.x, raw.y, snipSquareRef.current)
+        );
+        return;
+      }
       const id = dragRef.current;
       const hold = holdRef.current;
       if (!id || !hold || !posRef.current[id]) return;
@@ -944,6 +1062,11 @@ export default function WordGraphScreen({ onClose }) {
       setTick((n) => n + 1);
     };
     const up = () => {
+      if (snipDragRef.current) {
+        snipDragRef.current = null;
+        scrollSetter.current(true);
+        return;
+      }
       if (!dragRef.current) {
         scrollSetter.current(true);
         return;
@@ -1041,6 +1164,82 @@ export default function WordGraphScreen({ onClose }) {
       await Share.share({ title: 'Word graph', url: dest, message: 'Word graph layout' });
     } catch (e) {
       Alert.alert('Could not save image', e?.message || 'Try again from the browser (press w) to download a PNG.');
+    } finally {
+      setSavingImage(false);
+    }
+  };
+
+  const saveSnip = async () => {
+    if (savingImage) return;
+    const rect = snipRect;
+    if (!rect || rect.w < 12 || rect.h < 12) {
+      Alert.alert('Drag a box', 'Turn Snip on, then drag a rectangle on the graph.');
+      return;
+    }
+    const box = {
+      x: Math.max(0, Math.min(width - 1, rect.x)),
+      y: Math.max(0, Math.min(height - 1, rect.y)),
+      w: rect.w,
+      h: rect.h,
+    };
+    box.w = Math.max(1, Math.min(box.w, width - box.x));
+    box.h = Math.max(1, Math.min(box.h, height - box.y));
+    if (box.w < 12 || box.h < 12) {
+      Alert.alert('Drag a box', 'Keep the box on the graph.');
+      return;
+    }
+    setSavingImage(true);
+    try {
+      const positions = {};
+      graph.nodes.forEach((node) => {
+        const p = posRef.current[node.id];
+        if (p) positions[node.id] = { x: p.x, y: p.y };
+      });
+      const methodLabel = (graph.methods || methods).join('-');
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const full = pngFromLayout(graph.nodes, graph.edges, positions, width, height, methodLabel, colors);
+        const png = await snipPng(full, width, height, zoomRef.current, box);
+        if (!png) throw new Error('Could not cut that box');
+        const a = document.createElement('a');
+        a.href = png;
+        a.download = `word-graph-snip-${methodLabel}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setPreviewUri(png);
+        return;
+      }
+      const frame = graphFrame(box, width, height, zoomRef.current);
+      const svg = buildGraphSvg(
+        graph.nodes,
+        graph.edges,
+        positions,
+        width,
+        height,
+        methodLabel,
+        colors,
+        frame
+      );
+      const FileSystem = require('expo-file-system/legacy');
+      const dest = `${FileSystem.cacheDirectory}word-graph-snip-${Date.now()}.svg`;
+      await FileSystem.writeAsStringAsync(dest, svg);
+      setPreviewUri('');
+      try {
+        const Sharing = require('expo-sharing');
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(dest, {
+            mimeType: 'image/svg+xml',
+            dialogTitle: 'Save graph snip',
+            UTI: 'public.svg-image',
+          });
+          return;
+        }
+      } catch {
+        /* expo-sharing is optional */
+      }
+      await Share.share({ title: 'Word graph snip', url: dest, message: 'Word graph snip' });
+    } catch (e) {
+      Alert.alert('Could not save snip', e?.message || 'Try again from the browser to download a PNG.');
     } finally {
       setSavingImage(false);
     }
@@ -1204,6 +1403,41 @@ export default function WordGraphScreen({ onClose }) {
           <Text style={styles.chipText}>{savingImage ? 'Saving…' : 'Save image'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={[styles.chip, snipMode && styles.chipOn]}
+          onPress={() => {
+            setSnipMode((on) => {
+              if (on) setSnipRect(null);
+              return !on;
+            });
+          }}
+        >
+          <Text style={[styles.chipText, snipMode && styles.chipTextOn]}>{snipMode ? 'Snip on' : 'Snip'}</Text>
+        </TouchableOpacity>
+        {snipMode ? (
+          <>
+            <TouchableOpacity
+              style={[styles.chip, snipSquare && styles.chipOn]}
+              onPress={() => setSnipSquare((on) => !on)}
+            >
+              <Text style={[styles.chipText, snipSquare && styles.chipTextOn]}>
+                {snipSquare ? 'Square on' : 'Square'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.chip} onPress={saveSnip} disabled={savingImage}>
+              <Text style={styles.chipText}>Save snip</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.chip}
+              onPress={() => {
+                setSnipMode(false);
+                setSnipRect(null);
+              }}
+            >
+              <Text style={styles.chipText}>Cancel snip</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+        <TouchableOpacity
           style={styles.chip}
           onPress={() => {
             pinnedRef.current = {};
@@ -1225,6 +1459,11 @@ export default function WordGraphScreen({ onClose }) {
           <Text style={styles.chipText}>Data table</Text>
         </TouchableOpacity>
       </View>
+      {snipMode ? (
+        <Text style={styles.meta}>
+          Drag a box on the graph. Square keeps the sides equal. Save snip downloads that part only.
+        </Text>
+      ) : null}
       {loading ? (
         <ActivityIndicator color={colors.blueSoft} style={{ marginTop: 24 }} />
       ) : graph.nodes.length === 0 ? (
@@ -1306,6 +1545,22 @@ export default function WordGraphScreen({ onClose }) {
             );
           })}
           </View>
+          {snipRect && snipRect.w > 2 && snipRect.h > 2 ? (
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                left: snipRect.x,
+                top: snipRect.y,
+                width: snipRect.w,
+                height: snipRect.h,
+                borderWidth: 2,
+                borderColor: '#fbbf24',
+                backgroundColor: 'rgba(251,191,36,0.16)',
+                zIndex: 4,
+              }}
+            />
+          ) : null}
         </View>
         <View style={styles.zoomBar}>
           <TouchableOpacity
@@ -1496,6 +1751,7 @@ function screenStyles(c) {
     borderColor: c.cardBorder,
     overflow: 'hidden',
     userSelect: 'none',
+    position: 'relative',
   },
   zoomBar: {
     position: 'absolute',
