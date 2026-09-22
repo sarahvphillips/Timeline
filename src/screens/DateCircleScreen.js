@@ -34,6 +34,7 @@ import {
 } from '../services/dateSpanService';
 import { getWordNumbers, findPhrasesForNumber } from '../services/wordToIntService';
 import { saveEvent } from '../services/eventService';
+import { useTheme } from '../themeContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -114,6 +115,8 @@ function Spoke({ x1, y1, x2, y2, color, thick, label, labelColor, bg }) {
 }
 
 export default function DateCircleScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [people, setPeople] = useState(SAMPLE);
   const [focus, setFocus] = useState('2026-04-16');
   const [excludeEnd, setExcludeEnd] = useState(true);
@@ -497,7 +500,7 @@ export default function DateCircleScreen({ navigation }) {
           value={focus}
           onChangeText={setFocus}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor="#64748b"
+          placeholderTextColor={colors.faint}
           autoCapitalize="none"
         />
         <Text style={styles.hint}>Shown as {focus ? formatDob(focus) : '—'}</Text>
@@ -566,7 +569,7 @@ export default function DateCircleScreen({ navigation }) {
           const a = xy(hub);
           const b = xy(p);
           const hot = picked.includes(p.id) && picked.includes(hub?.id);
-          const shown = hub ? layerLabel(hub, p) : { text: '', color: '#334155', savedOn: false };
+          const shown = hub ? layerLabel(hub, p) : { text: '', color: colors.faint, savedOn: false };
           return (
             <Spoke
               key={`spoke-${p.id}`}
@@ -574,11 +577,11 @@ export default function DateCircleScreen({ navigation }) {
               y1={a.y}
               x2={b.x}
               y2={b.y}
-              color={shown.savedOn ? '#fbbf24' : hot ? '#3b82f6' : '#334155'}
+              color={shown.savedOn ? '#fbbf24' : hot ? colors.blue : colors.cardBorder}
               thick={shown.savedOn || hot ? 3 : 1.5}
               label={shown.text}
               labelColor={shown.color}
-              bg="#0f1024"
+              bg={colors.bg}
             />
           );
         })}
@@ -588,11 +591,11 @@ export default function DateCircleScreen({ navigation }) {
             y1={pa.y}
             x2={pb.x}
             y2={pb.y}
-            color="#3b82f6"
+            color={colors.blue}
             thick={3}
             label={layerLabel(pair.a, pair.b).text}
             labelColor={layerLabel(pair.a, pair.b).color}
-            bg="#0f1024"
+            bg={colors.bg}
           />
         ) : null}
 
@@ -606,8 +609,8 @@ export default function DateCircleScreen({ navigation }) {
             ]}
             onPress={() => tap(hub.id)}
           >
-            <Text style={styles.nodeText}>{hub.initials}</Text>
-            <Text style={styles.nodeMeta}>{formatUk(hub.date)}</Text>
+            <Text style={[styles.nodeText, picked.includes(hub.id) && { color: '#fff' }]}>{hub.initials}</Text>
+            <Text style={[styles.nodeMeta, picked.includes(hub.id) && { color: '#fff' }]}>{formatUk(hub.date)}</Text>
           </TouchableOpacity>
         ) : null}
         {ring.map((p) => {
@@ -623,8 +626,8 @@ export default function DateCircleScreen({ navigation }) {
               ]}
               onPress={() => tap(p.id)}
             >
-              <Text style={styles.nodeText}>{p.initials}</Text>
-              <Text style={styles.nodeMeta}>{until}d</Text>
+              <Text style={[styles.nodeText, picked.includes(p.id) && { color: '#fff' }]}>{p.initials}</Text>
+              <Text style={[styles.nodeMeta, picked.includes(p.id) && { color: '#fff' }]}>{until}d</Text>
             </TouchableOpacity>
           );
         })}
@@ -778,7 +781,7 @@ export default function DateCircleScreen({ navigation }) {
             value={eventDate}
             onChangeText={setEventDate}
             placeholder="YYYY-MM-DD"
-            placeholderTextColor="#64748b"
+            placeholderTextColor={colors.faint}
             autoCapitalize="none"
           />
         ) : (
@@ -842,14 +845,14 @@ export default function DateCircleScreen({ navigation }) {
         value={initials}
         onChangeText={setInitials}
         placeholder="Initials e.g. KD"
-        placeholderTextColor="#64748b"
+        placeholderTextColor={colors.faint}
       />
       <TextInput
         style={[styles.input, { marginTop: 8 }]}
         value={birth}
         onChangeText={setBirth}
         placeholder="DoB YYYY-MM-DD"
-        placeholderTextColor="#64748b"
+        placeholderTextColor={colors.faint}
         autoCapitalize="none"
       />
       <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={addPerson}>
@@ -876,14 +879,14 @@ export default function DateCircleScreen({ navigation }) {
                   value={pairDraft.aInitials}
                   onChangeText={(v) => setPairDraft((d) => ({ ...d, aInitials: v }))}
                   placeholder="First initials"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor={colors.faint}
                 />
                 <TextInput
                   style={[styles.input, { marginTop: 8 }]}
                   value={pairDraft.aDate}
                   onChangeText={(v) => setPairDraft((d) => ({ ...d, aDate: v }))}
                   placeholder="First date YYYY-MM-DD"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor={colors.faint}
                   autoCapitalize="none"
                 />
                 <TextInput
@@ -891,14 +894,14 @@ export default function DateCircleScreen({ navigation }) {
                   value={pairDraft.bInitials}
                   onChangeText={(v) => setPairDraft((d) => ({ ...d, bInitials: v }))}
                   placeholder="Second initials"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor={colors.faint}
                 />
                 <TextInput
                   style={[styles.input, { marginTop: 8 }]}
                   value={pairDraft.bDate}
                   onChangeText={(v) => setPairDraft((d) => ({ ...d, bDate: v }))}
                   placeholder="Second date YYYY-MM-DD"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor={colors.faint}
                   autoCapitalize="none"
                 />
                 <TextInput
@@ -906,7 +909,7 @@ export default function DateCircleScreen({ navigation }) {
                   value={pairDraft.focus}
                   onChangeText={(v) => setPairDraft((d) => ({ ...d, focus: v }))}
                   placeholder="Top date YYYY-MM-DD"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor={colors.faint}
                   autoCapitalize="none"
                 />
                 <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={savePairEdit}>
@@ -949,94 +952,95 @@ export default function DateCircleScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   content: {
     padding: 20,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     flexGrow: 1,
     paddingBottom: 48,
     alignItems: 'stretch',
   },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '700', marginBottom: 8 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 8 },
+  heading: { color: c.text, fontSize: 28, fontWeight: '700', marginBottom: 8 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 8 },
   rowLinks: { flexDirection: 'row', gap: 16, marginBottom: 16 },
-  link: { color: '#93c5fd', fontSize: 15, fontWeight: '600' },
+  link: { color: c.blueSoft, fontSize: 15, fontWeight: '600' },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2e2f55',
+    borderColor: c.cardBorder,
     padding: 16,
     marginBottom: 16,
   },
-  label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 8 },
+  label: { color: c.muted, fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 8 },
   input: {
-    backgroundColor: '#0f1024',
-    borderColor: '#2e2f55',
+    backgroundColor: c.bg,
+    borderColor: c.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
-    color: '#f8fafc',
+    color: c.text,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
   },
-  hint: { color: '#64748b', fontSize: 12, marginTop: 6, lineHeight: 18 },
-  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  tableCell: { color: '#e2e8f0', width: 120, fontSize: 12, paddingVertical: 8, paddingHorizontal: 6 },
-  tableHead: { color: '#93c5fd', fontWeight: '800', fontSize: 11 },
+  hint: { color: c.faint, fontSize: 12, marginTop: 6, lineHeight: 18 },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.cardBorder },
+  tableCell: { color: c.text, width: 120, fontSize: 12, paddingVertical: 8, paddingHorizontal: 6 },
+  tableHead: { color: c.blueSoft, fontWeight: '800', fontSize: 11 },
   toggle: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 12, gap: 10 },
   box: {
     width: 22,
     height: 22,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     marginTop: 2,
   },
-  boxOn: { backgroundColor: '#3b82f6' },
-  toggleText: { color: '#e2e8f0', fontSize: 15 },
+  boxOn: { backgroundColor: c.blue },
+  toggleText: { color: c.text, fontSize: 15 },
   subHead: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 18,
     fontWeight: '700',
     marginTop: 18,
     marginBottom: 6,
   },
-  untilBig: { color: '#f8fafc', fontSize: 20, fontWeight: '800', marginTop: 4 },
-  untilSmall: { color: '#94a3b8', fontSize: 14, marginTop: 2 },
+  untilBig: { color: c.text, fontSize: 20, fontWeight: '800', marginTop: 4 },
+  untilSmall: { color: c.faint, fontSize: 14, marginTop: 2 },
   wheel: { alignSelf: 'center', marginVertical: 12 },
-  ring: { position: 'absolute', borderWidth: 1, borderColor: '#334155' },
+  ring: { position: 'absolute', borderWidth: 1, borderColor: c.cardBorder },
   node: {
     position: 'absolute',
     width: NODE,
     height: NODE,
     borderRadius: NODE / 2,
     borderWidth: 2,
-    borderColor: '#475569',
-    backgroundColor: '#1a1b36',
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
   },
-  hub: { backgroundColor: '#1e3a5f', zIndex: 3 },
-  nodeOn: { borderColor: '#3b82f6', backgroundColor: '#3b82f6' },
-  nodeText: { color: '#f8fafc', fontSize: 13, fontWeight: '800' },
-  nodeMeta: { color: '#cbd5e1', fontSize: 10, marginTop: 2 },
-  pairTitle: { color: '#f8fafc', fontSize: 22, fontWeight: '800' },
-  ymd: { color: '#93c5fd', fontSize: 28, fontWeight: '800', marginVertical: 6 },
-  meta: { color: '#94a3b8', fontSize: 14, marginTop: 3, lineHeight: 20 },
-  bodyStrong: { color: '#f8fafc', fontSize: 15, fontWeight: '700', marginTop: 4 },
-  accent: { color: '#93c5fd', fontWeight: '700' },
+  hub: { backgroundColor: c.card, borderColor: c.blue, zIndex: 3 },
+  nodeOn: { borderColor: c.blue, backgroundColor: c.blue },
+  nodeText: { color: c.text, fontSize: 13, fontWeight: '800' },
+  nodeMeta: { color: c.muted, fontSize: 10, marginTop: 2 },
+  pairTitle: { color: c.text, fontSize: 22, fontWeight: '800' },
+  ymd: { color: c.accent, fontSize: 28, fontWeight: '800', marginVertical: 6 },
+  meta: { color: c.faint, fontSize: 14, marginTop: 3, lineHeight: 20 },
+  bodyStrong: { color: c.text, fontSize: 15, fontWeight: '700', marginTop: 4 },
+  accent: { color: c.accent, fontWeight: '700' },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -1046,32 +1050,33 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.cardBorder,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  chipOn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  chipText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
+  chipOn: { backgroundColor: c.blue, borderColor: c.blue },
+  chipText: { color: c.faint, fontSize: 13, fontWeight: '600' },
   chipTextOn: { color: '#fff' },
   ghostBtn: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 8,
   },
-  ghostText: { color: '#94a3b8', fontWeight: '600' },
+  ghostText: { color: c.muted, fontWeight: '600' },
   extraImg: { height: 120, borderRadius: 10, marginTop: 8 },
   listItem: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2e2f55',
+    borderColor: c.cardBorder,
     padding: 12,
     marginTop: 8,
   },
   peopleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  delete: { color: '#f87171', fontWeight: '600', marginTop: 6 },
+  delete: { color: c.danger, fontWeight: '600', marginTop: 6 },
 });
+}

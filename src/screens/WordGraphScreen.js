@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
+import { useTheme } from '../themeContext';
 
 const METHODS = [
   { id: 'ordinal', label: 'Ordinal', color: '#93c5fd' },
@@ -497,7 +498,12 @@ function xml(text) {
     .replace(/"/g, '&' + 'quot;');
 }
 
-function buildGraphSvg(nodes, edges, pos, width, height, method) {
+function buildGraphSvg(nodes, edges, pos, width, height, method, ink = {}) {
+  const bg = ink.bg || '#0a0a0b';
+  const text = ink.text || '#e2e8f0';
+  const faint = ink.faint || '#64748b';
+  const accent = ink.blueSoft || '#93c5fd';
+  const card = ink.card || '#0f172a';
   const w = Math.round(width);
   const h = Math.round(height);
   const lines = edges
@@ -505,7 +511,7 @@ function buildGraphSvg(nodes, edges, pos, width, height, method) {
       const a = pos[e.a];
       const b = pos[e.b];
       if (!a || !b) return '';
-      return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${e.color || '#94a3b8'}" stroke-opacity="${e.overlap ? '1' : '0.75'}" stroke-width="${e.overlap ? '2.5' : '1'}" />`;
+      return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${e.color || faint}" stroke-opacity="${e.overlap ? '1' : '0.75'}" stroke-width="${e.overlap ? '2.5' : '1'}" />`;
     })
     .join('');
   const dots = nodes
@@ -513,26 +519,31 @@ function buildGraphSvg(nodes, edges, pos, width, height, method) {
       const p = pos[node.id];
       if (!p) return '';
       if (node.kind === 'number') {
-        return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="18" fill="#0f172a" stroke="${colorFor(node.n)}" stroke-width="2" />
-<text x="${p.x.toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="sans-serif">${xml(node.label)}</text>
-<text x="${p.x.toFixed(1)}" y="${(p.y + 28).toFixed(1)}" text-anchor="middle" fill="#64748b" font-size="10" font-family="sans-serif">${node.count} words</text>`;
+        return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="18" fill="${card}" stroke="${colorFor(node.n)}" stroke-width="2" />
+<text x="${p.x.toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="middle" fill="${text}" font-size="11" font-family="sans-serif">${xml(node.label)}</text>
+<text x="${p.x.toFixed(1)}" y="${(p.y + 28).toFixed(1)}" text-anchor="middle" fill="${faint}" font-size="10" font-family="sans-serif">${node.count} words</text>`;
       }
       const label = xml(node.label);
       return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="${colorFor(node.n)}" />
-<text x="${p.x.toFixed(1)}" y="${(p.y + 20).toFixed(1)}" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="sans-serif">${label}</text>`;
+<text x="${p.x.toFixed(1)}" y="${(p.y + 20).toFixed(1)}" text-anchor="middle" fill="${text}" font-size="11" font-family="sans-serif">${label}</text>`;
     })
     .join('');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-<rect width="100%" height="100%" fill="#0a0a0b"/>
-<text x="16" y="28" fill="#93c5fd" font-size="14" font-family="sans-serif">Word graph · ${xml(method)}</text>
+<rect width="100%" height="100%" fill="${bg}"/>
+<text x="16" y="28" fill="${accent}" font-size="14" font-family="sans-serif">Word graph · ${xml(method)}</text>
 ${lines}
 ${dots}
 </svg>`;
 }
 
-function pngFromLayout(nodes, edges, pos, width, height, method) {
+function pngFromLayout(nodes, edges, pos, width, height, method, ink = {}) {
   if (typeof document === 'undefined') return '';
+  const bg = ink.bg || '#0a0a0b';
+  const text = ink.text || '#e2e8f0';
+  const faint = ink.faint || '#64748b';
+  const accent = ink.blueSoft || '#93c5fd';
+  const card = ink.card || '#0f172a';
   const scale = 2;
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * scale);
@@ -540,9 +551,9 @@ function pngFromLayout(nodes, edges, pos, width, height, method) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
   ctx.scale(scale, scale);
-  ctx.fillStyle = '#0a0a0b';
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#93c5fd';
+  ctx.fillStyle = accent;
   ctx.font = '14px sans-serif';
   ctx.fillText(`Word graph · ${method}`, 16, 28);
   edges.forEach((e) => {
@@ -562,16 +573,16 @@ function pngFromLayout(nodes, edges, pos, width, height, method) {
     if (node.kind === 'number') {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
-      ctx.fillStyle = '#0f172a';
+      ctx.fillStyle = card;
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = colorFor(node.n);
       ctx.stroke();
-      ctx.fillStyle = '#e2e8f0';
+      ctx.fillStyle = text;
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(String(node.label), p.x, p.y + 4);
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = faint;
       ctx.font = '10px sans-serif';
       ctx.fillText(`${node.count} words`, p.x, p.y + 28);
       return;
@@ -580,7 +591,7 @@ function pngFromLayout(nodes, edges, pos, width, height, method) {
     ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
     ctx.fillStyle = colorFor(node.n);
     ctx.fill();
-    ctx.fillStyle = '#e2e8f0';
+    ctx.fillStyle = text;
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(String(node.label || ''), p.x, p.y + 20);
@@ -589,6 +600,8 @@ function pngFromLayout(nodes, edges, pos, width, height, method) {
 }
 
 export default function WordGraphScreen({ onClose }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const { width: winW, height: winH } = useWindowDimensions();
   const width = Math.max(280, winW - 16);
   const height = Math.max(320, Math.min(winH - 210, 640));
@@ -883,8 +896,8 @@ export default function WordGraphScreen({ onClose }) {
         if (p) positions[node.id] = { x: p.x, y: p.y };
       });
       const methodLabel = (graph.methods || methods).join('-');
-      const png = pngFromLayout(graph.nodes, graph.edges, positions, width, height, methodLabel);
-      const svg = buildGraphSvg(graph.nodes, graph.edges, positions, width, height, methodLabel);
+      const png = pngFromLayout(graph.nodes, graph.edges, positions, width, height, methodLabel, colors);
+      const svg = buildGraphSvg(graph.nodes, graph.edges, positions, width, height, methodLabel, colors);
       if (png && Platform.OS === 'web' && typeof document !== 'undefined') {
         const a = document.createElement('a');
         a.href = png;
@@ -1033,7 +1046,7 @@ export default function WordGraphScreen({ onClose }) {
         </TouchableOpacity>
       </View>
       {loading ? (
-        <ActivityIndicator color="#93c5fd" style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.blueSoft} style={{ marginTop: 24 }} />
       ) : graph.nodes.length === 0 ? (
         <Text style={styles.intro}>No saved words yet.</Text>
       ) : (
@@ -1087,9 +1100,9 @@ export default function WordGraphScreen({ onClose }) {
                     width: size,
                     height: node.kind === 'number' ? size : 14,
                     borderRadius: size,
-                    backgroundColor: node.kind === 'number' ? '#0f172a' : colorFor(node.n),
+                    backgroundColor: node.kind === 'number' ? colors.card : colorFor(node.n),
                     borderWidth: pinned || node.overlap || node.kind === 'number' || on ? 2 : 0,
-                    borderColor: pinned ? '#fbbf24' : node.overlap ? OVERLAP_COLOR : on ? '#fff' : node.color || colorFor(node.n),
+                    borderColor: pinned ? '#fbbf24' : node.overlap ? OVERLAP_COLOR : on ? colors.text : node.color || colorFor(node.n),
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -1244,21 +1257,22 @@ export default function WordGraphScreen({ onClose }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0a0a0b' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 12, paddingBottom: 48 },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800' },
-  intro: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 8 },
+  heading: { color: c.text, fontSize: 26, fontWeight: '800' },
+  intro: { color: c.faint, fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   layoutLabel: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.4,
@@ -1267,39 +1281,40 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: c.cardBorder,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  chipOn: { backgroundColor: '#1e3a5f', borderColor: '#93c5fd' },
-  chipText: { color: '#94a3b8', fontWeight: '700', fontSize: 12 },
+  chipOn: { backgroundColor: c.blue, borderColor: c.blue },
+  chipText: { color: c.faint, fontWeight: '700', fontSize: 12 },
   chipTextOn: { color: '#fff' },
   canvas: {
     alignSelf: 'center',
-    backgroundColor: '#0a0a0b',
+    backgroundColor: c.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: c.cardBorder,
     overflow: 'hidden',
   },
-  nodeLabel: { color: '#e2e8f0', fontSize: 11, marginTop: 2, maxWidth: 88 },
-  nodeLabelOn: { color: '#fff', fontWeight: '800' },
-  hubText: { color: '#e2e8f0', fontSize: 11, fontWeight: '800' },
-  hubMeta: { color: '#64748b', fontSize: 10, marginTop: 2 },
+  nodeLabel: { color: c.text, fontSize: 11, marginTop: 2, maxWidth: 88 },
+  nodeLabelOn: { color: c.accent, fontWeight: '800' },
+  hubText: { color: c.text, fontSize: 11, fontWeight: '800' },
+  hubMeta: { color: c.faint, fontSize: 10, marginTop: 2 },
   detail: {
     marginTop: 10,
-    backgroundColor: '#111827',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: c.cardBorder,
   },
-  detailTitle: { color: '#f8fafc', fontWeight: '800', fontSize: 16 },
-  meta: { color: '#94a3b8', fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 8 },
-  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  tableCell: { color: '#e2e8f0', fontSize: 12, width: 96, paddingVertical: 8, paddingHorizontal: 6 },
-  tableHead: { color: '#93c5fd', fontWeight: '800', fontSize: 11 },
+  detailTitle: { color: c.text, fontWeight: '800', fontSize: 16 },
+  meta: { color: c.faint, fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 8 },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.cardBorder },
+  tableCell: { color: c.text, fontSize: 12, width: 96, paddingVertical: 8, paddingHorizontal: 6 },
+  tableHead: { color: c.blueSoft, fontWeight: '800', fontSize: 11 },
   tableWord: { width: 120, fontWeight: '700' },
   tableWide: { width: 200 },
 });
+}
