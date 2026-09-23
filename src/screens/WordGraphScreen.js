@@ -979,25 +979,27 @@ function WordGraphScreen({ onClose, navigation }) {
           if (on) setSavedRows(rows);
         })
         .catch(() => {});
-      takeSharedGraph()
-        .then((shared) => {
-          if (!on || !shared?.layout) return;
-          const who = shared.fromName || 'A friend';
-          Alert.alert('Shared graph', `Load the node layout from ${who}?`, [
-            { text: 'Not now', style: 'cancel' },
-            {
-              text: 'Load',
-              onPress: () => {
-                sessionLayout = shared.layout;
-                layoutTouchedRef.current = false;
-                restoredRef.current = false;
-                if (shared.layout.methods?.length) setMethods([...shared.layout.methods]);
-                setLayoutKey((n) => n + 1);
+      if (typeof takeSharedGraph === 'function') {
+        takeSharedGraph()
+          .then((shared) => {
+            if (!on || !shared?.layout) return;
+            const who = shared.fromName || 'A friend';
+            Alert.alert('Shared graph', `Load the node layout from ${who}?`, [
+              { text: 'Not now', style: 'cancel' },
+              {
+                text: 'Load',
+                onPress: () => {
+                  sessionLayout = shared.layout;
+                  layoutTouchedRef.current = false;
+                  restoredRef.current = false;
+                  if (shared.layout.methods?.length) setMethods([...shared.layout.methods]);
+                  setLayoutKey((n) => n + 1);
+                },
               },
-            },
-          ]);
-        })
-        .catch(() => {});
+            ]);
+          })
+          .catch(() => {});
+      }
       return () => {
         on = false;
       };
@@ -1640,6 +1642,10 @@ function WordGraphScreen({ onClose, navigation }) {
           text: `Share (${GRAPH_SHARE_DATA_COST} credits)`,
           onPress: async () => {
             if (sharingGraph) return;
+            if (typeof createGraphShare !== 'function') {
+              Alert.alert('Share is not on this copy yet', 'Update src/services/shareService.js from GitHub, then try again.');
+              return;
+            }
             setSharingGraph(true);
             let paid = false;
             try {
