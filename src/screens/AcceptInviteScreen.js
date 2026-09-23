@@ -149,6 +149,24 @@ export default function AcceptInviteScreen({ navigation, route }) {
     try {
       const invite = await getInviteByCode(normalised);
       if (invite) {
+        if (invite.kind === 'graph') {
+          let graph = null;
+          try {
+            graph = await getSharedWordList(invite.shareId);
+          } catch (_) {
+            graph = null;
+          }
+          setPreview({
+            kind: 'graph',
+            invite,
+            graph: graph || {
+              title: invite.eventTitle || 'Word graph',
+              nodeCount: invite.nodeCount || 0,
+              wordCount: invite.wordCount || 0,
+            },
+          });
+          return;
+        }
         if (invite.kind === 'words') {
           let wordList = null;
           try {
@@ -235,6 +253,21 @@ export default function AcceptInviteScreen({ navigation, route }) {
         return;
       }
       const result = await acceptInviteByCode(normalised);
+      if (result.kind === 'graph') {
+        const added = result.imported?.added?.length || 0;
+        const skipped = result.imported?.skipped?.length || 0;
+        Alert.alert(
+          'Graph data added',
+          `${added} new word${added === 1 ? '' : 's'} saved.` +
+            (skipped ? ` ${skipped} already on your list.` : '') +
+            ' Open Word graph to load their node positions.',
+          [
+            { text: 'Word graph', onPress: () => navigation.replace('WordGraph') },
+            { text: 'OK', style: 'cancel' },
+          ],
+        );
+        return;
+      }
       if (result.kind === 'words') {
         const added = result.imported?.added?.length || 0;
         const skipped = result.imported?.skipped?.length || 0;
@@ -304,7 +337,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
       'Decline',
     );
     if (!ok) return;
-    if (preview?.kind === 'words') {
+    if (preview?.kind === 'words' || preview?.kind === 'graph') {
       notify('Word list', 'Ignore the code if you do not want the words. Decline is for shared events.');
       return;
     }
@@ -379,6 +412,22 @@ export default function AcceptInviteScreen({ navigation, route }) {
               : 'Accepting tells them you now have a Timeline account.'}
           </Text>
           <Text style={styles.previewStatus}>Status: {preview.joinInvite.status || 'pending'}</Text>
+        </View>
+      ) : null}
+      {preview?.kind === 'graph' && preview.graph ? (
+        <View style={styles.preview}>
+          <Text style={styles.previewTitle}>{preview.graph.title || 'Word graph'}</Text>
+          <Text style={styles.previewMeta}>
+            {preview.invite?.fromEmail
+              ? `From ${preview.invite.fromEmail}`
+              : preview.invite?.fromName
+                ? `From ${preview.invite.fromName}`
+                : 'Word graph share'}
+          </Text>
+          <Text style={styles.previewDesc}>
+            {preview.graph.nodeCount || preview.invite?.nodeCount || 0} nodes, including the words, notes and positions. This is the graph data, not only a picture.
+          </Text>
+          <Text style={styles.previewStatus}>Status: {preview.invite?.status || 'pending'}</Text>
         </View>
       ) : null}
       {preview?.kind === 'words' && preview.wordList ? (

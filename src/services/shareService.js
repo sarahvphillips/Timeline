@@ -1,4 +1,5 @@
 import { Alert, Share, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   doc,
   setDoc,
@@ -14,7 +15,7 @@ import {
 import { auth, db } from './firebase';
 import { saveEvent, getEvents, deleteEvent } from './eventService';
 import { getProfile } from './profileService';
-import { importSharedWords } from './wordToIntService';
+import { importSharedWords, getWordNumbers } from './wordToIntService';
 import { buildShareLink, parseInviteCodeFromScan } from '../utils/inviteCode';
 export { buildShareLink, parseInviteCodeFromScan };
 
@@ -22,6 +23,7 @@ export { buildShareLink, parseInviteCodeFromScan };
 export const FRIEND_COLOURS = ['#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#a78bfa', '#fb7185'];
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const SHARED_GRAPH_KEY = '@timeline_shared_graph_v1';
 
 function getUid() {
   return auth.currentUser?.uid || null;
@@ -340,6 +342,150 @@ export async function createWordListShare(items) {
   return { shareId, code, link, invite: invitePayload, shared: payload };
 }
 
+export async function stashSharedGraph(layout) {
+  await AsyncStorage.setItem(SHARED_GRAPH_KEY, JSON.stringify(layout));
+}
+
+export async function takeSharedGraph() {
+  const raw = await AsyncStorage.getItem(SHARED_GRAPH_KEY);
+  if (!raw) return null;
+  await AsyncStorage.removeItem(SHARED_GRAPH_KEY);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function createGraphShare({ nodes, positions, methods }) {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to share the graph.');
+  const words = [];
+  const hubs = [];
+  (nodes || []).forEach((node) => {
+    const place = positions?.[node.id] || {};
+    if (node.kind === 'word' && node.entry?.phrase) {
+      words.push(
+        stripUndefined({
+          ...slimWord(node.entry),
+          x: place.x,
+          y: place.y,
+          pinned: !!(place.userPin || place.pin),
+        })
+      );
+    } else if (node.kind === 'number') {
+      hubs.push(
+        stripUndefined({
+          id: node.id,
+          label: node.label,
+          method: node.method,
+          x: place.x,
+          y: place.y,
+          pinned: !!(place.userPin || place.pin),
+        })
+      );
+    }
+  });
+  if (!words.length) throw new Error('There are no word nodes to share.');
+
+  const now = new Date();
+  const expires = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  let code = makeInviteCode(6);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const existingInvite = await getDoc(doc(db, 'eventInvites', code));
+    if (!existingInvite.exists()) break;
+    code = makeInviteCode(6);
+  }
+
+  const me = await currentParticipantProfile(FRIEND_COLOURS[0]);
+  const shareId = `graph_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const nodeCount = words.length + hubs.length;
+  const payload = stripUndefined({
+    kind: 'graph',
+    title: `Word graph (${nodeCount} nodes)`,
+    words,
+    hubs,
+    methods: Array.isArray(methods) && methods.length ? methods : ['ordinal'],
+    wordCount: words.length,
+    nodeCount,
+    createdByUid: uid,
+    createdByName: me.displayName,
+    createdByEmail: me.email,
+    participantUids: [uid],
+    participants: { [uid]: participantForCloud(me) },
+    status: 'active',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await setDoc(doc(db, 'sharedWordLists', shareId), payload);
+
+  const invitePayload = stripUndefined({
+    kind: 'graph',
+    shareId,
+    fromUid: uid,
+    fromName: me.displayName,
+    fromEmail: me.email,
+    code,
+    status: 'pending',
+    eventTitle: payload.title,
+    wordCount: words.length,
+    nodeCount,
+    createdAt: now.toISOString(),
+    expiresAt: expires.toISOString(),
+  });
+  await setDoc(doc(db, 'eventInvites', code), invitePayload);
+  return { shareId, code, link: buildShareLink(code), invite: invitePayload, shared: payload };
+}
+
+async function acceptGraphInvite(invite, uid, code) {
+  const list = await getSharedWordList(invite.shareId);
+  if (!list || list.kind !== 'graph') throw new Error('Shared graph not found.');
+  const nowIso = new Date().toISOString();
+  if (!(list.participantUids || []).includes(uid)) {
+    const colourIndex = (list.participantUids || []).length % FRIEND_COLOURS.length;
+    const me = await currentParticipantProfile(FRIEND_COLOURS[colourIndex]);
+    await updateDoc(doc(db, 'sharedWordLists', list.id), {
+      participantUids: arrayUnion(uid),
+      [`participants.${uid}`]: participantForCloud({ ...me, status: 'accepted', joinedAt: nowIso }),
+      updatedAt: nowIso,
+    });
+  }
+  await updateDoc(doc(db, 'eventInvites', code), {
+    status: 'accepted',
+    acceptedByUid: uid,
+    acceptedAt: nowIso,
+  });
+  const imported = await importSharedWords(list.words || []);
+  const local = await getWordNumbers();
+  const byPhrase = new Map(local.map((item) => [String(item.phrase || '').toLowerCase(), item]));
+  const positions = {};
+  (list.words || []).forEach((word) => {
+    const found = byPhrase.get(String(word.phrase || '').toLowerCase());
+    if (!found || !Number.isFinite(Number(word.x))) return;
+    positions[found.id] = { x: Number(word.x), y: Number(word.y), userPin: !!word.pinned };
+  });
+  (list.hubs || []).forEach((hub) => {
+    if (!hub?.id || !Number.isFinite(Number(hub.x))) return;
+    positions[hub.id] = { x: Number(hub.x), y: Number(hub.y), userPin: !!hub.pinned };
+  });
+  await stashSharedGraph({
+    fromName: list.createdByName || invite.fromName || 'A friend',
+    layout: {
+      positions,
+      zoom: 1,
+      methods: list.methods || ['ordinal'],
+      layoutId: 'force',
+    },
+  });
+  return {
+    kind: 'graph',
+    shared: list,
+    invite,
+    imported,
+    alreadyParticipant: (list.participantUids || []).includes(uid),
+  };
+}
+
 export async function getSharedWordList(shareId) {
   if (!shareId) return null;
   const snap = await getDoc(doc(db, 'sharedWordLists', shareId));
@@ -431,6 +577,10 @@ export async function acceptInviteByCode(rawCode) {
   const invite = await getInviteByCode(code);
   const usable = inviteIsUsable(invite);
   if (!usable.ok) throw new Error(usable.reason);
+
+  if (invite.kind === 'graph') {
+    return acceptGraphInvite(invite, uid, code);
+  }
 
   if (invite.kind === 'words') {
     return acceptWordListInvite(invite, uid, code);

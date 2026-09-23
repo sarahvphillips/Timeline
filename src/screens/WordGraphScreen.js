@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
-import { claimFirstGraphSave } from '../services/rewardsService';
+import { claimFirstGraphSave, GRAPH_SHARE_DATA_COST, spendCredits } from '../services/rewardsService';
+import { createGraphShare, copyTextToClipboard, takeSharedGraph } from '../services/shareService';
 import { useTheme } from '../themeContext';
 
 const METHODS = [
@@ -842,6 +843,7 @@ export default function WordGraphScreen({ onClose, navigation }) {
   const [layoutKey, setLayoutKey] = useState(0);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [savingImage, setSavingImage] = useState(false);
+  const [sharingGraph, setSharingGraph] = useState(false);
   const [previewUri, setPreviewUri] = useState('');
   const [snipMode, setSnipMode] = useState(false);
   const [snipSquare, setSnipSquare] = useState(false);
@@ -905,6 +907,25 @@ export default function WordGraphScreen({ onClose, navigation }) {
         .finally(() => {
           if (on) setLoading(false);
         });
+      takeSharedGraph()
+        .then((shared) => {
+          if (!on || !shared?.layout) return;
+          const who = shared.fromName || 'A friend';
+          Alert.alert('Shared graph', `Load the node layout from ${who}?`, [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Load',
+              onPress: () => {
+                sessionLayout = shared.layout;
+                layoutTouchedRef.current = false;
+                restoredRef.current = false;
+                if (shared.layout.methods?.length) setMethods([...shared.layout.methods]);
+                setLayoutKey((n) => n + 1);
+              },
+            },
+          ]);
+        })
+        .catch(() => {});
       return () => {
         on = false;
       };
@@ -1482,6 +1503,57 @@ export default function WordGraphScreen({ onClose, navigation }) {
     if (onClose) onClose();
   };
 
+  const shareGraphData = () => {
+    const count = graphRef.current?.nodes?.length || 0;
+    Alert.alert(
+      'Share graph data',
+      `This sends the words, notes, numbers and node positions, not just a picture. It costs ${GRAPH_SHARE_DATA_COST} credits. This graph has ${count} nodes.`,
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: `Share (${GRAPH_SHARE_DATA_COST} credits)`,
+          onPress: async () => {
+            if (sharingGraph) return;
+            setSharingGraph(true);
+            let paid = false;
+            try {
+              await spendCredits(GRAPH_SHARE_DATA_COST);
+              paid = true;
+              const result = await createGraphShare({
+                nodes: graphRef.current?.nodes || [],
+                positions: posRef.current,
+                methods,
+              });
+              await copyTextToClipboard(result.link || result.code);
+              Alert.alert(
+                'Graph data shared',
+                `Code ${result.code}. The invite link is copied. Your friend gets the nodes, not only an image.`
+              );
+            } catch (e) {
+              if (paid) {
+                try {
+                  await spendCredits(-GRAPH_SHARE_DATA_COST);
+                } catch {
+                  /* leave the charge if the refund cannot be written */
+                }
+              }
+              if (e?.code === 'NEED_CREDITS') {
+                Alert.alert('Not enough credits', e.message, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Credits shop', onPress: () => navigation?.navigate?.('CreditsShop') },
+                ]);
+              } else {
+                Alert.alert('Could not share', e?.message || 'Try again when signed in.');
+              }
+            } finally {
+              setSharingGraph(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     const unsub = navigation.addListener('beforeRemove', (event) => {
@@ -1690,6 +1762,11 @@ export default function WordGraphScreen({ onClose, navigation }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.chip} onPress={saveImage} disabled={savingImage}>
           <Text style={styles.chipText}>{savingImage ? 'Saving…' : 'Save image'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.chip} onPress={shareGraphData} disabled={sharingGraph}>
+          <Text style={styles.chipText}>
+            {sharingGraph ? 'Sharing…' : `Share data · ${GRAPH_SHARE_DATA_COST} credits`}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.chip, snipMode && styles.chipOn]}

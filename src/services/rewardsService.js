@@ -62,6 +62,8 @@ export const CALL_RECORDING_COST = 4;
 export const CALL_RECORDING_PERK = 'callRecording';
 export const SHARE_WORDS_COST = 3;
 export const SHARE_WORDS_PERK = 'shareWords';
+/** Charged each time the graph's nodes, notes and positions are sent. A picture of the graph is free. */
+export const GRAPH_SHARE_DATA_COST = 2;
 
 /** Same SKUs as Mafia PurchasesActivity — consumable Play packs. */
 export const CREDIT_PACKS = [
@@ -565,6 +567,20 @@ export async function claimGraphSaveRewards(nodeCount) {
 
 export async function claimFirstGraphSave(nodeCount) {
   return claimGraphSaveRewards(nodeCount);
+}
+
+export async function spendCredits(amount) {
+  const n = Number(amount) || 0;
+  const current = await getRewards();
+  if (n > 0 && current.credits < n) {
+    const err = new Error(`Need ${n} credits (you have ${current.credits}).`);
+    err.code = 'NEED_CREDITS';
+    throw err;
+  }
+  return writeRewards({
+    ...current,
+    credits: Math.max(0, current.credits - n),
+  });
 }
 
 export async function spendShopItem(itemId) {
