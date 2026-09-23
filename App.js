@@ -38,6 +38,7 @@ import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
 import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import WordGraphScreen from './src/screens/WordGraphScreen';
+import EventGraphScreen from './src/screens/EventGraphScreen';
 import MotifsScreen from './src/screens/MotifsScreen';
 import PeopleDateGraphScreen from './src/screens/PeopleDateGraphScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
@@ -359,6 +360,12 @@ function AppShell() {
                 name="WordGraph"
                 component={WordGraphScreen}
                 options={{ title: 'Word graph' }}
+              />
+
+              <Stack.Screen
+                name="EventGraph"
+                component={EventGraphScreen}
+                options={{ title: 'Event graph' }}
               />
 
               <Stack.Screen

@@ -50,6 +50,12 @@ export default function UtilitiesScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('EventGraph')}
+        >
+          <Text style={styles.buttonText}>Event graph</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
           onPress={() => navigation.navigate('Motifs')}
         >
           <Text style={styles.buttonText}>Motifs</Text>
