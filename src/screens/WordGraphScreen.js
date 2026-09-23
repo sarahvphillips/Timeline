@@ -840,7 +840,7 @@ function snipPng(dataUrl, width, height, zoom, rect) {
   });
 }
 
-export default function WordGraphScreen({ onClose, navigation }) {
+function WordGraphScreen({ onClose, navigation }) {
   const { colors } = useTheme();
   const styles = useMemo(() => screenStyles(colors), [colors]);
   const { width: winW, height: winH } = useWindowDimensions();
@@ -1638,13 +1638,22 @@ export default function WordGraphScreen({ onClose, navigation }) {
 
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
+    let ready = false;
+    const timer = setTimeout(() => {
+      ready = true;
+    }, 600);
     const unsub = navigation.addListener('beforeRemove', (event) => {
-      if (leavingRef.current) return;
+      if (!ready || leavingRef.current) return;
+      const type = event?.data?.action?.type;
+      if (type && type !== 'GO_BACK' && type !== 'POP' && type !== 'POP_TO_TOP') return;
       event.preventDefault();
       pendingLeave.current = event.data.action;
       setExitAsk(true);
     });
-    return unsub;
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
   }, [navigation]);
 
   const adjustLayout = (id) => {
@@ -2254,6 +2263,33 @@ export default function WordGraphScreen({ onClose, navigation }) {
     </ScrollView>
   );
 }
+
+class WordGraphBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, padding: 24, backgroundColor: '#0f1024' }}>
+          <Text style={{ color: '#f8fafc', fontSize: 22, fontWeight: '800' }}>Word graph</Text>
+          <Text style={{ color: '#fca5a5', marginTop: 12, fontSize: 15, lineHeight: 22 }}>
+            {String(this.state.error?.message || this.state.error)}
+          </Text>
+        </View>
+      );
+    }
+    return <WordGraphScreen {...this.props} />;
+  }
+}
+
+export default WordGraphBoundary;
 
 function screenStyles(c) {
   return StyleSheet.create({
