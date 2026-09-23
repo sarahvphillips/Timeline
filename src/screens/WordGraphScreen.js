@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
 import { claimFirstGraphSave, GRAPH_SHARE_DATA_COST, spendCredits } from '../services/rewardsService';
 import { createGraphShare, copyTextToClipboard, takeSharedGraph } from '../services/shareService';
+import { listSavedGraphs, saveGraphSnapshot, deleteSavedGraph } from '../services/savedGraphs';
 import { useTheme } from '../themeContext';
 
 const METHODS = [
@@ -858,6 +859,10 @@ export default function WordGraphScreen({ onClose, navigation }) {
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [savingImage, setSavingImage] = useState(false);
   const [sharingGraph, setSharingGraph] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedRows, setSavedRows] = useState([]);
+  const [loadedSave, setLoadedSave] = useState(null);
+  const [shownWordIds, setShownWordIds] = useState(null);
   const [previewUri, setPreviewUri] = useState('');
   const [snipMode, setSnipMode] = useState(false);
   const [snipSquare, setSnipSquare] = useState(false);
@@ -878,7 +883,10 @@ export default function WordGraphScreen({ onClose, navigation }) {
   snipModeRef.current = snipMode;
   snipSquareRef.current = snipSquare;
   setSnipRectRef.current = setSnipRect;
-  const graph = useMemo(() => buildGraph(list, methods), [list, methods]);
+  const graph = useMemo(() => {
+    const source = shownWordIds ? list.filter((row) => shownWordIds.includes(row.id)) : list;
+    return buildGraph(source, methods);
+  }, [list, methods, shownWordIds]);
   const posRef = useRef({});
   const dragRef = useRef(null);
   const pinnedRef = useRef({});
@@ -905,6 +913,7 @@ export default function WordGraphScreen({ onClose, navigation }) {
   const graphRef = useRef(graph);
   graphRef.current = graph;
   const restoredRef = useRef(false);
+  const quietRestoreRef = useRef(false);
   const layoutTouchedRef = useRef(false);
   const leavingRef = useRef(false);
   const pendingLeave = useRef(null);
@@ -921,6 +930,11 @@ export default function WordGraphScreen({ onClose, navigation }) {
         .finally(() => {
           if (on) setLoading(false);
         });
+      listSavedGraphs()
+        .then((rows) => {
+          if (on) setSavedRows(rows);
+        })
+        .catch(() => {});
       takeSharedGraph()
         .then((shared) => {
           if (!on || !shared?.layout) return;
@@ -979,9 +993,10 @@ export default function WordGraphScreen({ onClose, navigation }) {
       posRef.current = pos;
       setSelected(null);
       setTick((n) => n + 1);
-      if (added.length) {
+      if (added.length && !quietRestoreRef.current) {
         Alert.alert('Graph', 'New data nodes found, added to layout');
       }
+      quietRestoreRef.current = false;
       return undefined;
     }
     const keepPins = (pos) => {
@@ -1488,21 +1503,74 @@ export default function WordGraphScreen({ onClose, navigation }) {
     setExitAsk(true);
   };
 
+  const writeSavedGraph = async () => {
+    const layout = captureLayout(posRef.current, pinnedRef.current, zoomRef.current, methods, layoutId);
+    sessionLayout = layout;
+    const nodes = graphRef.current?.nodes || [];
+    const wordIds = nodes.filter((node) => node.kind === 'word').map((node) => node.id);
+    try {
+      const entry = await saveGraphSnapshot({
+        nodeCount: nodes.length,
+        wordIds,
+        methods: layout.methods,
+        layoutId: layout.layoutId,
+        zoom: layout.zoom,
+        positions: layout.positions,
+      });
+      setSavedRows(await listSavedGraphs());
+      setLoadedSave(entry);
+      setShownWordIds(wordIds);
+      const result = await claimFirstGraphSave(nodes.length);
+      const when = new Date(entry.savedAt).toLocaleString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      if (result?.granted) {
+        const amount = result.credits || 1;
+        Alert.alert('Graph saved', `${when}. ${nodes.length} nodes kept. ${amount} credit${amount === 1 ? '' : 's'} added.`);
+      } else {
+        Alert.alert('Graph saved', `${when}. ${nodes.length} nodes, with this layout, are in Saved graphs.`);
+      }
+    } catch (e) {
+      Alert.alert('Could not save', e?.message || 'Try again.');
+    }
+  };
+
+  const openSaved = (entry) => {
+    sessionLayout = {
+      positions: entry.positions || {},
+      zoom: entry.zoom || 1,
+      methods: entry.methods?.length ? [...entry.methods] : ['ordinal'],
+      layoutId: entry.layoutId || 'force',
+    };
+    layoutTouchedRef.current = false;
+    restoredRef.current = false;
+    quietRestoreRef.current = true;
+    setMethods(sessionLayout.methods);
+    setLayoutId(sessionLayout.layoutId);
+    setZoom(sessionLayout.zoom);
+    setShownWordIds(Array.isArray(entry.wordIds) ? entry.wordIds : null);
+    setLoadedSave(entry);
+    setSavedOpen(false);
+    setSelected(null);
+    setLayoutKey((n) => n + 1);
+  };
+
+  const showLiveList = () => {
+    setShownWordIds(null);
+    setLoadedSave(null);
+    layoutTouchedRef.current = false;
+    restoredRef.current = false;
+    quietRestoreRef.current = false;
+    setLayoutKey((n) => n + 1);
+  };
+
   const finishLeave = (save) => {
     if (save) {
-      sessionLayout = captureLayout(posRef.current, pinnedRef.current, zoomRef.current, methods, layoutId);
-      claimFirstGraphSave(graphRef.current?.nodes?.length || 0)
-        .then((result) => {
-          if (!result?.granted) return;
-          const amount = result.credits || 1;
-          const top = result.tiers?.[result.tiers.length - 1];
-          const reached = top ? ` This save reached ${top.nodes} nodes.` : '';
-          Alert.alert(
-            'Graph saved',
-            `${amount} credit${amount === 1 ? '' : 's'} added.${reached} Each size is rewarded once.`
-          );
-        })
-        .catch(() => {});
+      writeSavedGraph();
     } else {
       sessionLayout = null;
     }
@@ -1697,7 +1765,7 @@ export default function WordGraphScreen({ onClose, navigation }) {
         <View style={styles.exitCard}>
           <Text style={styles.detailTitle}>Save before exiting?</Text>
           <Text style={styles.meta}>
-            This will keep the layout until you next visit, unless you close the app. The first save of 30 or more nodes adds 1 credit. Larger saves add more, once each, at 50, 75, 100 and 150 nodes.
+            This will keep the layout until you next visit, unless you close the app. Save also stores this layout and these nodes in Saved graphs, with the time. The first save of 30 or more nodes adds 1 credit. Larger saves add more, once each, at 50, 75, 100 and 150 nodes.
           </Text>
           <View style={styles.row}>
             <TouchableOpacity style={[styles.chip, styles.chipOn]} onPress={() => finishLeave(true)}>
@@ -1762,6 +1830,81 @@ export default function WordGraphScreen({ onClose, navigation }) {
         <Text style={styles.meta}>
           Grouped by #tags in the note. A word sits with the tag that the most words share. Words with no # sit in their own group. Pinned nodes stay where you left them.
         </Text>
+      ) : null}
+      <View style={styles.row}>
+        <TouchableOpacity style={styles.chip} onPress={writeSavedGraph}>
+          <Text style={styles.chipText}>Save graph</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.chip, savedOpen && styles.chipOn]} onPress={() => setSavedOpen((open) => !open)}>
+          <Text style={[styles.chipText, savedOpen && styles.chipTextOn]}>Saved graphs</Text>
+        </TouchableOpacity>
+      </View>
+      {loadedSave ? (
+        <View style={styles.detail}>
+          <Text style={styles.detailTitle}>
+            {new Date(loadedSave.savedAt).toLocaleString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+          <Text style={styles.meta}>
+            This is the saved layout. Only the nodes from that save are shown
+            {list.filter((row) => (loadedSave.wordIds || []).includes(row.id)).length < (loadedSave.wordIds || []).length
+              ? '. Some saved words are no longer in the list.'
+              : '.'}
+          </Text>
+          <TouchableOpacity style={styles.chip} onPress={showLiveList}>
+            <Text style={styles.chipText}>Show current list</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {savedOpen ? (
+        <View style={styles.detail}>
+          <Text style={styles.detailTitle}>Saved graphs</Text>
+          {savedRows.length === 0 ? <Text style={styles.meta}>None yet. Save graph stores this layout and these nodes.</Text> : null}
+          {savedRows.map((entry) => {
+            const when = new Date(entry.savedAt).toLocaleString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+            const sets = (entry.methods || [])
+              .map((id) => METHODS.find((m) => m.id === id)?.label || id)
+              .join(', ');
+            const layoutName = LAYOUTS.find((opt) => opt.id === entry.layoutId)?.label || entry.layoutId;
+            return (
+              <View key={entry.id} style={{ marginTop: 8 }}>
+                <Text style={styles.detailTitle}>{when}</Text>
+                <Text style={styles.meta}>
+                  {entry.nodeCount || 0} nodes · {layoutName} · {sets || 'Ordinal'}
+                </Text>
+                <View style={styles.row}>
+                  <TouchableOpacity style={[styles.chip, styles.chipOn]} onPress={() => openSaved(entry)}>
+                    <Text style={[styles.chipText, styles.chipTextOn]}>Load</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.chip}
+                    onPress={() => {
+                      deleteSavedGraph(entry.id)
+                        .then((next) => {
+                          setSavedRows(next);
+                          if (loadedSave?.id === entry.id) showLiveList();
+                        })
+                        .catch(() => {});
+                    }}
+                  >
+                    <Text style={styles.chipText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
+        </View>
       ) : null}
       <Text style={styles.layoutLabel}>On this arrangement</Text>
       <View style={styles.row}>
