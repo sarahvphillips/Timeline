@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { saveEvent, CATEGORIES } from '../services/eventService';
+import { importPoemCards } from '../services/poemCardImport';
 import { getEventCategories } from '../services/profileService';
 import ImageAttachField from '../components/ImageAttachField';
 import LabelPicker from '../components/LabelPicker';
@@ -30,6 +31,7 @@ export default function AddPoemScreen({ navigation, route }) {
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
   const [labels, setLabels] = useState(existing?.labels || []);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [eventCats, setEventCats] = useState(CATEGORIES);
 
   useEffect(() => {
@@ -39,6 +41,24 @@ export default function AddPoemScreen({ navigation, route }) {
       })
       .catch(() => {});
   }, []);
+
+  const importCards = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const result = await importPoemCards();
+      Alert.alert(
+        'Poem cards',
+        result.added
+          ? `Added ${result.added} of ${result.total}. ${result.skipped} were already there. The pictures stay in Google Drive.`
+          : `All ${result.total} poem cards are already on the timeline.`
+      );
+    } catch (e) {
+      Alert.alert('Could not import', e?.message || 'Try again while signed in.');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -83,6 +103,13 @@ export default function AddPoemScreen({ navigation, route }) {
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading}>{existing ? 'Edit poem' : 'Add poem'}</Text>
+        {!existing ? (
+          <TouchableOpacity style={styles.importBtn} onPress={importCards} disabled={importing}>
+            <Text style={styles.importText}>
+              {importing ? 'Adding poem cards…' : 'Add the 60 Drive poem cards once'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         <Text style={styles.label}>Poem title *</Text>
         <TextInput
@@ -170,6 +197,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1024' },
   content: { padding: 20, paddingBottom: 40 },
   heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 8 },
+  importBtn: {
+    borderWidth: 1,
+    borderColor: '#8b5cf6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  importText: { color: '#c4b5fd', fontWeight: '700' },
   label: { color: '#94a3b8', fontSize: 14, marginTop: 16, marginBottom: 8 },
   input: {
     backgroundColor: '#1a1b36',
