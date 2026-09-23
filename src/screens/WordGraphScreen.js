@@ -24,6 +24,7 @@ const METHODS = [
   { id: 'pythagorean', label: 'Pythagorean', color: '#c4b5fd' },
   { id: 'reverse', label: 'Reverse', color: '#f9a8d4' },
   { id: 'reduced', label: 'Reduced', color: '#86efac' },
+  { id: 'notes', label: '#note', color: '#fcd34d' },
 ];
 
 const OVERLAP_COLOR = '#fbbf24';
@@ -85,8 +86,51 @@ function buildGraph(list, methods) {
   }));
   const edges = [];
   const pairMethods = new Map();
+  const addGroup = (method, color, groupId, label, members) => {
+    if (!members.length) return;
+    const hid = `hub:${method}:${groupId}`;
+    nodes.push({
+      id: hid,
+      kind: 'number',
+      label: String(label),
+      n: method === 'notes' ? null : Number(groupId),
+      count: members.length,
+      method,
+      color,
+    });
+    members.forEach((w) => {
+      edges.push({
+        id: `${w.id}->${hid}`,
+        a: w.id,
+        b: hid,
+        method,
+        color,
+        overlap: false,
+      });
+    });
+    for (let i = 0; i < members.length; i += 1) {
+      for (let j = i + 1; j < members.length; j += 1) {
+        const left = members[i].id < members[j].id ? members[i].id : members[j].id;
+        const right = members[i].id < members[j].id ? members[j].id : members[i].id;
+        const key = `${left}|${right}`;
+        if (!pairMethods.has(key)) pairMethods.set(key, new Set());
+        pairMethods.get(key).add(method);
+      }
+    }
+  };
   chosen.forEach((method) => {
     const color = METHODS.find((m) => m.id === method)?.color || '#94a3b8';
+    if (method === 'notes') {
+      const groups = new Map();
+      words.forEach((w) => {
+        noteTags(w).forEach((tag) => {
+          if (!groups.has(tag)) groups.set(tag, []);
+          groups.get(tag).push(w);
+        });
+      });
+      groups.forEach((members, tag) => addGroup(method, color, tag, `#${tag}`, members));
+      return;
+    }
     const groups = new Map();
     words.forEach((w) => {
       const n = Number(numberFor(w, method));
@@ -94,37 +138,7 @@ function buildGraph(list, methods) {
       if (!groups.has(n)) groups.set(n, []);
       groups.get(n).push(w);
     });
-    groups.forEach((members, n) => {
-      const hid = `hub:${method}:${n}`;
-      nodes.push({
-        id: hid,
-        kind: 'number',
-        label: String(n),
-        n,
-        count: members.length,
-        method,
-        color,
-      });
-      members.forEach((w) => {
-        edges.push({
-          id: `${w.id}->${hid}`,
-          a: w.id,
-          b: hid,
-          method,
-          color,
-          overlap: false,
-        });
-      });
-      for (let i = 0; i < members.length; i += 1) {
-        for (let j = i + 1; j < members.length; j += 1) {
-          const left = members[i].id < members[j].id ? members[i].id : members[j].id;
-          const right = members[i].id < members[j].id ? members[j].id : members[i].id;
-          const key = `${left}|${right}`;
-          if (!pairMethods.has(key)) pairMethods.set(key, new Set());
-          pairMethods.get(key).add(method);
-        }
-      }
-    });
+    groups.forEach((members, n) => addGroup(method, color, n, n, members));
   });
   const overlaps = [];
   pairMethods.forEach((set, key) => {
@@ -1701,7 +1715,7 @@ export default function WordGraphScreen({ onClose, navigation }) {
       <Text style={styles.heading}>Graph</Text>
       <Text style={styles.intro}>
         Each word stays joined to its number, even when nothing else shares it. Turn on more than one
-        number set to compare edges. A gold line means the same two words are linked in both sets.
+        number set to compare edges. #note works the same way: words that share a #tag are joined, and a gold line means they also match in another set.
         Drag a circle to move it. The browser will not select the label.
       </Text>
       <Text style={styles.layoutLabel}>Number sets — tap to combine</Text>
@@ -1720,7 +1734,7 @@ export default function WordGraphScreen({ onClose, navigation }) {
         })}
       </View>
       <Text style={styles.meta}>
-        Gold edges are the overlap. Each other colour is one number set. At least one set stays on.
+        Gold edges are the overlap. Each other colour is one set, including #note. At least one set stays on. Tap again to turn a set off.
       </Text>
       <Text style={styles.layoutLabel}>Layout</Text>
       <View style={styles.row}>
@@ -1991,7 +2005,9 @@ export default function WordGraphScreen({ onClose, navigation }) {
         </View>
       ) : selectedNode?.kind === 'number' ? (
         <View style={styles.detail}>
-          <Text style={styles.detailTitle}>Number {selectedNode.label}</Text>
+          <Text style={styles.detailTitle}>
+            {String(selectedNode.label).startsWith('#') ? selectedNode.label : `Number ${selectedNode.label}`}
+          </Text>
           <Text style={styles.meta}>
             {neighbours.map((n) => n.label).join(' · ')}
           </Text>
