@@ -48,8 +48,14 @@ export default function UtilitiesScreen({ navigation }) {
         >
           <Text style={styles.buttonText}>Word graph</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() => navigation.navigate('Motifs')}
+        >
+          <Text style={styles.buttonText}>Motifs</Text>
+        </TouchableOpacity>
         <Text style={[styles.hint, { color: colors.muted }]}>
-          Words that share a number, laid out like a network.
+          Norse, for now. A saved word is listed only when its note says Norse or #norse.
         </Text>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.blue }]}
