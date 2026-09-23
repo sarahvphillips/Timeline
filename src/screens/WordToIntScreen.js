@@ -188,6 +188,60 @@ function WordToIntScreen({ navigation, route }) {
     setDupNotice(false);
   };
 
+  const [noteDrafts, setNoteDrafts] = useState({});
+  const noteSaveGen = useRef({});
+  const NOTE_TAGS = ['#norse', '#binary', '#poem'];
+
+  const noteValue = (item) =>
+    Object.prototype.hasOwnProperty.call(noteDrafts, item.id) ? noteDrafts[item.id] : item.notes || '';
+
+  const itemHasTag = (item, tag) => new RegExp(`(^|\\s)${tag}(?=\\s|$)`, 'i').test(noteValue(item));
+
+  const saveItemNotes = async (item, nextNotes) => {
+    const notes = String(nextNotes != null ? nextNotes : noteValue(item));
+    const trimmed = notes.trim();
+    const gen = (noteSaveGen.current[item.id] || 0) + 1;
+    noteSaveGen.current[item.id] = gen;
+    if (trimmed === String(item.notes || '').trim()) {
+      if (noteSaveGen.current[item.id] !== gen) return;
+      setNoteDrafts((cur) => {
+        if (!Object.prototype.hasOwnProperty.call(cur, item.id)) return cur;
+        if (String(cur[item.id] ?? '').trim() !== trimmed) return cur;
+        const next = { ...cur };
+        delete next[item.id];
+        return next;
+      });
+      return;
+    }
+    try {
+      await saveWordNumber({
+        id: item.id,
+        createdAt: item.createdAt,
+        phrase: item.phrase,
+        notes: trimmed,
+        preferred: item.preferred || 'ordinal',
+      });
+      if (noteSaveGen.current[item.id] !== gen) return;
+      setList((cur) => cur.map((row) => (row.id === item.id ? { ...row, notes: trimmed } : row)));
+      setNoteDrafts((cur) => {
+        if (String(cur[item.id] ?? trimmed).trim() !== trimmed) return cur;
+        const next = { ...cur };
+        delete next[item.id];
+        return next;
+      });
+    } catch (e) {
+      if (noteSaveGen.current[item.id] !== gen) return;
+      Alert.alert('Could not save the note', e?.message || 'Try again.');
+    }
+  };
+
+  const addNoteTag = (item, tag) => {
+    if (itemHasTag(item, tag)) return;
+    const next = `${noteValue(item).trim()} ${tag}`.trim();
+    setNoteDrafts((cur) => ({ ...cur, [item.id]: next }));
+    saveItemNotes(item, next);
+  };
+
   const loadList = useCallback(async () => {
     // Await cloud pull before showing saved list (avoids empty-then-fill flash).
     setListLoading(true);
@@ -754,6 +808,11 @@ function WordToIntScreen({ navigation, route }) {
           ))}
         </View>
       ) : null}
+      {list.length > 0 ? (
+        <Text style={styles.inlineHint}>
+          Edit a note on its row. Leaving the box saves it. The tags add #norse, #binary or #poem without going back to the top.
+        </Text>
+      ) : null}
       {listLoading ? (
         <View style={styles.listLoading}>
           <ActivityIndicator size="small" color="#3b82f6" />
@@ -784,9 +843,35 @@ function WordToIntScreen({ navigation, route }) {
                 <Text style={styles.itemMeta}>
                   Ord {item.ordinal} · Pyth {item.pythagorean} · Rev {item.reverse} · Red {item.reduced} · hash {displayHash(item)}
                 </Text>
-                {!!item.notes && <Text style={styles.itemNotes}>{item.notes}</Text>}
               </TouchableOpacity>
             )}
+            {!pickMode ? (
+              <View>
+                <TextInput
+                  style={styles.inlineNote}
+                  value={noteValue(item)}
+                  onChangeText={(text) => setNoteDrafts((cur) => ({ ...cur, [item.id]: text }))}
+                  onBlur={() => saveItemNotes(item)}
+                  placeholder="Note"
+                  placeholderTextColor="#64748b"
+                  multiline
+                />
+                <View style={styles.tagRow}>
+                  {NOTE_TAGS.map((tag) => {
+                    const on = itemHasTag(item, tag);
+                    return (
+                      <TouchableOpacity
+                        key={tag}
+                        style={[styles.tagChip, on && styles.tagChipOn]}
+                        onPress={() => addNoteTag(item, tag)}
+                      >
+                        <Text style={[styles.tagChipText, on && styles.tagChipTextOn]}>{tag}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
             {!pickMode ? (
             <View style={styles.itemActions}>
               <TouchableOpacity onPress={() => startEdit(item)}>
@@ -1061,6 +1146,44 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 6,
   },
+  inlineHint: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  inlineNote: {
+    backgroundColor: '#1a1b36',
+    borderColor: '#2e2f55',
+    borderWidth: 1,
+    borderRadius: 10,
+    color: '#f8fafc',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    minHeight: 40,
+    marginTop: 8,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  tagChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tagChipOn: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  tagChipText: { color: '#cbd5e1', fontSize: 12, fontWeight: '700' },
+  tagChipTextOn: { color: '#fff' },
   itemActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
