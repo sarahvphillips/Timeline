@@ -681,16 +681,33 @@ function visibleGraphNodes(nodes, keep, only) {
   return (nodes || []).filter((node) => keep.has(node.id));
 }
 
-function pinnedNeighbourIds(nodes, edges, pos) {
+function pinnedNeighbourIds(nodes, edges, pos, depth) {
   const pinned = new Set();
   (nodes || []).forEach((node) => {
     if (pos?.[node.id]?.userPin) pinned.add(node.id);
   });
   const keep = new Set(pinned);
+  const hops = Math.max(0, Math.min(5, Number(depth) || 0));
+  if (!hops) return keep;
+  const adj = new Map();
   (edges || []).forEach((edge) => {
-    if (pinned.has(edge.a)) keep.add(edge.b);
-    if (pinned.has(edge.b)) keep.add(edge.a);
+    if (!adj.has(edge.a)) adj.set(edge.a, new Set());
+    if (!adj.has(edge.b)) adj.set(edge.b, new Set());
+    adj.get(edge.a).add(edge.b);
+    adj.get(edge.b).add(edge.a);
   });
+  let frontier = [...pinned];
+  for (let hop = 0; hop < hops; hop += 1) {
+    const next = [];
+    frontier.forEach((id) => {
+      (adj.get(id) || []).forEach((other) => {
+        if (keep.has(other)) return;
+        keep.add(other);
+        next.push(other);
+      });
+    });
+    frontier = next;
+  }
   return keep;
 }
 
@@ -929,7 +946,7 @@ function WordGraphScreen({ onClose, navigation }) {
   const [snipMode, setSnipMode] = useState(false);
   const [snipSquare, setSnipSquare] = useState(false);
   const [snipRect, setSnipRect] = useState(null);
-  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [pinnedDepth, setPinnedDepth] = useState(null);
   const [zoom, setZoom] = useState(() => sessionLayout?.zoom || 1);
   const zoomRef = useRef(1);
   zoomRef.current = zoom;
@@ -976,12 +993,12 @@ function WordGraphScreen({ onClose, navigation }) {
   const graphRef = useRef(graph);
   graphRef.current = graph;
   const pinnedKeep = useMemo(
-    () => (pinnedOnly ? pinnedNeighbourIds(graph.nodes, graph.edges, posRef.current) : null),
-    [pinnedOnly, graph, tick]
+    () => (pinnedDepth == null ? null : pinnedNeighbourIds(graph.nodes, graph.edges, posRef.current, pinnedDepth)),
+    [pinnedDepth, graph, tick]
   );
   const pinnedOnlyRef = useRef(false);
   const pinnedKeepRef = useRef(null);
-  pinnedOnlyRef.current = pinnedOnly;
+  pinnedOnlyRef.current = pinnedDepth != null;
   pinnedKeepRef.current = pinnedKeep;
   const restoredRef = useRef(false);
   const quietRestoreRef = useRef(false);
@@ -1478,7 +1495,7 @@ function WordGraphScreen({ onClose, navigation }) {
     }
     const drawn = drawnGraph();
     if (!drawn.nodes.length) {
-      Alert.alert('Nothing to save', 'Pin a node first. This view only keeps pinned nodes and their direct links.');
+      Alert.alert('Nothing to save', 'Pin a node first. This view only keeps pinned nodes, and the relations you chose.');
       return;
     }
     setSavingImage(true);
@@ -2121,13 +2138,22 @@ function WordGraphScreen({ onClose, navigation }) {
           <Text style={styles.chipText}>Unpin all</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.chip, pinnedOnly && styles.chipOn]}
-          onPress={() => setPinnedOnly((on) => !on)}
+          style={[styles.chip, pinnedDepth === 0 && styles.chipOn]}
+          onPress={() => setPinnedDepth((cur) => (cur === 0 ? null : 0))}
         >
-          <Text style={[styles.chipText, pinnedOnly && styles.chipTextOn]}>
-            {pinnedOnly ? 'Pinned links on' : 'Pinned links'}
-          </Text>
+          <Text style={[styles.chipText, pinnedDepth === 0 && styles.chipTextOn]}>Pinned nodes</Text>
         </TouchableOpacity>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <TouchableOpacity
+            key={`hop-${n}`}
+            style={[styles.chip, pinnedDepth === n && styles.chipOn]}
+            onPress={() => setPinnedDepth((cur) => (cur === n ? null : n))}
+          >
+            <Text style={[styles.chipText, pinnedDepth === n && styles.chipTextOn]}>
+              {n === 1 ? '1 relation' : `${n} relations`}
+            </Text>
+          </TouchableOpacity>
+        ))}
         <TouchableOpacity
           style={styles.chip}
           onPress={() => scrollRef.current?.scrollTo({ y: Math.max(0, tableY.current - 8), animated: true })}
@@ -2140,11 +2166,13 @@ function WordGraphScreen({ onClose, navigation }) {
           Drag a box on the graph. Square keeps the sides equal. Save snip downloads that part only.
         </Text>
       ) : null}
-      {pinnedOnly ? (
+      {pinnedDepth != null ? (
         <Text style={styles.meta}>
           {pinnedKeep && pinnedKeep.size
-            ? 'Showing pinned nodes and the nodes joined directly to them.'
-            : 'Nothing is pinned yet. Pin a node, then its direct links will show.'}
+            ? pinnedDepth === 0
+              ? 'Showing pinned nodes only.'
+              : `Showing pinned nodes and nodes up to ${pinnedDepth} ${pinnedDepth === 1 ? 'relation' : 'relations'} away.`
+            : 'Nothing is pinned yet. Pin a node, then choose how far out to show.'}
         </Text>
       ) : null}
       {loading ? (
