@@ -55,7 +55,7 @@ export default function UtilitiesScreen({ navigation }) {
           <Text style={styles.buttonText}>Motifs</Text>
         </TouchableOpacity>
         <Text style={[styles.hint, { color: colors.muted }]}>
-          Norse, for now. A saved word is listed only when its note says Norse or #norse.
+          Norse and Binary, so far. A saved word is listed only when its note has that #tag.
         </Text>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.blue }]}

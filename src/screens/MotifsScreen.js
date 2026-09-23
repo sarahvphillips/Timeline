@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
@@ -6,7 +6,19 @@ import { useTheme } from '../themeContext';
 import { getEvents } from '../services/eventService';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
 
-const MOTIF = 'norse';
+const KNOWN = ['norse', 'binary'];
+
+function hashTags(text) {
+  const found = [];
+  const re = /#([a-z0-9_]+)/gi;
+  let match = re.exec(String(text || ''));
+  while (match) {
+    const tag = match[1].toLowerCase();
+    if (!found.includes(tag)) found.push(tag);
+    match = re.exec(String(text || ''));
+  }
+  return found;
+}
 
 function mentionsMotif(text, motif) {
   const word = String(motif || '').replace(/^#/, '').trim();
@@ -38,19 +50,19 @@ function eventTexts(event) {
   ];
 }
 
-function matchKind(event) {
+function matchKind(event, motif) {
   const labels = Array.isArray(event?.labels) ? event.labels : [];
-  if (labels.some((label) => mentionsMotif(label, MOTIF))) return 'Label';
+  if (labels.some((label) => mentionsMotif(label, motif))) return 'Label';
   if (
-    mentionsMotif(event?.description, MOTIF) ||
-    mentionsMotif(event?.notes, MOTIF) ||
-    mentionsMotif(event?.singingLyrics, MOTIF) ||
-    mentionsMotif(event?.singingFelt, MOTIF) ||
-    mentionsMotif(event?.audioNote, MOTIF)
+    mentionsMotif(event?.description, motif) ||
+    mentionsMotif(event?.notes, motif) ||
+    mentionsMotif(event?.singingLyrics, motif) ||
+    mentionsMotif(event?.singingFelt, motif) ||
+    mentionsMotif(event?.audioNote, motif)
   ) {
     return 'Note';
   }
-  if (mentionsMotif(event?.title, MOTIF) || mentionsMotif(event?.collectionName, MOTIF)) return 'Title';
+  if (mentionsMotif(event?.title, motif) || mentionsMotif(event?.collectionName, motif)) return 'Title';
   return 'Note';
 }
 
@@ -73,33 +85,28 @@ function openEvent(navigation, event) {
   navigation.navigate('AddEvent', { event });
 }
 
+function labelFor(tag) {
+  const word = String(tag || '');
+  if (!word) return 'Motif';
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 export default function MotifsScreen({ navigation }) {
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
-  const [timeline, setTimeline] = useState([]);
-  const [writing, setWriting] = useState([]);
-  const [words, setWords] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [numbers, setNumbers] = useState([]);
+  const [motif, setMotif] = useState('norse');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [events, numbers] = await Promise.all([
+      const [eventRows, numberRows] = await Promise.all([
         getEvents().catch(() => []),
         getWordNumbers().catch(() => []),
       ]);
-      const hits = (events || []).filter((event) => eventTexts(event).some((text) => mentionsMotif(text, MOTIF)));
-      const poems = [];
-      const rest = [];
-      hits.forEach((event) => {
-        if (isWriting(event)) poems.push(event);
-        else rest.push(event);
-      });
-      const byDate = (a, b) => String(b?.date || '').localeCompare(String(a?.date || ''));
-      setTimeline(rest.sort(byDate));
-      setWriting(poems.sort(byDate));
-      setWords(
-        (numbers || []).filter((item) => mentionsMotif(item?.notes, MOTIF))
-      );
+      setEvents(eventRows || []);
+      setNumbers(numberRows || []);
     } finally {
       setLoading(false);
     }
@@ -111,18 +118,63 @@ export default function MotifsScreen({ navigation }) {
     }, [load])
   );
 
+  const tags = useMemo(() => {
+    const found = new Set(KNOWN);
+    (events || []).forEach((event) => {
+      eventTexts(event).forEach((text) => hashTags(text).forEach((tag) => found.add(tag)));
+    });
+    (numbers || []).forEach((item) => hashTags(item?.notes).forEach((tag) => found.add(tag)));
+    return [...found].sort((a, b) => {
+      const ai = KNOWN.indexOf(a);
+      const bi = KNOWN.indexOf(b);
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      return a.localeCompare(b);
+    });
+  }, [events, numbers]);
+
+  const timeline = useMemo(() => {
+    return (events || [])
+      .filter((event) => !isWriting(event) && eventTexts(event).some((text) => mentionsMotif(text, motif)))
+      .sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
+  }, [events, motif]);
+
+  const writing = useMemo(() => {
+    return (events || [])
+      .filter((event) => isWriting(event) && eventTexts(event).some((text) => mentionsMotif(text, motif)))
+      .sort((a, b) => String(b?.date || '').localeCompare(String(a?.date || '')));
+  }, [events, motif]);
+
+  const words = useMemo(() => {
+    return (numbers || []).filter((item) => mentionsMotif(item?.notes, motif));
+  }, [numbers, motif]);
+
   const total = timeline.length + writing.length + words.length;
+  const shown = `#${motif}`;
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.kicker, { color: colors.blueSoft }]}>Motifs</Text>
-        <Text style={[styles.title, { color: colors.text }]}>Norse</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{labelFor(motif)}</Text>
+        <View style={styles.row}>
+          {tags.map((tag) => {
+            const on = tag === motif;
+            return (
+              <TouchableOpacity
+                key={tag}
+                style={[styles.tag, { borderColor: colors.cardBorder, backgroundColor: colors.card }, on && { backgroundColor: colors.blue, borderColor: colors.blue }]}
+                onPress={() => setMotif(tag)}
+              >
+                <Text style={[styles.tagText, { color: colors.text }, on && { color: '#fff' }]}>{`#${tag}`}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
         <Text style={[styles.intro, { color: colors.faint }]}>
-          {loading ? 'Looking through notes and labels…' : `${total} item${total === 1 ? '' : 's'} · from labels and notes`}
+          {loading ? 'Looking through notes and labels…' : `${total} item${total === 1 ? '' : 's'} noted as ${shown}`}
         </Text>
         <Text style={[styles.rule, { color: colors.faint, borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-          A word such as Frigg is included only when its note says Norse or #norse. The word itself is not enough.
+          {`A saved word is included only when its note says ${shown}. The word itself is not enough.`}
         </Text>
 
         {loading ? <ActivityIndicator color={colors.blueSoft} style={{ marginTop: 24 }} /> : null}
@@ -130,20 +182,20 @@ export default function MotifsScreen({ navigation }) {
         <Section
           title="On the timeline"
           colors={colors}
-          empty="No timeline events noted as Norse yet."
+          empty={`No timeline events noted as ${shown} yet.`}
           rows={timeline.map((event) => ({
             key: event.id,
             kicker: dateLabel(event.date) || 'Timeline',
             title: event.title || 'Untitled',
             detail: event.description || '',
-            chip: matchKind(event),
+            chip: matchKind(event, motif),
             onPress: () => openEvent(navigation, event),
           }))}
         />
         <Section
           title="Words and numbers"
           colors={colors}
-          empty="No saved words with Norse in the note yet."
+          empty={`No saved words with ${shown} in the note yet.`}
           rows={words.map((item) => ({
             key: item.id,
             kicker: 'Word to int',
@@ -163,13 +215,13 @@ export default function MotifsScreen({ navigation }) {
         <Section
           title="Writing and sound"
           colors={colors}
-          empty="No poems or recordings noted as Norse yet."
+          empty={`No poems or recordings noted as ${shown} yet.`}
           rows={writing.map((event) => ({
             key: event.id,
             kicker: event.hobbyType === 'singing' || event.hobbyType === 'music' ? 'Sound' : 'Poem',
             title: event.title || 'Untitled',
             detail: event.description || event.singingFelt || '',
-            chip: matchKind(event),
+            chip: matchKind(event, motif),
             onPress: () => openEvent(navigation, event),
           }))}
         />
@@ -204,7 +256,7 @@ function Section({ title, rows, empty, colors }) {
                 {row.detail}
               </Text>
             ) : null}
-            <Text style={[styles.chip, { backgroundColor: colors.blue, color: colors.bg }]}>{row.chip}</Text>
+            <Text style={[styles.chip, { backgroundColor: colors.blue, color: '#fff' }]}>{row.chip}</Text>
           </TouchableOpacity>
         ))
       )}
@@ -217,7 +269,10 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingBottom: 120 },
   kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
   title: { fontSize: 32, fontWeight: '800', marginTop: 4 },
-  intro: { fontSize: 14, marginTop: 6 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  tag: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  tagText: { fontWeight: '800', fontSize: 14 },
+  intro: { fontSize: 14, marginTop: 10 },
   rule: { marginTop: 12, borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14, lineHeight: 20 },
   section: { marginTop: 28 },
   sectionTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
