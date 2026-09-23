@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Pressable,
   ScrollView,
   ActivityIndicator,
   useWindowDimensions,
   Alert,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CATEGORIES, getCategoryColor, getEvents } from '../services/eventService';
@@ -144,6 +144,217 @@ function placeNodes(nodes, edges, width, height) {
   return pos;
 }
 
+const LAYOUTS = [
+  { id: 'force', label: 'ForceAtlas' },
+  { id: 'circle', label: 'Circle' },
+  { id: 'radial', label: 'Radial' },
+  { id: 'arc', label: 'Arc' },
+  { id: 'time', label: 'By time' },
+  { id: 'grid', label: 'Grid' },
+  { id: 'random', label: 'Random' },
+];
+
+function placeCircle(nodes, width, height) {
+  const pos = {};
+  const cx = width / 2;
+  const cy = height / 2;
+  const ordered = [...nodes].sort((a, b) => String(a.label).localeCompare(String(b.label)));
+  const r = Math.min(width, height) * 0.38;
+  ordered.forEach((node, i) => {
+    const ang = (i / Math.max(ordered.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    pos[node.id] = { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r };
+  });
+  return pos;
+}
+
+function finestHub(node, edges, byId) {
+  const linked = edges
+    .filter((edge) => edge.a === node.id || edge.b === node.id)
+    .map((edge) => byId[edge.a === node.id ? edge.b : edge.a])
+    .filter((item) => item?.kind === 'hub');
+  return linked.find((item) => item.hub === 'day') || linked.find((item) => item.hub === 'month') || linked.find((item) => item.hub === 'year') || null;
+}
+
+function placeRadial(nodes, edges, width, height) {
+  const hubs = nodes.filter((node) => node.kind === 'hub');
+  if (!hubs.length) return placeCircle(nodes, width, height);
+  const byId = {};
+  nodes.forEach((node) => {
+    byId[node.id] = node;
+  });
+  const groups = {};
+  hubs.forEach((hub) => {
+    groups[hub.id] = [];
+  });
+  nodes
+    .filter((node) => node.kind === 'event')
+    .forEach((node) => {
+      const hub = finestHub(node, edges, byId);
+      if (hub) groups[hub.id].push(node.id);
+    });
+  const cx = width / 2;
+  const cy = height / 2;
+  const inner = Math.min(width, height) * 0.18;
+  const outer = Math.min(width, height) * 0.4;
+  const pos = {};
+  const ordered = [...hubs].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  ordered.forEach((hub, i) => {
+    const ang = (i / ordered.length) * Math.PI * 2 - Math.PI / 2;
+    pos[hub.id] = { x: cx + Math.cos(ang) * inner, y: cy + Math.sin(ang) * inner };
+    const members = groups[hub.id] || [];
+    const spread = Math.min(Math.PI * 0.85, 0.4 + members.length * 0.08);
+    members.forEach((id, k) => {
+      const t = members.length === 1 ? 0 : (k / (members.length - 1)) * 2 - 1;
+      const a = ang + t * spread;
+      pos[id] = { x: cx + Math.cos(a) * outer, y: cy + Math.sin(a) * outer };
+    });
+  });
+  nodes.forEach((node) => {
+    if (!pos[node.id]) pos[node.id] = { x: cx, y: cy };
+  });
+  return pos;
+}
+
+function placeArc(nodes, width, height) {
+  const pos = {};
+  const events = nodes.filter((node) => node.kind === 'event').sort((a, b) => String(a.when?.day || a.label).localeCompare(String(b.when?.day || b.label)));
+  const hubs = nodes.filter((node) => node.kind === 'hub').sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const span = (count, i, y) => ({
+    x: count <= 1 ? width / 2 : 28 + ((width - 56) * i) / (count - 1),
+    y,
+  });
+  events.forEach((node, i) => {
+    pos[node.id] = span(events.length, i, height - 48);
+  });
+  hubs.forEach((node, i) => {
+    pos[node.id] = span(hubs.length, i, node.hub === 'year' ? 40 : node.hub === 'month' ? 88 : 136);
+  });
+  return pos;
+}
+
+function placeByTime(nodes, edges, width, height) {
+  const pos = {};
+  const events = nodes
+    .filter((node) => node.kind === 'event')
+    .sort((a, b) => String(a.when?.day || '').localeCompare(String(b.when?.day || '')));
+  events.forEach((node, i) => {
+    pos[node.id] = {
+      x: events.length <= 1 ? width / 2 : 32 + ((width - 64) * i) / (events.length - 1),
+      y: height * 0.74,
+    };
+  });
+  nodes
+    .filter((node) => node.kind === 'hub')
+    .forEach((hub) => {
+      const pts = edges
+        .filter((edge) => edge.a === hub.id || edge.b === hub.id)
+        .map((edge) => pos[edge.a === hub.id ? edge.b : edge.a])
+        .filter(Boolean);
+      const x = pts.length ? pts.reduce((sum, point) => sum + point.x, 0) / pts.length : width / 2;
+      const y = hub.hub === 'year' ? 42 : hub.hub === 'month' ? height * 0.28 : height * 0.5;
+      pos[hub.id] = { x, y };
+    });
+  return pos;
+}
+
+function placeGrid(nodes, width, height) {
+  const ordered = [...nodes].sort((a, b) => String(a.when?.day || a.label).localeCompare(String(b.when?.day || b.label)));
+  const cols = Math.max(1, Math.ceil(Math.sqrt(ordered.length)));
+  const rows = Math.max(1, Math.ceil(ordered.length / cols));
+  const pos = {};
+  ordered.forEach((node, i) => {
+    pos[node.id] = {
+      x: 36 + ((width - 72) * ((i % cols) + 0.5)) / cols,
+      y: 40 + ((height - 80) * (Math.floor(i / cols) + 0.5)) / rows,
+    };
+  });
+  return pos;
+}
+
+function placeRandom(nodes, width, height) {
+  const pos = {};
+  nodes.forEach((node) => {
+    pos[node.id] = { x: 36 + Math.random() * (width - 72), y: 40 + Math.random() * (height - 80) };
+  });
+  return pos;
+}
+
+function placeLayout(id, nodes, edges, width, height) {
+  if (id === 'circle') return placeCircle(nodes, width, height);
+  if (id === 'radial') return placeRadial(nodes, edges, width, height);
+  if (id === 'arc') return placeArc(nodes, width, height);
+  if (id === 'time') return placeByTime(nodes, edges, width, height);
+  if (id === 'grid') return placeGrid(nodes, width, height);
+  if (id === 'random') return placeRandom(nodes, width, height);
+  return placeNodes(nodes, edges, width, height);
+}
+
+function scaleFromCenter(pos, width, height, factor) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const next = {};
+  Object.keys(pos || {}).forEach((id) => {
+    const p = pos[id];
+    if (!p) return;
+    if (p.userPin) {
+      next[id] = { ...p };
+      return;
+    }
+    next[id] = {
+      x: Math.max(28, Math.min(width - 28, cx + (p.x - cx) * factor)),
+      y: Math.max(28, Math.min(height - 28, cy + (p.y - cy) * factor)),
+    };
+  });
+  return next;
+}
+
+function nudgeApart(pos, nodes, width, height) {
+  const next = {};
+  nodes.forEach((node) => {
+    const p = pos[node.id];
+    if (p) next[node.id] = { ...p };
+  });
+  const ids = nodes.map((node) => node.id);
+  for (let step = 0; step < 28; step += 1) {
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const a = next[ids[i]];
+        const b = next[ids[j]];
+        if (!a || !b || (a.userPin && b.userPin)) continue;
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist >= 46) continue;
+        if (dist < 0.1) {
+          dx = 1;
+          dy = 0.3;
+          dist = 1;
+        }
+        const push = (46 - dist) / 2;
+        if (a.userPin) {
+          b.x -= (dx / dist) * push * 2;
+          b.y -= (dy / dist) * push * 2;
+        } else if (b.userPin) {
+          a.x += (dx / dist) * push * 2;
+          a.y += (dy / dist) * push * 2;
+        } else {
+          a.x += (dx / dist) * push;
+          a.y += (dy / dist) * push;
+          b.x -= (dx / dist) * push;
+          b.y -= (dy / dist) * push;
+        }
+      }
+    }
+  }
+  ids.forEach((id) => {
+    const p = next[id];
+    if (!p || p.userPin) return;
+    p.x = Math.max(28, Math.min(width - 28, p.x));
+    p.y = Math.max(28, Math.min(height - 28, p.y));
+  });
+  return next;
+}
+
 function nodesWithin(nodes, edges, pins, depth) {
   const pinned = new Set();
   nodes.forEach((node) => {
@@ -186,7 +397,7 @@ function nearestNode(x, y, nodes, pos, zoom, width, height) {
     const sx = cx + (p.x - cx) * z;
     const sy = cy + (p.y - cy) * z;
     const d = Math.hypot(sx - x, sy - y);
-    const limit = node.kind === 'hub' ? 30 : 22;
+    const limit = node.kind === 'hub' ? 42 : 34;
     if (d <= limit && d < bestD) {
       best = node;
       bestD = d;
@@ -228,6 +439,17 @@ export default function EventGraphScreen({ navigation }) {
   const [pins, setPins] = useState({});
   const [pinnedDepth, setPinnedDepth] = useState(null);
   const [zoom, setZoom] = useState(1);
+  const [layoutId, setLayoutId] = useState('force');
+  const [layoutKey, setLayoutKey] = useState(0);
+  const [positions, setPositions] = useState({});
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const posRef = useRef({});
+  const pinsRef = useRef({});
+  const dragRef = useRef(null);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
+  posRef.current = positions;
+  pinsRef.current = pins;
 
   useFocusEffect(
     useCallback(() => {
@@ -275,10 +497,21 @@ export default function EventGraphScreen({ navigation }) {
   const built = useMemo(() => buildEventGraph(filtered, hubs), [filtered, hubs]);
   const tooBig = built.nodes.length > NODE_CAP;
   const graph = tooBig ? EMPTY_GRAPH : built;
-  const pos = useMemo(
-    () => (graph.nodes.length ? placeNodes(graph.nodes, graph.edges, width, height) : {}),
-    [graph, width, height]
-  );
+  useEffect(() => {
+    if (!graph.nodes.length) {
+      posRef.current = {};
+      setPositions({});
+      return;
+    }
+    const next = placeLayout(layoutId, graph.nodes, graph.edges, width, height);
+    Object.keys(next).forEach((id) => {
+      if (pinsRef.current[id]) next[id] = { ...next[id], userPin: true };
+    });
+    posRef.current = next;
+    setPositions(next);
+  }, [graph, width, height, layoutId, layoutKey]);
+
+  const pos = positions;
 
   const keep = useMemo(() => {
     if (pinnedDepth == null) return null;
@@ -342,11 +575,231 @@ export default function EventGraphScreen({ navigation }) {
 
   const togglePin = (id) => {
     if (!id) return;
-    setPins((cur) => ({ ...cur, [id]: !cur[id] }));
+    const nextOn = !pinsRef.current[id];
+    const nextPins = { ...pinsRef.current, [id]: nextOn };
+    pinsRef.current = nextPins;
+    setPins(nextPins);
+    setPositions((cur) => {
+      const p = cur[id];
+      if (!p) return cur;
+      const next = { ...cur, [id]: { ...p, userPin: nextOn } };
+      posRef.current = next;
+      return next;
+    });
   };
 
+  const moveNode = (id, dx, dy) => {
+    setPositions((cur) => {
+      const p = cur[id];
+      if (!p) return cur;
+      const next = {
+        ...cur,
+        [id]: {
+          ...p,
+          x: Math.max(16, Math.min(width - 16, p.x + dx)),
+          y: Math.max(16, Math.min(height - 16, p.y + dy)),
+          userPin: true,
+        },
+      };
+      posRef.current = next;
+      return next;
+    });
+    setPins((cur) => {
+      if (cur[id]) return cur;
+      const next = { ...cur, [id]: true };
+      pinsRef.current = next;
+      return next;
+    });
+  };
+
+  const adjustLayout = (mode) => {
+    setPositions((cur) => {
+      const marked = { ...cur };
+      Object.keys(marked).forEach((id) => {
+        if (marked[id]) marked[id] = { ...marked[id], userPin: !!pinsRef.current[id] };
+      });
+      const next =
+        mode === 'contract'
+          ? scaleFromCenter(marked, width, height, 0.82)
+          : mode === 'noverlap'
+            ? nudgeApart(marked, graph.nodes, width, height)
+            : scaleFromCenter(marked, width, height, 1.18);
+      posRef.current = next;
+      return next;
+    });
+  };
+
+  const bindNode = (id) => ({
+    onPointerDown: (event) => {
+      const native = event.nativeEvent || event;
+      if (native.button === 2) {
+        event.preventDefault?.();
+        togglePin(id);
+        return;
+      }
+      try {
+        event.currentTarget?.setPointerCapture?.(native.pointerId);
+      } catch {
+        /* capture is web-only */
+      }
+      const x = native.pageX ?? native.clientX;
+      const y = native.pageY ?? native.clientY;
+      const drag = { id, x, y, moved: false, timer: null };
+      drag.timer = setTimeout(() => {
+        if (dragRef.current === drag && !drag.moved) togglePin(id);
+      }, 550);
+      dragRef.current = drag;
+      setScrollEnabled(false);
+      setSelected(id);
+    },
+    onPointerMove: (event) => {
+      const drag = dragRef.current;
+      if (!drag || drag.id !== id) return;
+      const native = event.nativeEvent || event;
+      const x = native.pageX ?? native.clientX;
+      const y = native.pageY ?? native.clientY;
+      const dx = x - drag.x;
+      const dy = y - drag.y;
+      if (Math.hypot(dx, dy) > 4) drag.moved = true;
+      drag.x = x;
+      drag.y = y;
+      if (!drag.moved) return;
+      moveNode(id, dx / (zoomRef.current || 1), dy / (zoomRef.current || 1));
+    },
+    onPointerUp: () => {
+      const drag = dragRef.current;
+      if (drag?.id !== id) return;
+      clearTimeout(drag.timer);
+      dragRef.current = null;
+      setScrollEnabled(true);
+    },
+    onPointerCancel: () => {
+      const drag = dragRef.current;
+      if (drag?.id === id) clearTimeout(drag.timer);
+      if (drag?.id === id) dragRef.current = null;
+      setScrollEnabled(true);
+    },
+    onContextMenu: (event) => {
+      event.preventDefault?.();
+      togglePin(id);
+    },
+  });
+
+  const shownRef = useRef(shownNodes);
+  shownRef.current = shownNodes;
+  const sizeRef = useRef({ width, height });
+  sizeRef.current = { width, height };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const root = document.getElementById('event-graph-canvas');
+    if (!root) return undefined;
+    root.style.touchAction = 'none';
+    root.style.cursor = 'grab';
+    root.style.userSelect = 'none';
+    let drag = null;
+    const place = (clientX, clientY) => {
+      const rect = root.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+    const unscale = (x, y) => {
+      const { width: w, height: h } = sizeRef.current;
+      const z = zoomRef.current || 1;
+      return { x: w / 2 + (x - w / 2) / z, y: h / 2 + (y - h / 2) / z };
+    };
+    const down = (event) => {
+      if (event.button != null && event.button !== 0) return;
+      const raw = place(event.clientX, event.clientY);
+      const { width: w, height: h } = sizeRef.current;
+      const best = nearestNode(raw.x, raw.y, shownRef.current, posRef.current, zoomRef.current, w, h);
+      if (!best || !posRef.current[best.id]) return;
+      event.preventDefault();
+      const point = unscale(raw.x, raw.y);
+      const grabbed = posRef.current[best.id];
+      drag = {
+        id: best.id,
+        ox: grabbed.x - point.x,
+        oy: grabbed.y - point.y,
+        moved: false,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      try {
+        root.setPointerCapture(event.pointerId);
+      } catch {
+        /* optional */
+      }
+      root.style.cursor = 'grabbing';
+      setScrollEnabled(false);
+      setSelected(best.id);
+    };
+    const move = (event) => {
+      if (!drag || !posRef.current[drag.id]) return;
+      event.preventDefault();
+      const raw = place(event.clientX, event.clientY);
+      const point = unscale(raw.x, raw.y);
+      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 4) drag.moved = true;
+      const { width: w, height: h } = sizeRef.current;
+      const id = drag.id;
+      const nextX = Math.max(16, Math.min(w - 16, point.x + drag.ox));
+      const nextY = Math.max(16, Math.min(h - 16, point.y + drag.oy));
+      setPositions((cur) => {
+        const prev = cur[id];
+        if (!prev) return cur;
+        const next = { ...cur, [id]: { ...prev, x: nextX, y: nextY, userPin: true } };
+        posRef.current = next;
+        return next;
+      });
+      if (drag.moved && !pinsRef.current[id]) {
+        pinsRef.current = { ...pinsRef.current, [id]: true };
+        setPins(pinsRef.current);
+      }
+    };
+    const up = () => {
+      drag = null;
+      root.style.cursor = 'grab';
+      setScrollEnabled(true);
+    };
+    const menu = (event) => {
+      if (!root.contains(event.target)) return;
+      event.preventDefault();
+      const raw = place(event.clientX, event.clientY);
+      const { width: w, height: h } = sizeRef.current;
+      const best = nearestNode(raw.x, raw.y, shownRef.current, posRef.current, zoomRef.current, w, h);
+      if (!best) return;
+      const nextOn = !pinsRef.current[best.id];
+      const nextPins = { ...pinsRef.current, [best.id]: nextOn };
+      pinsRef.current = nextPins;
+      setPins(nextPins);
+      setPositions((cur) => {
+        const p = cur[best.id];
+        if (!p) return cur;
+        const next = { ...cur, [best.id]: { ...p, userPin: nextOn } };
+        posRef.current = next;
+        return next;
+      });
+      setSelected(best.id);
+    };
+    root.addEventListener('pointerdown', down);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    document.addEventListener('contextmenu', menu);
+    return () => {
+      root.removeEventListener('pointerdown', down);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      document.removeEventListener('contextmenu', menu);
+    };
+  }, [shownNodes.length, tooBig, loading, width, height]);
+
   return (
-    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.content}>
+    <ScrollView
+      scrollEnabled={scrollEnabled}
+      style={{ backgroundColor: colors.bg }}
+      contentContainerStyle={styles.content}
+    >
       <Text style={[styles.kicker, { color: colors.blueSoft }]}>Utilities</Text>
       <Text style={[styles.heading, { color: colors.text }]}>Event graph</Text>
       <Text style={[styles.intro, { color: colors.faint }]}>
@@ -382,6 +835,36 @@ export default function EventGraphScreen({ navigation }) {
         {allOn ? 'All categories are on.' : picked.length ? `${picked.length} of 5 categories.` : 'Choose up to five categories, or All.'}
       </Text>
 
+      <Text style={[styles.label, { color: colors.muted }]}>Layout</Text>
+      <View style={styles.row}>
+        {LAYOUTS.map((opt) => {
+          const on = layoutId === opt.id;
+          return (
+            <TouchableOpacity
+              key={opt.id}
+              style={[styles.chip, { borderColor: colors.cardBorder }, on && { backgroundColor: colors.blue, borderColor: colors.blue }]}
+              onPress={() => {
+                if (opt.id === layoutId) setLayoutKey((n) => n + 1);
+                else setLayoutId(opt.id);
+              }}
+            >
+              <Text style={[styles.chipText, { color: colors.text }, on && styles.chipTextOn]}>{opt.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity style={[styles.chip, { borderColor: colors.cardBorder }]} onPress={() => adjustLayout('expand')}>
+          <Text style={[styles.chipText, { color: colors.text }]}>Expand</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.chip, { borderColor: colors.cardBorder }]} onPress={() => adjustLayout('contract')}>
+          <Text style={[styles.chipText, { color: colors.text }]}>Contract</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.chip, { borderColor: colors.cardBorder }]} onPress={() => adjustLayout('noverlap')}>
+          <Text style={[styles.chipText, { color: colors.text }]}>No overlap</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={[styles.meta, { color: colors.faint }]}>
+        Drag a node to move it. That pins it, so Expand and Contract leave it where you put it. Right-click or hold a node to pin it without moving.
+      </Text>
       <Text style={[styles.label, { color: colors.muted }]}>Time hubs</Text>
       <View style={styles.row}>
         {HUBS.map((hub) => {
@@ -444,13 +927,9 @@ export default function EventGraphScreen({ navigation }) {
         </Text>
       ) : (
         <View style={{ width, alignSelf: 'center' }}>
-          <Pressable
+          <View
+            nativeID="event-graph-canvas"
             style={[styles.canvas, { width, height, backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={(e) => {
-              const node = nearestNode(e.nativeEvent.locationX, e.nativeEvent.locationY, shownNodes, pos, zoom, width, height);
-              if (!node) return;
-              setSelected((cur) => (cur === node.id ? null : node.id));
-            }}
           >
             <View pointerEvents="none" style={{ width, height, transform: [{ scale: zoom }] }}>
               {shownEdges.map((edge) => {
@@ -522,7 +1001,30 @@ export default function EventGraphScreen({ navigation }) {
                 );
               })}
             </View>
-          </Pressable>
+            {Platform.OS === 'web'
+              ? null
+              : shownNodes.map((node) => {
+                  const p = pos[node.id];
+                  if (!p) return null;
+                  const sx = width / 2 + (p.x - width / 2) * zoom;
+                  const sy = height / 2 + (p.y - height / 2) * zoom;
+                  const hit = node.kind === 'hub' ? 48 : 40;
+                  return (
+                    <View
+                      key={`hit-${node.id}`}
+                      {...bindNode(node.id)}
+                      style={{
+                        position: 'absolute',
+                        left: sx - hit / 2,
+                        top: sy - hit / 2,
+                        width: hit,
+                        height: node.kind === 'event' ? hit + 16 : hit,
+                        zIndex: selected === node.id ? 4 : 2,
+                      }}
+                    />
+                  );
+                })}
+          </View>
           <View style={styles.zoomBar}>
             <TouchableOpacity style={[styles.zoomBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]} onPress={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.25) * 100) / 100))}>
               <Text style={[styles.zoomLabel, { color: colors.text }]}>+</Text>
