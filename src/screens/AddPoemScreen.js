@@ -11,8 +11,6 @@ import {
   Platform,
 } from 'react-native';
 import { saveEvent, CATEGORIES } from '../services/eventService';
-import { importPoemCards, poemBulkAlreadyImported, titleFromSlug } from '../services/poemCardImport';
-import { pickFromFile } from '../services/imagePicker';
 import { getEventCategories } from '../services/profileService';
 import ImageAttachField from '../components/ImageAttachField';
 import LabelPicker from '../components/LabelPicker';
@@ -32,8 +30,6 @@ export default function AddPoemScreen({ navigation, route }) {
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
   const [labels, setLabels] = useState(existing?.labels || []);
   const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [bulkDone, setBulkDone] = useState(false);
   const [eventCats, setEventCats] = useState(CATEGORIES);
 
   useEffect(() => {
@@ -42,47 +38,7 @@ export default function AddPoemScreen({ navigation, route }) {
         if (Array.isArray(list) && list.length) setEventCats(list);
       })
       .catch(() => {});
-    poemBulkAlreadyImported().then(setBulkDone).catch(() => {});
   }, []);
-
-  const importCards = async () => {
-    if (importing) return;
-    setImporting(true);
-    try {
-      const result = await importPoemCards();
-      if (result.cancelled) return;
-      if (result.matched >= result.total) setBulkDone(true);
-      const placed = result.added + result.updated;
-      Alert.alert(
-        'Poem cards',
-        result.matched >= result.total
-          ? `Saved ${placed} poem card${placed === 1 ? '' : 's'} on this device. Each one uses the date written at the end of that poem. ${result.skipped} were already stored. The pictures are kept with the app, not as Drive links.`
-          : `Found ${result.matched} of ${result.total} cards in that folder. Choose the folder Full poem cards 2026-09-23 so the rest can be stored too.`
-      );
-    } catch (e) {
-      Alert.alert('Could not import', e?.message || 'Try again while signed in.');
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const importOnePoem = async () => {
-    const picked = await pickFromFile();
-    if (!picked || !picked.uri) return;
-    const raw = String(picked.filename || '')
-      .replace(/\.[a-z0-9]+$/i, '')
-      .replace(/[_\s]+/g, '-');
-    setTitle(titleFromSlug(raw) || raw);
-    setImageUri(picked.uri);
-    setCategory('hobby');
-    setCollectionName('Poem Compilation');
-    setLabels(['Poem', '#poem']);
-    setPhotoNote('Stored with the app.');
-    Alert.alert(
-      'One poem',
-      'The picture is stored on this device. Check the title and the date, then tap Save.'
-    );
-  };
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -127,28 +83,6 @@ export default function AddPoemScreen({ navigation, route }) {
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading}>{existing ? 'Edit poem' : 'Add poem'}</Text>
-        {!existing ? (
-          <TouchableOpacity
-            style={styles.importBtn}
-            onPress={bulkDone ? importOnePoem : importCards}
-            disabled={importing}
-          >
-            <Text style={styles.importText}>
-              {importing
-                ? 'Storing poem cards on this device…'
-                : bulkDone
-                  ? 'Import one poem from Google Drive'
-                  : 'Add the 60 poem cards once'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-        {!existing ? (
-          <Text style={styles.importHint}>
-            {bulkDone
-              ? 'One poem at a time. On the phone, Google Drive is in the file list. The picture is stored on this device. Set the date, then tap Save.'
-              : 'One-off test load. Choose the folder Full poem cards 2026-09-23. Each poem is dated from the day written at the end of the poem, not the day the picture was made. The picture is stored on this device.'}
-          </Text>
-        ) : null}
 
         <Text style={styles.label}>Poem title *</Text>
         <TextInput
@@ -236,16 +170,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1024' },
   content: { padding: 20, paddingBottom: 40 },
   heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  importBtn: {
-    borderWidth: 1,
-    borderColor: '#8b5cf6',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-  },
-  importText: { color: '#c4b5fd', fontWeight: '700' },
-  importHint: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginBottom: 8 },
   label: { color: '#94a3b8', fontSize: 14, marginTop: 16, marginBottom: 8 },
   input: {
     backgroundColor: '#1a1b36',
