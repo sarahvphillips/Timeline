@@ -56,7 +56,7 @@ export default function AddPoemScreen({ navigation, route }) {
       Alert.alert(
         'Poem cards',
         result.matched >= result.total
-          ? `Saved ${placed} poem card${placed === 1 ? '' : 's'} on this device, dated 23 Sep 2026. ${result.skipped} were already stored. The pictures are kept with the app, not as Drive links.`
+          ? `Saved ${placed} poem card${placed === 1 ? '' : 's'} on this device. Each one uses the date written at the end of that poem. ${result.skipped} were already stored. The pictures are kept with the app, not as Drive links.`
           : `Found ${result.matched} of ${result.total} cards in that folder. Choose the folder Full poem cards 2026-09-23 so the rest can be stored too.`
       );
     } catch (e) {
@@ -146,7 +146,7 @@ export default function AddPoemScreen({ navigation, route }) {
           <Text style={styles.importHint}>
             {bulkDone
               ? 'One poem at a time. On the phone, Google Drive is in the file list. The picture is stored on this device. Set the date, then tap Save.'
-              : 'One-off test load. Choose the folder Full poem cards 2026-09-23. Each card is dated 23 Sep 2026, the day those files were created, and the picture is stored on this device.'}
+              : 'One-off test load. Choose the folder Full poem cards 2026-09-23. Each poem is dated from the day written at the end of the poem, not the day the picture was made. The picture is stored on this device.'}
           </Text>
         ) : null}
 

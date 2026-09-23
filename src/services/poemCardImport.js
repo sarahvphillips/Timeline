@@ -6,7 +6,7 @@ import { getEvents, saveEvent } from './eventService';
 import { persistPickedImage } from './imagePicker';
 import { POEM_CARD_SEED } from '../data/poemCardSeed';
 
-const BULK_KEY = '@timeline_poem_cards_bulk_20260923';
+const BULK_KEY = '@timeline_poem_cards_bulk_written_day';
 
 const WORD = {
   dont: "don't",
@@ -26,14 +26,8 @@ export function titleFromSlug(slug) {
     .join(' ');
 }
 
-function poemCardDay(iso) {
-  const day = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/London',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(iso));
-  return `${day}T12:00:00`;
+function poemCardDay(day) {
+  return `${String(day || '').slice(0, 10)}T12:00:00`;
 }
 
 function slugFromName(name) {
@@ -110,7 +104,7 @@ export async function importPoemCards() {
     const id = `poem-card-${card.slug}`;
     const stored = await persistPickedImage(file.uri, `${card.slug}.png`, null, 'image/png');
     const imageUri = stored && stored.uri ? stored.uri : file.uri;
-    const date = poemCardDay(card.modified);
+    const date = poemCardDay(card.writtenDay);
     const prev = have.get(id);
     if (prev && prev.imageUri && !String(prev.imageUri).includes('drive.google.com') && String(prev.date || '').slice(0, 10) === date.slice(0, 10)) {
       skipped += 1;
