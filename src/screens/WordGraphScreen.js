@@ -1458,9 +1458,14 @@ export default function WordGraphScreen({ onClose, navigation }) {
       sessionLayout = captureLayout(posRef.current, pinnedRef.current, zoomRef.current, methods, layoutId);
       claimFirstGraphSave(graphRef.current?.nodes?.length || 0)
         .then((result) => {
-          if (result?.granted) {
-            Alert.alert('Graph saved', '1 credit added. This only happens the first time you save a graph with at least 30 nodes.');
-          }
+          if (!result?.granted) return;
+          const amount = result.credits || 1;
+          const top = result.tiers?.[result.tiers.length - 1];
+          const reached = top ? ` This save reached ${top.nodes} nodes.` : '';
+          Alert.alert(
+            'Graph saved',
+            `${amount} credit${amount === 1 ? '' : 's'} added.${reached} Each size is rewarded once.`
+          );
         })
         .catch(() => {});
     } else {
@@ -1606,7 +1611,7 @@ export default function WordGraphScreen({ onClose, navigation }) {
         <View style={styles.exitCard}>
           <Text style={styles.detailTitle}>Save before exiting?</Text>
           <Text style={styles.meta}>
-            This will keep the layout until you next visit, unless you close the app. The first time you save a graph with at least 30 nodes, you get 1 credit.
+            This will keep the layout until you next visit, unless you close the app. The first save of 30 or more nodes adds 1 credit. Larger saves add more, once each, at 50, 75, 100 and 150 nodes.
           </Text>
           <View style={styles.row}>
             <TouchableOpacity style={[styles.chip, styles.chipOn]} onPress={() => finishLeave(true)}>

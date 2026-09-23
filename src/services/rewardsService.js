@@ -47,12 +47,16 @@ export const STAMP_ROW_REWARD = {
   label: 'First stamps row +2 credits',
 };
 
-export const GRAPH_SAVE_REWARD = {
-  id: 'graph-save-1',
-  credits: 1,
-  label: 'First saved graph +1 credit',
-};
-export const GRAPH_SAVE_MIN_NODES = 30;
+export const GRAPH_SAVE_TIERS = [
+  { id: 'graph-save-1', nodes: 30, credits: 1, label: 'First saved graph, 30 nodes, +1 credit' },
+  { id: 'graph-save-50', nodes: 50, credits: 1, label: 'Saved graph, 50 nodes, +1 credit' },
+  { id: 'graph-save-75', nodes: 75, credits: 2, label: 'Saved graph, 75 nodes, +2 credits' },
+  { id: 'graph-save-100', nodes: 100, credits: 2, label: 'Saved graph, 100 nodes, +2 credits' },
+  { id: 'graph-save-150', nodes: 150, credits: 3, label: 'Saved graph, 150 nodes, +3 credits' },
+];
+
+export const GRAPH_SAVE_REWARD = GRAPH_SAVE_TIERS[0];
+export const GRAPH_SAVE_MIN_NODES = GRAPH_SAVE_TIERS[0].nodes;
 
 export const CALL_RECORDING_COST = 4;
 export const CALL_RECORDING_PERK = 'callRecording';
@@ -541,20 +545,26 @@ export async function applyStampRowReward(stamps) {
   return { rewards: next, newlyClaimed: [STAMP_ROW_REWARD] };
 }
 
-export async function claimFirstGraphSave(nodeCount) {
-  if ((Number(nodeCount) || 0) < GRAPH_SAVE_MIN_NODES) {
-    return { rewards: null, granted: false };
-  }
+export async function claimGraphSaveRewards(nodeCount) {
+  const count = Number(nodeCount) || 0;
   const current = await getRewards();
-  if ((current.claimedMilestones || []).includes(GRAPH_SAVE_REWARD.id)) {
-    return { rewards: current, granted: false };
+  const claimed = new Set(current.claimedMilestones || []);
+  const newly = GRAPH_SAVE_TIERS.filter((tier) => count >= tier.nodes && !claimed.has(tier.id));
+  if (!newly.length) {
+    return { rewards: current, granted: false, credits: 0, tiers: [] };
   }
+  const credits = newly.reduce((sum, tier) => sum + tier.credits, 0);
+  newly.forEach((tier) => claimed.add(tier.id));
   const next = await writeRewards({
     ...current,
-    credits: current.credits + GRAPH_SAVE_REWARD.credits,
-    claimedMilestones: [...(current.claimedMilestones || []), GRAPH_SAVE_REWARD.id],
+    credits: current.credits + credits,
+    claimedMilestones: [...claimed],
   });
-  return { rewards: next, granted: true };
+  return { rewards: next, granted: true, credits, tiers: newly };
+}
+
+export async function claimFirstGraphSave(nodeCount) {
+  return claimGraphSaveRewards(nodeCount);
 }
 
 export async function spendShopItem(itemId) {
