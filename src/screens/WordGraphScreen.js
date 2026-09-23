@@ -17,7 +17,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
 import { claimFirstGraphSave, GRAPH_SHARE_DATA_COST, spendCredits } from '../services/rewardsService';
 import { createGraphShare, copyTextToClipboard, takeSharedGraph } from '../services/shareService';
-import { listSavedGraphs, saveGraphSnapshot, deleteSavedGraph } from '../services/savedGraphs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
 
 const METHODS = [
@@ -29,6 +30,49 @@ const METHODS = [
 ];
 
 const OVERLAP_COLOR = '#fbbf24';
+
+const SAVED_GRAPH_LIMIT = 30;
+
+function savedGraphKey() {
+  const uid = auth?.currentUser?.uid || 'guest';
+  return `@timeline_saved_graphs_${uid}`;
+}
+
+async function listSavedGraphs() {
+  try {
+    const raw = await AsyncStorage.getItem(savedGraphKey());
+    const rows = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .filter((row) => row && row.id && row.savedAt)
+      .sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+  } catch {
+    return [];
+  }
+}
+
+async function saveGraphSnapshot(snapshot) {
+  const rows = await listSavedGraphs();
+  const entry = {
+    id: `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    savedAt: new Date().toISOString(),
+    nodeCount: snapshot.nodeCount || 0,
+    wordIds: Array.isArray(snapshot.wordIds) ? snapshot.wordIds : [],
+    methods: Array.isArray(snapshot.methods) ? snapshot.methods : ['ordinal'],
+    layoutId: snapshot.layoutId || 'force',
+    zoom: snapshot.zoom || 1,
+    positions: snapshot.positions || {},
+  };
+  const next = [entry, ...rows].slice(0, SAVED_GRAPH_LIMIT);
+  await AsyncStorage.setItem(savedGraphKey(), JSON.stringify(next));
+  return entry;
+}
+
+async function deleteSavedGraph(id) {
+  const next = (await listSavedGraphs()).filter((row) => row.id !== id);
+  await AsyncStorage.setItem(savedGraphKey(), JSON.stringify(next));
+  return next;
+}
 
 const PALETTE = ['#93c5fd', '#c4b5fd', '#f9a8d4', '#86efac', '#fcd34d', '#67e8f9', '#fda4af', '#a5b4fc'];
 
