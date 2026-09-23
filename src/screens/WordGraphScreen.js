@@ -262,12 +262,86 @@ const LAYOUTS = [
   { id: 'radial', label: 'Radial' },
   { id: 'arc', label: 'Arc' },
   { id: 'layers', label: 'By number' },
+  { id: 'notes', label: 'By #note' },
   { id: 'grid', label: 'Grid' },
   { id: 'random', label: 'Random' },
 ];
 
 function blankPos(x, y) {
   return { x, y, vx: 0, vy: 0, pin: false };
+}
+
+function noteTags(entry) {
+  const found = [];
+  const re = /#([a-z0-9_]+)/gi;
+  let match = re.exec(String(entry?.notes || ''));
+  while (match) {
+    const tag = match[1].toLowerCase();
+    if (!found.includes(tag)) found.push(tag);
+    match = re.exec(String(entry?.notes || ''));
+  }
+  return found;
+}
+
+function placeByNotes(nodes, edges, width, height) {
+  const words = nodes.filter((node) => node.kind === 'word');
+  const counts = new Map();
+  words.forEach((node) => {
+    noteTags(node.entry).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
+  });
+  const buckets = new Map();
+  words.forEach((node) => {
+    const tags = noteTags(node.entry);
+    const key = tags
+      .slice()
+      .sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0) || a.localeCompare(b))[0] || '';
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(node);
+  });
+  const keys = [...buckets.keys()].sort((a, b) => {
+    if (!a) return 1;
+    if (!b) return -1;
+    return a.localeCompare(b);
+  });
+  const cols = Math.max(1, Math.ceil(Math.sqrt(keys.length)));
+  const rows = Math.ceil(keys.length / cols);
+  const pos = {};
+  const pad = 36;
+  keys.forEach((key, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const cx = ((col + 0.5) / cols) * width;
+    const cy = ((row + 0.5) / rows) * height;
+    const members = buckets.get(key).slice().sort((a, b) => String(a.label).localeCompare(String(b.label)));
+    const r = Math.min(width / cols, height / rows) * 0.28;
+    members.forEach((node, i) => {
+      if (members.length === 1) {
+        pos[node.id] = blankPos(cx, cy);
+        return;
+      }
+      const ang = (i / members.length) * Math.PI * 2 - Math.PI / 2;
+      pos[node.id] = blankPos(
+        Math.max(pad, Math.min(width - pad, cx + Math.cos(ang) * r)),
+        Math.max(pad, Math.min(height - pad, cy + Math.sin(ang) * r))
+      );
+    });
+  });
+  nodes
+    .filter((node) => node.kind === 'number')
+    .forEach((hub) => {
+      const pts = edges
+        .filter((edge) => edge.a === hub.id || edge.b === hub.id)
+        .map((edge) => pos[edge.a === hub.id ? edge.b : edge.a])
+        .filter(Boolean);
+      if (!pts.length) {
+        pos[hub.id] = blankPos(width / 2, height / 2);
+        return;
+      }
+      const x = pts.reduce((sum, point) => sum + point.x, 0) / pts.length;
+      const y = pts.reduce((sum, point) => sum + point.y, 0) / pts.length;
+      pos[hub.id] = blankPos(x, y);
+    });
+  return pos;
 }
 
 function placeCircle(nodes, width, height) {
@@ -913,6 +987,12 @@ export default function WordGraphScreen({ onClose, navigation }) {
     }
     if (layoutId === 'layers') {
       posRef.current = keepPins(placeLayers(nodes, edges, width, height));
+      setSelected(null);
+      setTick((n) => n + 1);
+      return undefined;
+    }
+    if (layoutId === 'notes') {
+      posRef.current = keepPins(placeByNotes(nodes, edges, width, height));
       setSelected(null);
       setTick((n) => n + 1);
       return undefined;
@@ -1579,6 +1659,11 @@ export default function WordGraphScreen({ onClose, navigation }) {
           <Text style={styles.chipText}>Run again</Text>
         </TouchableOpacity>
       </View>
+      {layoutId === 'notes' ? (
+        <Text style={styles.meta}>
+          Grouped by #tags in the note. A word sits with the tag that the most words share. Words with no # sit in their own group. Pinned nodes stay where you left them.
+        </Text>
+      ) : null}
       <Text style={styles.layoutLabel}>On this arrangement</Text>
       <View style={styles.row}>
         <TouchableOpacity style={styles.chip} onPress={() => adjustLayout('expand')}>
