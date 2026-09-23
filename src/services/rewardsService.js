@@ -47,6 +47,13 @@ export const STAMP_ROW_REWARD = {
   label: 'First stamps row +2 credits',
 };
 
+export const GRAPH_SAVE_REWARD = {
+  id: 'graph-save-1',
+  credits: 1,
+  label: 'First saved graph +1 credit',
+};
+export const GRAPH_SAVE_MIN_NODES = 30;
+
 export const CALL_RECORDING_COST = 4;
 export const CALL_RECORDING_PERK = 'callRecording';
 export const SHARE_WORDS_COST = 3;
@@ -532,6 +539,22 @@ export async function applyStampRowReward(stamps) {
     claimedMilestones: [...current.claimedMilestones, STAMP_ROW_REWARD.id],
   });
   return { rewards: next, newlyClaimed: [STAMP_ROW_REWARD] };
+}
+
+export async function claimFirstGraphSave(nodeCount) {
+  if ((Number(nodeCount) || 0) < GRAPH_SAVE_MIN_NODES) {
+    return { rewards: null, granted: false };
+  }
+  const current = await getRewards();
+  if ((current.claimedMilestones || []).includes(GRAPH_SAVE_REWARD.id)) {
+    return { rewards: current, granted: false };
+  }
+  const next = await writeRewards({
+    ...current,
+    credits: current.credits + GRAPH_SAVE_REWARD.credits,
+    claimedMilestones: [...(current.claimedMilestones || []), GRAPH_SAVE_REWARD.id],
+  });
+  return { rewards: next, granted: true };
 }
 
 export async function spendShopItem(itemId) {

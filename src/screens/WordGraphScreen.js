@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
+import { claimFirstGraphSave } from '../services/rewardsService';
 import { useTheme } from '../themeContext';
 
 const METHODS = [
@@ -1455,6 +1456,13 @@ export default function WordGraphScreen({ onClose, navigation }) {
   const finishLeave = (save) => {
     if (save) {
       sessionLayout = captureLayout(posRef.current, pinnedRef.current, zoomRef.current, methods, layoutId);
+      claimFirstGraphSave(graphRef.current?.nodes?.length || 0)
+        .then((result) => {
+          if (result?.granted) {
+            Alert.alert('Graph saved', '1 credit added. This only happens the first time you save a graph with at least 30 nodes.');
+          }
+        })
+        .catch(() => {});
     } else {
       sessionLayout = null;
     }
@@ -1598,7 +1606,7 @@ export default function WordGraphScreen({ onClose, navigation }) {
         <View style={styles.exitCard}>
           <Text style={styles.detailTitle}>Save before exiting?</Text>
           <Text style={styles.meta}>
-            This will keep the layout until you next visit, unless you close the app.
+            This will keep the layout until you next visit, unless you close the app. The first time you save a graph with at least 30 nodes, you get 1 credit.
           </Text>
           <View style={styles.row}>
             <TouchableOpacity style={[styles.chip, styles.chipOn]} onPress={() => finishLeave(true)}>
