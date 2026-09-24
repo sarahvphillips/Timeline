@@ -1523,6 +1523,49 @@ export function buildGrokReplyPrompt(event) {
   return parts.join('\n');
 }
 
+function writtenDay(event) {
+  if (!event?.date) return '';
+  const d = new Date(event.date);
+  if (Number.isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+export function isPoemEvent(event) {
+  return String(event?.hobbyType || '').toLowerCase() === 'poetry';
+}
+
+/** Image card prompt. Same shape as the poem cards already in use: title, poem, written date. */
+export function buildGrokPoemCardPrompt(event) {
+  const title = filled(event?.title) || 'Untitled';
+  const day = writtenDay(event);
+  const book = filled(event?.collectionName);
+  const body = filled(event?.description);
+  const parts = [
+    'Create an image card for this poem, like the poem cards I already use.',
+    'Show the title, then the poem with every line break kept, then the written date at the bottom.',
+    'Do not change, shorten, or add to the poem.',
+    'Do not use today\'s date. Use the written date below.',
+    'A quiet card, dark background, words easy to read. No extra slogan.',
+    '',
+    `Title: ${title}`,
+  ];
+  if (book) parts.push(`Book: ${book}`);
+  if (day) parts.push(`Written date: ${day}`);
+  parts.push('');
+  if (body) {
+    parts.push('--- Poem ---');
+    parts.push(body);
+    parts.push('--- End ---');
+  } else {
+    parts.push('(No poem text was saved. Do not invent a poem.)');
+  }
+  parts.push('');
+  parts.push('Make the image card now.');
+  return parts.join('\n');
+}
+
 export const WASH_STATUSES = [
   { id: 'loaded', label: 'Loaded' },
   { id: 'running', label: 'Running' },
