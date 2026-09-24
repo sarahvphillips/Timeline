@@ -27,6 +27,7 @@ import {
   isStaff,
 } from '../services/adminService';
 import { adminGetRewardsByEmail, adminSetRewards, perkLabel } from '../services/rewardsService';
+import { listCreditFeedback, creditFeedbackItems } from '../services/creditFeedback';
 
 export default function AdminScreen({ navigation, route }) {
   const email = (auth.currentUser?.email || '').toLowerCase();
@@ -40,6 +41,8 @@ export default function AdminScreen({ navigation, route }) {
   const [creditAmount, setCreditAmount] = useState('');
   const [creditBusy, setCreditBusy] = useState(false);
   const [creditStatus, setCreditStatus] = useState('');
+  const [feedback, setFeedback] = useState([]);
+  const [feedbackNote, setFeedbackNote] = useState('');
 
   const notify = (title, message) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
@@ -183,6 +186,35 @@ export default function AdminScreen({ navigation, route }) {
       <TouchableOpacity style={styles.primary} onPress={() => navigation.navigate('CreditsShop')}>
         <Text style={styles.primaryText}>Credits shop — test as a user</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={async () => {
+          setFeedbackNote('Loading…');
+          try {
+            const rows = await listCreditFeedback();
+            setFeedback(rows);
+            setFeedbackNote(rows.length ? `${rows.length} reply${rows.length === 1 ? '' : 's'}.` : 'No replies yet.');
+          } catch (e) {
+            setFeedbackNote(e?.message || 'Could not load feedback. Publish the latest Firestore rules.');
+          }
+        }}
+      >
+        <Text style={styles.primaryText}>Tester views on credits</Text>
+      </TouchableOpacity>
+      {feedbackNote ? <Text style={styles.meta}>{feedbackNote}</Text> : null}
+      {feedback.map((row) => {
+        const labels = { fair: 'pay', free: 'free', unsure: 'unsure' };
+        const bits = creditFeedbackItems()
+          .filter((item) => row.votes?.[item.id])
+          .map((item) => `${item.title}: ${labels[row.votes[item.id]] || row.votes[item.id]}`);
+        return (
+          <View key={row.id} style={{ marginBottom: 10 }}>
+            <Text style={styles.meta}>{row.email || row.uid} · {String(row.updatedAt || '').slice(0, 16).replace('T', ' ')}</Text>
+            <Text style={styles.intro}>{bits.join(' · ') || 'No ticks yet.'}</Text>
+            {row.note ? <Text style={styles.intro}>{row.note}</Text> : null}
+          </View>
+        );
+      })}
 
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 

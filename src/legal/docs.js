@@ -15,7 +15,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     heading: 'What we collect',
-    body: 'Account: email address, Google sign-in if you choose it, and a Firebase user id.\n\nYou type: events, poems, SMS/call logs you enter, people (name, optional phone, email, birthday), labels, Word-to-Int words, date-circle entries, food, wash loads, purchases, banking notes, social/YouTube/Spotify/game links, and similar.\n\nApp data: credits, stamps, shop perks, invite codes, which events you shared and with whom, device session (so you can see other signed-in devices), settings and theme.\n\nWe do not ask for bank passwords, card numbers, or Google Play payment details. Google handles Play purchases when those go live.',
+    body: 'Account: email address, Google sign-in if you choose it, and a Firebase user id.\n\nYou type: events, poems, SMS/call logs you enter, people (name, optional phone, email, birthday), labels, Word-to-Int words, date-circle entries, food, wash loads, purchases, banking notes, social/YouTube/Spotify/game links, and similar.\n\nDuring testing you can say whether a future credit price feels fair. That note is stored with your account so it can be read by the maker of Timeline.\n\nApp data: credits, stamps, shop perks, invite codes, which events you shared and with whom, device session (so you can see other signed-in devices), settings and theme.\n\nWe do not ask for bank passwords, card numbers, or Google Play payment details. Google handles Play purchases when those go live.',
   },
   {
     heading: 'Photos, video, and audio',

@@ -47,6 +47,7 @@ import PeopleScreen from './src/screens/PeopleScreen';
 import AddSmsScreen from './src/screens/AddSmsScreen';
 import AddCallScreen from './src/screens/AddCallScreen';
 import CreditsShopScreen from './src/screens/CreditsShopScreen';
+import CreditFeedbackScreen from './src/screens/CreditFeedbackScreen';
 import BuyCreditsScreen from './src/screens/BuyCreditsScreen';
 import TransferCreditsScreen from './src/screens/TransferCreditsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -402,6 +403,12 @@ function AppShell() {
                 name="CreditsShop"
                 component={CreditsShopScreen}
                 options={{ title: 'Credits shop' }}
+              />
+
+              <Stack.Screen
+                name="CreditFeedback"
+                component={CreditFeedbackScreen}
+                options={{ title: 'Credits later' }}
               />
 
               <Stack.Screen

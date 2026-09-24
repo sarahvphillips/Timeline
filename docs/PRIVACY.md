@@ -13,6 +13,7 @@ TimelineApp (“Timeline”) is a personal life-log. It is made by Sarah Phillip
 - Account: email, optional Google sign-in, Firebase user id.
 - What you type: events, poems, SMS/call logs you enter, people, labels, Word-to-Int, date circle, food, wash loads, purchases, banking notes, media links.
 - App data: credits, stamps, perks, invites, shares, device sessions, settings.
+- During testing, a note on whether a later credit price feels fair. Stored with the account.
 
 We do not ask for bank passwords, card numbers, or Play payment details.
 

@@ -147,6 +147,10 @@ service cloud.firestore {
       );
     }
 
+    match /testerFeedback/{uid} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
     match /joinInvites/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()

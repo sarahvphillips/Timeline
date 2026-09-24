@@ -319,7 +319,11 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Events with friends</Text>
       </TouchableOpacity>
 
-      {CREDITS_PAUSED ? null : (
+      {CREDITS_PAUSED ? (
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditFeedback')}>
+        <Text style={styles.buttonText}>Credits later</Text>
+      </TouchableOpacity>
+      ) : (
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditsShop')}>
         <Text style={styles.buttonText}>Credits shop</Text>
       </TouchableOpacity>
