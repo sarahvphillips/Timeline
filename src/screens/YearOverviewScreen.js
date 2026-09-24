@@ -24,7 +24,6 @@ import {
 import { getEventCategories } from '../services/profileService';
 import { pickFromGallery } from '../services/imagePicker';
 import HomeFab from '../components/HomeFab';
-import DesignTargetButton from '../components/DesignTargetButton';
 import SpineKindBlock from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
 
@@ -238,10 +237,6 @@ export default function YearOverviewScreen({ navigation, route }) {
           ))
         )}
       </ScrollView>
-      <DesignTargetButton
-        imageSource={require('../../assets/design-year-bubbles.png')}
-        title="Year bubbles design (temp)"
-      />
       <HomeFab navigation={navigation} besidePlus={false} />
 
       <Modal

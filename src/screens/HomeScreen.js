@@ -9,7 +9,6 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../themeContext';
 import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileService';
-import DesignTargetButton from '../components/DesignTargetButton';
 import { getEvents, getLatestWash, washStatusLabel } from '../services/eventService';
 import { getShowWashInMenu } from '../services/profileService';
 import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
@@ -243,10 +242,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <DesignTargetButton
-        imageSource={require('../../assets/design-home-hub.png')}
-        title="Home hub design (temp)"
-      />
       <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={styles.profile}>
         <TouchableOpacity style={[styles.avatar, { backgroundColor: colors.card, borderColor: colors.blue }]} onPress={handlePhoto} activeOpacity={0.8}>

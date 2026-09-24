@@ -33,8 +33,6 @@ import {
   preferredNumber,
 } from '../services/wordToIntService';
 import { saveEvent } from '../services/eventService';
-import DesignTargetButton from '../components/DesignTargetButton';
-
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -279,10 +277,6 @@ export default function DateSpanScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <DesignTargetButton
-        imageSource={require('../../assets/design-days-between.jpg')}
-        title="Days between design (temp)"
-      />
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Days between dates</Text>
       <Text style={styles.intro}>

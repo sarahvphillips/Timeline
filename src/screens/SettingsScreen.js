@@ -15,7 +15,6 @@ import Constants from 'expo-constants';
 import { useTheme } from '../themeContext';
 import { MODES, PALETTES } from '../theme';
 import HomeFab from '../components/HomeFab';
-import DesignTargetButton from '../components/DesignTargetButton';
 import {
   getProfile,
   saveProfile,
@@ -891,10 +890,6 @@ export default function SettingsScreen({ navigation }) {
 
       </ScrollView>
       {/* TEMP design target — remove when settings matches sketch. */}
-      <DesignTargetButton
-        imageSource={require('../../assets/design-settings.png')}
-        title="Settings design (temp)"
-      />
       <HomeFab navigation={navigation} besidePlus={false} />
     </View>
   );

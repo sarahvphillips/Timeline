@@ -22,7 +22,6 @@ import {
 } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
 import LabelPicker from '../components/LabelPicker';
-import DesignTargetButton from '../components/DesignTargetButton';
 import {
   getEventFriendSourceLabel,
   isSharedEventInvitee,
@@ -559,10 +558,6 @@ export default function AddEventScreen({ navigation, route }) {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
       {/* TEMP design target — remove when event detail matches sketch. */}
-      <DesignTargetButton
-        imageSource={require('../../assets/design-event-detail-poetry-night.png')}
-        title="Event detail design (temp)"
-      />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.content}

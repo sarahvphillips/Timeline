@@ -17,7 +17,6 @@ import {
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
-import DesignTargetButton from '../components/DesignTargetButton';
 import SpineKindBlock from '../components/SpineKindBlock';
 import FilteredMonthSpine from '../components/FilteredMonthSpine';
 import EventLabelChips from '../components/EventLabelChips';
@@ -234,10 +233,6 @@ export default function MonthOverviewScreen({ navigation, route }) {
       </ScrollView>
 
       <HomeFab navigation={navigation} besidePlus={false} />
-      <DesignTargetButton
-        imageSource={require('../../assets/design-month-poems.jpg')}
-        title="Month poems-chip design (temp)"
-      />
       <TouchableOpacity style={styles.fab} onPress={() => setMenuOpen(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
