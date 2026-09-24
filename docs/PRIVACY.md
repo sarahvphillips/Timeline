@@ -1,6 +1,8 @@
 # TimelineApp privacy policy
 
-Version 1.0 · Updated 20 September 2026
+Version 1.1 · Updated 24 September 2026
+
+Public page: https://sarahvphillips.github.io/Timeline/privacy.html
 
 Same text as Settings → Privacy policy in the app.
 
@@ -40,6 +42,6 @@ Balances in Firestore. Packs will sell only in the Google Play Android app.
 - Consent: camera, photos, Gmail, future bank connect.
 - Legitimate interests: security (sessions, admin audit, checksums).
 
-Kept while the account exists. Local cache can be cleared in Settings. Full export/delete before public store. Email the contact above, or the ICO (ico.org.uk).
+Kept while the account exists. Settings → Delete account removes the Firebase login, that account’s Firestore timeline data, invites and shares you created, a public profile if you had one, and this device’s copy. Clear local cache does not delete the account. Email the contact above, or the ICO (ico.org.uk).
 
 Not for children under 13. We do not sell data, run ads, or use your events to train public AI models.

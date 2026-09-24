@@ -11,6 +11,9 @@ import {
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -57,4 +60,7 @@ export {
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 };

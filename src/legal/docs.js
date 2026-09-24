@@ -2,9 +2,11 @@
 
 export const PRIVACY_META = {
   title: 'Privacy policy',
-  updated: '20 September 2026',
-  version: '1.0',
+  updated: '24 September 2026',
+  version: '1.1',
 };
+
+export const PRIVACY_URL = 'https://sarahvphillips.github.io/Timeline/privacy.html';
 
 export const PRIVACY_SECTIONS = [
   {
@@ -41,7 +43,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     heading: 'How long we keep it',
-    body: 'While your account exists. You can clear this device’s local cache in Settings (does not delete Firestore). Full account export and delete will be added before a public store release. Email sarah.v.phillips@googlemail.com if you need data removed before that exists.',
+    body: 'While your account exists. Settings → Delete account removes the Firebase login, this account’s timeline data in Firestore (events, words, settings, invites you sent, and shares you created), the public profile if you had one, and this device’s copy. Credit transfers you sent or received are removed with the account.\n\nSettings → Clear this account’s local cache only removes the on-device copy. It does not delete the account.\n\nThe same policy is public at https://sarahvphillips.github.io/Timeline/privacy.html',
   },
   {
     heading: 'Children',
@@ -49,7 +51,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     heading: 'Your rights',
-    body: 'You can ask for a copy of your data, a correction, or deletion, and you can complain to the ICO (ico.org.uk). Use the contact email above.',
+    body: 'You can delete the account yourself in Settings. You can also ask for a copy or a correction, and you can complain to the ICO (ico.org.uk). Contact: sarah.v.phillips@googlemail.com.',
   },
   {
     heading: 'What we do not do',

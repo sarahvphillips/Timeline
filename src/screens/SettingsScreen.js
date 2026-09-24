@@ -33,6 +33,7 @@ import {
   normalizeHandle,
 } from '../services/profileService';
 import { clearThisAccountLocalCache } from '../services/localCache';
+import { accountNeedsPassword, deleteSignedInAccount } from '../services/accountDelete';
 import { auth } from '../services/firebase';
 import {
   getOrCreateDeviceId,
@@ -86,6 +87,11 @@ export default function SettingsScreen({ navigation }) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
   const [cacheNotice, setCacheNotice] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteWord, setDeleteWord] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [thisDeviceId, setThisDeviceId] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -261,6 +267,29 @@ export default function SettingsScreen({ navigation }) {
       notify('Could not clear', fail);
     } finally {
       setClearingCache(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleting) return;
+    if (deleteWord.trim().toUpperCase() !== 'DELETE') {
+      setDeleteError('Type DELETE to confirm.');
+      return;
+    }
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteSignedInAccount(deletePassword);
+    } catch (e) {
+      const code = e?.code || '';
+      const message =
+        code === 'auth/invalid-credential' || code === 'auth/wrong-password'
+          ? 'That password is not correct.'
+          : code === 'auth/requires-recent-login'
+            ? 'Sign out, sign in again, then delete straight away.'
+            : e?.message || 'Could not delete the account.';
+      setDeleteError(message);
+      setDeleting(false);
     }
   };
 
@@ -780,6 +809,67 @@ export default function SettingsScreen({ navigation }) {
           <Text style={[styles.aboutLine, { color: colors.muted }]}>Expo SDK {about.sdkVersion}</Text>
           <Text style={[styles.aboutLine, { color: colors.muted }]}>#kern2622</Text>
         </View>
+
+        <Text style={[styles.section, { color: colors.muted }]}>Account</Text>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Delete account removes this login, the timeline data stored for it, and this device's copy. It cannot be undone.
+        </Text>
+        {!deleteOpen ? (
+          <TouchableOpacity
+            style={[styles.saveBtn, { backgroundColor: colors.danger || '#dc2626' }]}
+            onPress={() => {
+              setDeleteOpen(true);
+              setDeleteError('');
+            }}
+          >
+            <Text style={styles.saveBtnText}>Delete account</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={[styles.aboutCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+            <Text style={[styles.hint, { color: colors.faint, marginTop: 0 }]}>
+              Type DELETE{accountNeedsPassword(auth.currentUser) ? ', then the account password' : ''}.
+            </Text>
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.bg || '#0f1024' }]}
+              value={deleteWord}
+              onChangeText={setDeleteWord}
+              autoCapitalize="characters"
+              placeholder="DELETE"
+              placeholderTextColor={colors.faint}
+            />
+            {accountNeedsPassword(auth.currentUser) ? (
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.bg || '#0f1024' }]}
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                secureTextEntry
+                placeholder="Password"
+                placeholderTextColor={colors.faint}
+              />
+            ) : null}
+            {!!deleteError && (
+              <Text style={{ color: colors.danger || '#f87171', marginBottom: 8 }}>{deleteError}</Text>
+            )}
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: colors.danger || '#dc2626', opacity: deleting ? 0.6 : 1 }]}
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+            >
+              <Text style={styles.saveBtnText}>{deleting ? 'Deleting…' : 'Delete this account'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                setDeleteOpen(false);
+                setDeleteWord('');
+                setDeletePassword('');
+                setDeleteError('');
+              }}
+              disabled={deleting}
+            >
+              <Text style={[styles.menuRowLabel, { color: colors.muted }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={[styles.section, { color: colors.muted }]}>Local cache</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
