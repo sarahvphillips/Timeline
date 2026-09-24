@@ -1,7 +1,24 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 21 Sep 2026 (profile privacy + people share)
+**Last updated:** 24 Sep 2026 (Play Store first until 14 Nov)
+
+---
+
+## Play Store first (public by 14 Nov 2026)
+
+When asked what is on the todo list, put this ahead of new features until the app is on the Play Store.
+
+- [ ] **Delete account** in Settings. Removes the Firebase login and that account's timeline data. Named in the privacy policy.
+- [ ] **Privacy policy on a public web page.** The in-app page is not enough for Play Console.
+- [ ] **Hide Buy Credits** until the Play products exist. Admin credit changes can stay.
+- [ ] **Store listing:** short text, full text, 512px icon, 1024×500 graphic, phone screenshots.
+- [ ] **Data safety form and content rating** in Play Console.
+- [ ] **Signed Android App Bundle** on internal testing, about 10 Oct, on your own phone.
+- [ ] **Closed test from about 17 Oct:** 14–16 real testers opted in for 14 days. Needed if the Play account is a personal account created after 13 Nov 2023.
+- [ ] **Apply for production about 31 Oct**, so review can finish by 14 Nov.
+
+Leave SMS reading, call-log access, and live Open Banking out of this version.
 
 ---
 
