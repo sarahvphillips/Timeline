@@ -692,7 +692,7 @@ export const HOBBY_TYPES = [
 
 export const NEXT_ACTIONS = [
   { id: 'none', label: 'None' },
-  { id: 'ask_grok_reply', label: 'Ask Grok to draft a reply' },
+  { id: 'ask_grok_reply', label: 'Ask Grok' },
   { id: 'follow_up', label: 'Follow up later' },
   { id: 'done', label: 'Done / Archive' },
 ];
@@ -1364,29 +1364,162 @@ export function filterEventsByDay(events, date) {
   });
 }
 
-/** Builds a prompt the user can copy/paste into Grok */
+function filled(value) {
+  const text = String(value || '').trim();
+  return text || '';
+}
+
+function promptKind(event) {
+  const source = String(event?.source || '').toLowerCase();
+  const hobby = String(event?.hobbyType || '').toLowerCase();
+  if (source === 'email' || event?.emailFrom) return 'email';
+  if (source === 'sms') return 'sms';
+  if (source === 'call') return 'call';
+  if (hobby === 'poetry') return 'poem';
+  if (hobby === 'singing' || hobby === 'music') return 'singing';
+  if (source === 'food') return 'food';
+  if (source === 'laundry') return 'wash';
+  if (source === 'bank' || source === 'purchase') return 'purchase';
+  if (source === 'watched' || event?.watchKind) return 'watched';
+  if (source === 'youtube') return 'youtube';
+  if (source === 'spotify') return 'spotify';
+  if (source === 'game') return 'game';
+  if (source === 'social') return 'social';
+  if (source === 'location') return 'place';
+  if (source === 'life') return 'life';
+  if (source === 'qr') return 'qr';
+  return 'note';
+}
+
+const GROK_ASK = {
+  email: {
+    open: 'Please draft a reply to this email.',
+    close: 'Write a clear, polite draft reply I can copy and send.',
+    block: 'Original email text',
+  },
+  sms: {
+    open: 'Please draft a reply to this text message. It is not an email.',
+    close: 'Write a short reply I can copy and send.',
+    block: 'Message',
+  },
+  call: {
+    open: 'Please draft a short follow-up after this phone call. It is not an email.',
+    close: 'Write a short message I could send, and a one-line note I can keep.',
+    block: 'Call note',
+  },
+  poem: {
+    open: 'This is a poem on my timeline, not an email. Do not rewrite the whole poem unless I ask.',
+    close: 'Suggest a title if it needs one, a private note to myself, or a careful next line.',
+    block: 'Poem',
+  },
+  singing: {
+    open: 'This is a singing or music note, not an email.',
+    close: 'Write a short caption or a note I can keep with the recording.',
+    block: 'Note',
+  },
+  food: {
+    open: 'This is a food note, not an email.',
+    close: 'Write a short note about this meal I can keep on the timeline.',
+    block: 'Note',
+  },
+  wash: {
+    open: 'This is a household wash note, not an email.',
+    close: 'Write a short note I can keep with this wash load.',
+    block: 'Note',
+  },
+  purchase: {
+    open: 'This is a purchase or banking note I typed. It is not an email, and it is not a request to log in anywhere.',
+    close: 'Write a short note I can keep, or a polite question I could send about this purchase.',
+    block: 'Details',
+  },
+  watched: {
+    open: 'This is something I watched, not an email.',
+    close: 'Write a short note I can keep about it.',
+    block: 'Note',
+  },
+  youtube: {
+    open: 'This is a YouTube item on my timeline, not an email.',
+    close: 'Write a short note or description I can keep with this video.',
+    block: 'Note',
+  },
+  spotify: {
+    open: 'This is a Spotify item on my timeline, not an email.',
+    close: 'Write a short note I can keep about this track or playlist.',
+    block: 'Note',
+  },
+  game: {
+    open: 'This is a game I logged, not an email.',
+    close: 'Write a short note I can keep about this session.',
+    block: 'Note',
+  },
+  social: {
+    open: 'This is a social media note, not an email.',
+    close: 'Write a short post I could share, and say that it is a post. Also offer a private note if a post is the wrong shape.',
+    block: 'Note',
+  },
+  place: {
+    open: 'This is a place on my timeline, not an email.',
+    close: 'Write a short note I can keep about this place.',
+    block: 'Note',
+  },
+  life: {
+    open: 'This is a life event on my timeline, not an email.',
+    close: 'Write a short note to myself about it.',
+    block: 'Note',
+  },
+  qr: {
+    open: 'This is a link I saved, not an email.',
+    close: 'Write a short message I can send with this link.',
+    block: 'Note',
+  },
+  note: {
+    open: 'This is a timeline note, not an email.',
+    close: 'Write a short note I can keep with it. If it needs a reply, draft that instead and say so.',
+    block: 'Note',
+  },
+};
+
+/** Prompt the user can paste into Grok. Wording follows the event type. */
 export function buildGrokReplyPrompt(event) {
-  const parts = [
-    'Please draft a reply to this email.',
-    '',
-    `Subject: ${event.title || '(no subject)'}`,
-  ];
-  if (event.emailFrom) {
-    parts.push(`From: ${event.emailFrom}`);
+  const kind = promptKind(event || {});
+  const ask = GROK_ASK[kind] || GROK_ASK.note;
+  const parts = [ask.open, ''];
+  const title = filled(event?.title) || 'Untitled';
+  parts.push(`Title: ${title}`);
+  if (kind === 'email') parts[parts.length - 1] = `Subject: ${title}`;
+  const from = filled(event?.emailFrom);
+  if (from) parts.push(`From: ${from}`);
+  const contact = filled(event?.smsContact);
+  if (contact) parts.push(`Contact: ${contact}`);
+  const number = filled(event?.smsNumber);
+  if (number) parts.push(`Number: ${number}`);
+  const direction = filled(event?.smsDirection || event?.callDirection);
+  if (direction) parts.push(`Direction: ${direction}`);
+  if (event?.callMinutes != null || event?.callSeconds != null) {
+    const mins = Number(event.callMinutes) || 0;
+    const secs = Number(event.callSeconds) || 0;
+    if (mins || secs) parts.push(`Length: ${mins}m ${secs}s`);
   }
-  if (event.date) {
-    parts.push(`Date: ${new Date(event.date).toLocaleString()}`);
-  }
+  if (event?.date) parts.push(`Date: ${new Date(event.date).toLocaleString()}`);
+  const category = filled(event?.category);
+  if (category && kind !== 'email') parts.push(`Category: ${category}`);
+  const place = filled(event?.location || event?.placeName || event?.smsLocation);
+  if (place) parts.push(`Place: ${place}`);
+  const link = filled(event?.qrLink || event?.url);
+  if (link) parts.push(`Link: ${link}`);
+  const labels = Array.isArray(event?.labels) ? event.labels.map((l) => filled(l)).filter(Boolean) : [];
+  if (labels.length) parts.push(`Labels: ${labels.join(', ')}`);
   parts.push('');
-  if (event.description && event.description.trim()) {
-    parts.push('--- Original email text ---');
-    parts.push(event.description.trim());
-    parts.push('--- End of email ---');
+  const body = filled(event?.description || event?.smsBody);
+  if (body) {
+    parts.push(`--- ${ask.block} ---`);
+    parts.push(body);
+    parts.push('--- End ---');
   } else {
-    parts.push('(No original email text was saved with this event. Draft a short, polite general reply.)');
+    parts.push('(No extra text was saved with this item.)');
   }
   parts.push('');
-  parts.push('Write a clear, polite draft reply I can copy and send.');
+  parts.push(ask.close);
   return parts.join('\n');
 }
 

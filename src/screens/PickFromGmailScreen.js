@@ -9,12 +9,12 @@ import {
   Alert,
   Share,
 } from 'react-native';
-import { saveEvent } from '../services/eventService';
+import { saveEvent, buildGrokReplyPrompt } from '../services/eventService';
 
 const CATEGORIES = ['personal', 'work', 'family', 'health', 'other'];
 const NEXT_ACTIONS = [
   { id: 'none', label: 'None' },
-  { id: 'ask_grok_reply', label: 'Ask Grok to draft a reply' },
+  { id: 'ask_grok_reply', label: 'Ask Grok' },
   { id: 'follow_up', label: 'Follow up' },
 ];
 
@@ -77,19 +77,6 @@ function guessCategory(mail) {
   return 'personal';
 }
 
-function grokPrompt(mail, note) {
-  return [
-    'Please draft a reply to this email.',
-    `Subject: ${mail.subject}`,
-    `From: ${mail.from} <${mail.fromEmail}>`,
-    `Date: ${mail.date}`,
-    '--- Original email text ---',
-    [mail.snippet, note].filter(Boolean).join('\n\n'),
-    '--- End of email ---',
-    'Write a clear, polite draft reply I can copy and send.',
-  ].join('\n');
-}
-
 export default function PickFromGmailScreen({ navigation }) {
   const [picked, setPicked] = useState(null);
   const [category, setCategory] = useState('other');
@@ -121,7 +108,13 @@ export default function PickFromGmailScreen({ navigation }) {
         emailFrom: picked.fromEmail,
       });
       if (nextAction === 'ask_grok_reply') {
-        const prompt = grokPrompt(picked, note.trim());
+        const prompt = buildGrokReplyPrompt({
+          title: picked.subject,
+          description: [picked.snippet, note.trim()].filter(Boolean).join('\n\n'),
+          date: new Date(`${picked.date}T12:00:00`).toISOString(),
+          source: 'email',
+          emailFrom: `${picked.from} <${picked.fromEmail}>`,
+        });
         try {
           await Share.share({ message: prompt });
         } catch (_) {

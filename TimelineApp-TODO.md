@@ -32,7 +32,7 @@ Leave SMS reading, call-log access, and live Open Banking out of this version.
 - [x] Categories: Personal, Work, Family, Health, Travel, Hobby, Days Between, Other
 - [x] Email-as-event (manual): source type, category, next action, From field
 - [x] Next action: âAsk Grok to draft a replyâ
-- [x] Ask Grok: copy prompt + on-screen toast + open Grok
+- [x] Ask Grok on any event (24 Sep 2026). Expand a timeline item and tap Ask Grok. The prompt follows the type: email reply, text reply, call follow-up, poem, wash, food, purchase, and the other saved types. Emails still ask for a reply.
 - [x] App running in browser on HP laptop
 - [x] User login with email and password
 - [x] User register as new account (basic)  

@@ -298,12 +298,12 @@ export default function AddEventScreen({ navigation, route }) {
         if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
           try {
             await navigator.clipboard.writeText(prompt);
-            notice = 'Saved. Grok reply prompt copied to clipboard.';
+            notice = 'Saved. The Grok prompt is copied. Paste it into Grok.';
           } catch (_) {
-            notice = 'Saved. Open Grok to draft a reply.';
+            notice = 'Saved. Open the event and tap Ask Grok.';
           }
         } else {
-          notice = 'Saved. Open Grok to draft a reply.';
+          notice = 'Saved. Open the event and tap Ask Grok.';
         }
       }
       setSaveNotice(notice);

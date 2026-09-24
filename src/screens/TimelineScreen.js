@@ -215,7 +215,7 @@ export default function TimelineScreen({ navigation, route }) {
     if (Platform.OS === 'web' && navigator?.clipboard) {
       try {
         await navigator.clipboard.writeText(prompt);
-        showToast('Copied! Opening Grok ÔÇö paste (Ctrl+V)');
+        showToast('Copied. Opening Grok — paste it there.');
         setTimeout(() => openGrok(), 400);
         return;
       } catch {
@@ -353,13 +353,12 @@ export default function TimelineScreen({ navigation, route }) {
                 <Text style={styles.nextLabel}>
                   Next: {getNextActionLabel(item.nextAction)}
                 </Text>
-                {item.nextAction === 'ask_grok_reply' && (
-                  <TouchableOpacity style={styles.grokButton} onPress={() => handleAskGrok(item)}>
-                    <Text style={styles.grokButtonText}>Ô£ª Ask Grok</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             ) : null}
+
+            <TouchableOpacity style={styles.grokButton} onPress={() => handleAskGrok(item)}>
+              <Text style={styles.grokButtonText}>Ask Grok</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => {
@@ -605,7 +604,7 @@ const styles = StyleSheet.create({
   description: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 8 },
   nextRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nextLabel: { color: '#60a5fa', fontSize: 13, flex: 1 },
-  grokButton: { backgroundColor: '#3b82f6', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  grokButton: { alignSelf: 'flex-start', marginTop: 8, backgroundColor: '#3b82f6', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
   grokButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
   qrBlock: { alignItems: 'flex-start', marginBottom: 8 },
   qrImage: { width: 140, height: 140, maxWidth: '100%', backgroundColor: '#fff', borderRadius: 8, marginBottom: 6 },
