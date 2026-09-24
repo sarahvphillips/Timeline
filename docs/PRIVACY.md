@@ -2,7 +2,7 @@
 
 Version 1.1 · Updated 24 September 2026
 
-Public page: https://sarahvphillips.github.io/Timeline/privacy.html
+Public page: https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html
 
 Same text as Settings → Privacy policy in the app.
 

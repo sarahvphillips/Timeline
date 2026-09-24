@@ -6,7 +6,7 @@ export const PRIVACY_META = {
   version: '1.1',
 };
 
-export const PRIVACY_URL = 'https://sarahvphillips.github.io/Timeline/privacy.html';
+export const PRIVACY_URL = 'https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html';
 
 export const PRIVACY_SECTIONS = [
   {
@@ -43,7 +43,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     heading: 'How long we keep it',
-    body: 'While your account exists. Settings → Delete account removes the Firebase login, this account’s timeline data in Firestore (events, words, settings, invites you sent, and shares you created), the public profile if you had one, and this device’s copy. Credit transfers you sent or received are removed with the account.\n\nSettings → Clear this account’s local cache only removes the on-device copy. It does not delete the account.\n\nThe same policy is public at https://sarahvphillips.github.io/Timeline/privacy.html',
+    body: 'While your account exists. Settings → Delete account removes the Firebase login, this account’s timeline data in Firestore (events, words, settings, invites you sent, and shares you created), the public profile if you had one, and this device’s copy. Credit transfers you sent or received are removed with the account.\n\nSettings → Clear this account’s local cache only removes the on-device copy. It does not delete the account.\n\nThe same policy is public at https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html',
   },
   {
     heading: 'Children',

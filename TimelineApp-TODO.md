@@ -10,7 +10,7 @@
 When asked what is on the todo list, put this ahead of new features until the app is on the Play Store.
 
 - [x] **Delete account** in Settings. Removes the Firebase login and that account's timeline data. Named in the privacy policy. (24 Sep 2026)
-- [x] **Privacy policy on a public web page.** https://sarahvphillips.github.io/Timeline/privacy.html — publish GitHub Pages from the /docs folder on main if the link is not live yet. (24 Sep 2026)
+- [x] **Privacy policy on a public web page.** https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html (24 Sep 2026). Optional later: GitHub Settings → Pages → main → /docs, then use https://sarahvphillips.github.io/Timeline/privacy.html in Play Console.
 - [ ] **Hide Buy Credits** until the Play products exist. Admin credit changes can stay.
 - [ ] **Store listing:** short text, full text, 512px icon, 1024×500 graphic, phone screenshots.
 - [ ] **Data safety form and content rating** in Play Console.
