@@ -13,7 +13,7 @@ When asked what is on the todo list, put this ahead of new features until the ap
 - [x] **Privacy policy on a public web page.** https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html (24 Sep 2026). Optional later: GitHub Settings → Pages → main → /docs, then use https://sarahvphillips.github.io/Timeline/privacy.html in Play Console.
 - [x] **Hide Buy Credits** until the Play products exist. Testers are not asked to pay. Credit-gated features stay usable. Home → Credits later explains the later prices and saves a fair / free / not sure reply. Admin → Tester views on credits. Flag: `CREDITS_PAUSED` in rewardsService.js. (24 Sep 2026)
 - [x] **Store listing:** short text, full text, 512px icon, 1024×500 graphic, phone screenshots. Files in `store/`. Paste from `store/STORE-LISTING.md`. (24 Sep 2026)
-- [ ] **Data safety form and content rating** in Play Console.
+- [ ] **Data safety form and content rating** in Play Console. Answers written in `store/DATA-SAFETY.md` (24 Sep 2026). Paste them once identity verification allows it. Expected rating PEGI 3 / Everyone, with Users Interact and Shares Location.
 - [ ] **Signed Android App Bundle** on internal testing, about 10 Oct, on your own phone.
 - [ ] **Closed test from about 17 Oct:** 14–16 real testers opted in for 14 days. Needed if the Play account is a personal account created after 13 Nov 2023.
 - [ ] **Apply for production about 31 Oct**, so review can finish by 14 Nov.
