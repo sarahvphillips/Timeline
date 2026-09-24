@@ -30,6 +30,10 @@ import {
   sortWordNumberList,
   formatAddedAt,
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
+  getNumberSearchList,
+  addNumberSearch,
+  removeNumberSearch,
+  dropSearchHitsForEntry,
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
@@ -135,6 +139,7 @@ function WordToIntScreen({ navigation, route }) {
   const [unlocking, setUnlocking] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
+  const [searchList, setSearchList] = useState([]);
   const lastPhraseParam = useRef(null);
 
   const result =
@@ -246,14 +251,16 @@ function WordToIntScreen({ navigation, route }) {
     // Await cloud pull before showing saved list (avoids empty-then-fill flash).
     setListLoading(true);
     try {
-      const [words, savedSpans, savedSort] = await Promise.all([
+      const [words, savedSpans, savedSort, searches] = await Promise.all([
         getWordNumbers(),
         getSpans(),
         getListSort(),
+        getNumberSearchList(),
       ]);
       setList(Array.isArray(words) ? words : []);
       setSpans(Array.isArray(savedSpans) ? savedSpans : []);
       setSortMode(savedSort);
+      setSearchList(Array.isArray(searches) ? searches : []);
     } finally {
       setListLoading(false);
     }
@@ -332,6 +339,7 @@ function WordToIntScreen({ navigation, route }) {
       setNotes('');
       setEditingId(null);
       setDupNotice(false);
+      await dropSearchHitsForEntry(saved).catch(() => {});
       await loadList();
       Alert.alert(
         saved.cloudSaved ? (wasEdit ? 'Updated' : 'Saved on phone and Firebase') : 'Saved on this phone only',
@@ -399,6 +407,7 @@ function WordToIntScreen({ navigation, route }) {
       setNotes('');
       setEditingId(null);
       setDupNotice(false);
+      await dropSearchHitsForEntry(saved).catch(() => {});
       await loadList();
       Alert.alert(
         saved.cloudSaved ? 'Saved on phone, timeline and Firebase' : 'Saved on this phone only',
@@ -540,6 +549,55 @@ function WordToIntScreen({ navigation, route }) {
     navigation.navigate('DateSpan', { span, t: Date.now() });
   };
 
+  const methodLabel = (id) => {
+    const row = lookupMethods.find((m) => m.id === id);
+    return row ? row.short : id || 'All';
+  };
+
+  const askAddSearch = () => {
+    const raw = String(lookupNumber).trim();
+    const n = Number(raw);
+    if (!raw || Number.isNaN(n)) {
+      Alert.alert('Number', 'Type a number first.');
+      return;
+    }
+    const already = searchList.some((row) => Number(row.number) === n && (row.method || 'all') === lookupMethod);
+    if (already) {
+      Alert.alert('Search list', `${raw} is already on your search list for ${methodLabel(lookupMethod)}.`);
+      return;
+    }
+    Alert.alert(
+      'No saved word',
+      `No saved word matches ${raw}${lookupMethod === 'all' ? '' : ` using ${methodLabel(lookupMethod)}`}. Add it to your search list?`,
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Add to search list',
+          onPress: async () => {
+            try {
+              const result = await addNumberSearch(raw, lookupMethod);
+              const next = await getNumberSearchList();
+              setSearchList(next);
+              Alert.alert(
+                result.already ? 'Already listed' : 'Added',
+                result.already
+                  ? `${raw} was already on your search list.`
+                  : `${raw} is on your search list until a matching word is saved.`
+              );
+            } catch (e) {
+              Alert.alert('Could not add', e?.message || 'Try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const removeSearch = async (row) => {
+    const next = await removeNumberSearch(row.id);
+    setSearchList(next);
+  };
+
   const matches =
     typeof findPhrasesForNumber === 'function' ? findPhrasesForNumber(list, lookupNumber, lookupMethod) : [];
   const spanMatches = typeof findSpansForNumber === 'function' ? findSpansForNumber(spans, lookupNumber) : [];
@@ -569,6 +627,10 @@ function WordToIntScreen({ navigation, route }) {
         placeholder="e.g. 64 or -123"
         placeholderTextColor="#64748b"
         keyboardType="numeric"
+        returnKeyType="search"
+        onSubmitEditing={() => {
+          if (matches.length === 0) askAddSearch();
+        }}
       />
       <Text style={styles.label}>Match using</Text>
       <View style={styles.methodRow}>
@@ -586,34 +648,37 @@ function WordToIntScreen({ navigation, route }) {
       </View>
       {!!String(lookupNumber).trim() && (
         <View style={styles.lookupCard}>
-          {matches.length === 0 && spanMatches.length === 0 ? (
-            <Text style={styles.empty}>
-              No saved word
-              {lookupMethod === 'all' ? '' : ` with ${lookupMethod} ${String(lookupNumber).trim()}`}.
-              {lookupMethod !== 'all' ? ' Try All, or save the word first.' : ' Convert the word and tap Save to number list first.'}
-            </Text>
-          ) : (
+          {matches.length === 0 ? (
             <>
-              {matches.map((item) => (
-                <TouchableOpacity key={item.id} style={styles.lookupRow} onPress={() => reuseItem(item)}>
-                  <Text style={styles.itemPhrase}>{item.phrase}</Text>
-                  <Text style={styles.itemMeta}>
-                    {item.matchNumber} · {(item.matchOn || []).join(', ') || lookupMethod}
-                    {item.notes ? ` · ${item.notes}` : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              {spanMatches.map((item) => (
-                <TouchableOpacity key={`span-${item.id}`} style={styles.lookupRow} onPress={() => openSpan(item)}>
-                  <Text style={styles.itemPhrase}>{item.title || `${item.totalDays} days`}</Text>
-                  <Text style={styles.itemMeta}>
-                    Span · {item.fromDate} → {item.toDate} · {item.totalDays} days
-                    {item.note ? ` · ${item.note}` : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <Text style={styles.empty}>
+                No saved word
+                {lookupMethod === 'all' ? '' : ` with ${lookupMethod} ${String(lookupNumber).trim()}`}.
+                {lookupMethod !== 'all' ? ' Try All, or save the word first.' : ' Convert the word and tap Save to number list first.'}
+              </Text>
+              <TouchableOpacity style={styles.copyBtn} onPress={askAddSearch}>
+                <Text style={styles.copyText}>Add to search list</Text>
+              </TouchableOpacity>
             </>
+          ) : (
+            matches.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.lookupRow} onPress={() => reuseItem(item)}>
+                <Text style={styles.itemPhrase}>{item.phrase}</Text>
+                <Text style={styles.itemMeta}>
+                  {item.matchNumber} · {(item.matchOn || []).join(', ') || lookupMethod}
+                  {item.notes ? ` · ${item.notes}` : ''}
+                </Text>
+              </TouchableOpacity>
+            ))
           )}
+          {spanMatches.map((item) => (
+            <TouchableOpacity key={`span-${item.id}`} style={styles.lookupRow} onPress={() => openSpan(item)}>
+              <Text style={styles.itemPhrase}>{item.title || `${item.totalDays} days`}</Text>
+              <Text style={styles.itemMeta}>
+                Span · {item.fromDate} → {item.toDate} · {item.totalDays} days
+                {item.note ? ` · ${item.note}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
           {matches.length === 1 && spanMatches.length === 0 && (
             <TouchableOpacity style={styles.copyBtn} onPress={() => copyText(matches[0].phrase)}>
               <Text style={styles.copyText}>Copy word</Text>
@@ -621,6 +686,26 @@ function WordToIntScreen({ navigation, route }) {
           )}
         </View>
       )}
+
+      {searchList.length > 0 ? (
+        <View style={styles.lookupCard}>
+          <Text style={styles.sectionTitle}>Search list</Text>
+          <Text style={styles.meta}>Numbers you looked up that had no saved word yet.</Text>
+          {searchList.map((row) => (
+            <View key={row.id} style={styles.searchRow}>
+              <TouchableOpacity onPress={() => { setLookupNumber(String(row.number)); setLookupMethod(row.method || 'all'); }}>
+                <Text style={styles.itemPhrase}>{row.number}</Text>
+                <Text style={styles.itemMeta}>
+                  {methodLabel(row.method)} · {formatAddedAt(row.addedAt)}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => removeSearch(row)}>
+                <Text style={styles.removeText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <Text style={styles.sectionTitle}>Word to number</Text>
       <Text style={styles.label}>Word or phrase</Text>
@@ -1111,6 +1196,20 @@ const styles = StyleSheet.create({
   },
   empty: {
     color: '#94a3b8',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2e2f55',
+    gap: 12,
+  },
+  removeText: {
+    color: '#fca5a5',
+    fontWeight: '700',
+    fontSize: 13,
   },
   item: {
     backgroundColor: '#1a1b36',

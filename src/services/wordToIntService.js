@@ -688,6 +688,70 @@ export function findPhrasesForNumber(list, rawNumber, methodFilter = 'all') {
   return rows;
 }
 
+function searchStorageKey(uid) {
+  return uid ? `@word_to_int_search_${uid}` : '@word_to_int_search_guest';
+}
+
+async function readNumberSearchList() {
+  const uid = currentUid();
+  try {
+    const raw = await AsyncStorage.getItem(searchStorageKey(uid));
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeNumberSearchList(list) {
+  const uid = currentUid();
+  await AsyncStorage.setItem(searchStorageKey(uid), JSON.stringify(list));
+  return list;
+}
+
+export async function getNumberSearchList() {
+  const list = await readNumberSearchList();
+  return list
+    .filter((row) => row && row.number != null && !Number.isNaN(Number(row.number)))
+    .sort((a, b) => String(b.addedAt || '').localeCompare(String(a.addedAt || '')));
+}
+
+export async function addNumberSearch(rawNumber, method) {
+  const number = Number(String(rawNumber).trim());
+  if (!String(rawNumber).trim() || Number.isNaN(number)) {
+    const err = new Error('Type a number first.');
+    err.code = 'BAD_NUMBER';
+    throw err;
+  }
+  const methodId = method || 'all';
+  const list = await readNumberSearchList();
+  const existing = list.find((row) => Number(row.number) === number && (row.method || 'all') === methodId);
+  if (existing) return { item: existing, already: true };
+  const item = {
+    id: `search-${Date.now()}`,
+    number,
+    method: methodId,
+    addedAt: new Date().toISOString(),
+  };
+  await writeNumberSearchList([item, ...list]);
+  return { item, already: false };
+}
+
+export async function removeNumberSearch(id) {
+  const list = await readNumberSearchList();
+  const next = list.filter((row) => String(row.id) !== String(id));
+  await writeNumberSearchList(next);
+  return next;
+}
+
+/** Drop search-list numbers that a newly saved word now answers. */
+export async function dropSearchHitsForEntry(entry) {
+  const list = await readNumberSearchList();
+  const next = list.filter((row) => findPhrasesForNumber([entry], row.number, row.method || 'all').length === 0);
+  if (next.length !== list.length) await writeNumberSearchList(next);
+  return next;
+}
+
 export const METHODS = [
   { id: 'ordinal', label: 'Ordinal (A=1 … Z=26)', short: 'Ordinal' },
   { id: 'pythagorean', label: 'Pythagorean (1–9 cycle)', short: 'Pythagorean' },
