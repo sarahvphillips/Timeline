@@ -1111,6 +1111,7 @@ export function getYearBubblePreviewBlurbs(events, year, filter, limit = 6) {
     const d = new Date(e.date);
     return {
       id: e.id,
+      event: e,
       title: e.title || 'Untitled',
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],
@@ -1209,6 +1210,7 @@ export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit =
     const d = new Date(e.date);
     return {
       id: e.id,
+      event: e,
       title: e.title || 'Untitled',
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],

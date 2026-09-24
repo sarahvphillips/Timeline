@@ -294,13 +294,26 @@ export default function MonthOverviewScreen({ navigation, route }) {
                 <Text style={styles.blurbEmpty}>No events in this bubble yet.</Text>
               ) : (
                 (preview?.blurbs || []).map((b) => (
-                  <View key={b.id || `${b.title}-${b.dateLabel}`} style={styles.blurbRow}>
-                    <Text style={styles.blurbTitle} numberOfLines={1}>
-                      {b.title}
-                    </Text>
+                  <TouchableOpacity
+                    key={b.id || `${b.title}-${b.dateLabel}`}
+                    style={styles.blurbRow}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      const ev = b.event || events.find((e) => e.id === b.id);
+                      if (!ev) return;
+                      setPreview(null);
+                      navigation.navigate('EventView', { event: ev });
+                    }}
+                  >
+                    <View style={styles.blurbTop}>
+                      <Text style={styles.blurbTitle} numberOfLines={1}>
+                        {b.title}
+                      </Text>
+                      <Text style={styles.blurbOpen}>Open</Text>
+                    </View>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
                     <EventLabelChips labels={b.labels} />
-                  </View>
+                  </TouchableOpacity>
                 ))
               )}
             </View>
@@ -507,11 +520,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2b4a',
   },
+  blurbTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   blurbTitle: {
     color: '#e2e8f0',
     fontSize: 15,
     fontWeight: '600',
+    flex: 1,
   },
+  blurbOpen: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
   blurbDate: {
     color: '#94a3b8',
     fontSize: 12,

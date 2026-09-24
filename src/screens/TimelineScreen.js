@@ -39,6 +39,7 @@ import {
   eventMatchesTimelineFilter,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
+import { openEventEditor } from './EventViewScreen';
 import {
   getEventFriendSourceLabel,
   isSharedEventInvitee,
@@ -373,25 +374,10 @@ export default function TimelineScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity
-              onPress={() => {
-                if (item.source === 'food') navigation.navigate('AddFood', { event: item });
-                else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
-                else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
-                else if (item.source === 'spotify') navigation.navigate('Spotify', { event: item });
-                else if (item.source === 'game') navigation.navigate('Games', { event: item });
-                else if (item.source === 'watched' || item.watchKind) navigation.navigate('AddWatched', { event: item });
-                else if (item.source === 'social') navigation.navigate('Social', { event: item });
-                else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
-                else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
-                else if (item.source === 'location') navigation.navigate('AddLocation', { event: item });
-                else if (item.source === 'life') navigation.navigate('AddLifeEvent', { event: item });
-                else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
-                else if (item.hobbyType === 'singing' || item.hobbyType === 'music') navigation.navigate('AddSinging', { event: item });
-                else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
-                else navigation.navigate('AddEvent', { event: item });
-              }}
-            >
+            <TouchableOpacity onPress={() => navigation.navigate('EventView', { event: item })}>
+              <Text style={styles.editLink}>View</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => openEventEditor(navigation, item)}>
               <Text style={styles.editLink}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleDelete(item)}>

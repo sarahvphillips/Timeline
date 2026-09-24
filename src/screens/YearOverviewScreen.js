@@ -27,27 +27,6 @@ import HomeFab from '../components/HomeFab';
 import SpineKindBlock from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
 
-function openTimelineEvent(navigation, item) {
-  if (!item) return;
-  if (item.source === 'food') navigation.navigate('AddFood', { event: item });
-  else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
-  else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
-  else if (item.source === 'spotify') navigation.navigate('Spotify', { event: item });
-  else if (item.source === 'game') navigation.navigate('Games', { event: item });
-  else if (item.source === 'watched' || item.watchKind) navigation.navigate('AddWatched', { event: item });
-  else if (item.source === 'social') navigation.navigate('Social', { event: item });
-  else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
-  else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
-  else if (item.source === 'location') navigation.navigate('AddLocation', { event: item });
-  else if (item.source === 'life') navigation.navigate('AddLifeEvent', { event: item });
-  else if (item.hobbyType === 'poetry' || item.source === 'poem') {
-    navigation.navigate('AddPoem', { event: item });
-  } else if (item.hobbyType === 'singing' || item.hobbyType === 'music') {
-    navigation.navigate('AddSinging', { event: item });
-  } else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
-  else navigation.navigate('AddEvent', { event: item });
-}
-
 export default function YearOverviewScreen({ navigation, route }) {
   const [years, setYears] = useState([]);
   const [events, setEvents] = useState([]);
@@ -126,6 +105,7 @@ export default function YearOverviewScreen({ navigation, route }) {
               : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}`,
             labels: e.labels || [],
             imageUri: e.imageUri || '',
+            event: e,
           },
         ],
       });
@@ -162,12 +142,19 @@ export default function YearOverviewScreen({ navigation, route }) {
     load();
   };
 
+  const openBlurb = (blurb) => {
+    const ev = blurb?.event || events.find((e) => e.id === blurb?.id);
+    if (!ev) return;
+    setPreview(null);
+    navigation.navigate('EventView', { event: ev });
+  };
+
   const zoomInFromPreview = () => {
     if (!preview) return;
     const { year, bubble, item } = preview;
     setPreview(null);
     if (item) {
-      openTimelineEvent(navigation, item);
+      navigation.navigate('EventView', { event: item });
       return;
     }
     navigation.navigate('MonthOverview', {
@@ -263,10 +250,18 @@ export default function YearOverviewScreen({ navigation, route }) {
                 <Text style={styles.blurbEmpty}>No events in this bubble yet.</Text>
               ) : (
                 (preview?.blurbs || []).map((b) => (
-                  <View key={b.id || `${b.title}-${b.dateLabel}`} style={styles.blurbRow}>
-                    <Text style={styles.blurbTitle} numberOfLines={1}>
-                      {b.title}
-                    </Text>
+                  <TouchableOpacity
+                    key={b.id || `${b.title}-${b.dateLabel}`}
+                    style={styles.blurbRow}
+                    onPress={() => openBlurb(b)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.blurbTop}>
+                      <Text style={styles.blurbTitle} numberOfLines={1}>
+                        {b.title}
+                      </Text>
+                      <Text style={styles.blurbOpen}>Open</Text>
+                    </View>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
                     {b.imageUri ? (
                       <Image source={{ uri: b.imageUri }} style={styles.blurbImage} />
@@ -275,7 +270,7 @@ export default function YearOverviewScreen({ navigation, route }) {
                     <TouchableOpacity onPress={() => addPhotoToPreview(b)}>
                       <Text style={styles.addPhoto}>{b.imageUri ? 'Change photo' : 'Add photo'}</Text>
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 ))
               )}
             </View>
@@ -412,11 +407,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2b4a',
   },
+  blurbTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   blurbTitle: {
     color: '#e2e8f0',
     fontSize: 15,
     fontWeight: '600',
+    flex: 1,
   },
+  blurbOpen: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
   blurbDate: {
     color: '#94a3b8',
     fontSize: 12,

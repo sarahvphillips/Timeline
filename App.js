@@ -35,6 +35,7 @@ import UtilitiesScreen from './src/screens/UtilitiesScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
 import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
 import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
+import EventViewScreen from './src/screens/EventViewScreen';
 import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import WordGraphScreen from './src/screens/WordGraphScreen';
@@ -245,6 +246,12 @@ function AppShell() {
                 name="Timeline"
                 component={TimelineScreen}
                 options={{ title: 'Items' }}
+              />
+
+              <Stack.Screen
+                name="EventView"
+                component={EventViewScreen}
+                options={{ title: 'Event', headerBackTitle: 'Back' }}
               />
 
               <Stack.Screen

@@ -33,6 +33,7 @@ Leave SMS reading, call-log access, and live Open Banking out of this version.
 - [x] Email-as-event (manual): source type, category, next action, From field
 - [x] Next action: âAsk Grok to draft a replyâ
 - [x] Ask Grok on any event (24 Sep 2026). Expand a timeline item and tap Ask Grok. The prompt follows the type. On a poem there is also Image card: title, poem unchanged, written date at the bottom.
+- [x] Event reading screen (24 Sep 2026). Tap Open on a year, month, or week bubble, or View on an item. It shows the event without the edit form. Edit is a button on that screen. Zoom in still moves along the timeline.
 - [x] App running in browser on HP laptop
 - [x] User login with email and password
 - [x] User register as new account (basic)  

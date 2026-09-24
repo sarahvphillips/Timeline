@@ -192,23 +192,11 @@ export default function WeekOverviewScreen({ navigation, route }) {
     });
   };
 
-  const openEvent = (item) => {
-    if (!item) return;
-    if (item.source === 'food') navigation.navigate('AddFood', { event: item });
-    else if (item.source === 'laundry') navigation.navigate('AddWashLoad', { event: item });
-    else if (item.source === 'youtube') navigation.navigate('YouTube', { event: item });
-    else if (item.source === 'spotify') navigation.navigate('Spotify', { event: item });
-    else if (item.source === 'game') navigation.navigate('Games', { event: item });
-    else if (item.source === 'watched' || item.watchKind) navigation.navigate('AddWatched', { event: item });
-    else if (item.source === 'social') navigation.navigate('Social', { event: item });
-    else if (item.source === 'sms') navigation.navigate('AddSms', { event: item });
-    else if (item.source === 'call') navigation.navigate('AddCall', { event: item });
-    else if (item.source === 'location') navigation.navigate('AddLocation', { event: item });
-    else if (item.source === 'life') navigation.navigate('AddLifeEvent', { event: item });
-    else if (item.hobbyType === 'poetry') navigation.navigate('AddPoem', { event: item });
-    else if (item.hobbyType === 'singing' || item.hobbyType === 'music') navigation.navigate('AddSinging', { event: item });
-    else if (item.source === 'qr') navigation.navigate('AddQr', { event: item });
-    else navigation.navigate('AddEvent', { event: item });
+  const openBlurb = (blurb) => {
+    const ev = blurb?.event || events.find((e) => e.id === blurb?.id);
+    if (!ev) return;
+    setPreview(null);
+    navigation.navigate('EventView', { event: ev });
   };
 
   const openDay = (day) => {
@@ -349,14 +337,14 @@ export default function WeekOverviewScreen({ navigation, route }) {
                   <TouchableOpacity
                     key={b.id || `${b.title}-${b.dateLabel}`}
                     style={styles.blurbRow}
-                    onPress={() => {
-                      setPreview(null);
-                      openEvent(b.event);
-                    }}
+                    onPress={() => openBlurb(b)}
                   >
-                    <Text style={styles.blurbTitle} numberOfLines={1}>
-                      {b.title}
-                    </Text>
+                    <View style={styles.blurbTop}>
+                      <Text style={styles.blurbTitle} numberOfLines={1}>
+                        {b.title}
+                      </Text>
+                      <Text style={styles.blurbOpen}>Open</Text>
+                    </View>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
                     <EventLabelChips labels={b.labels} />
                   </TouchableOpacity>
@@ -485,7 +473,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2b4a',
   },
-  blurbTitle: { color: '#e2e8f0', fontSize: 15, fontWeight: '600' },
+  blurbTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  blurbTitle: { color: '#e2e8f0', fontSize: 15, fontWeight: '600', flex: 1 },
+  blurbOpen: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
   blurbDate: { color: '#94a3b8', fontSize: 12, marginTop: 4 },
   blurbEmpty: { color: '#94a3b8', fontSize: 14, paddingVertical: 8 },
   zoomBtn: {
