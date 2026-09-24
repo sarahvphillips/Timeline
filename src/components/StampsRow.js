@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { STAMPS } from '../services/rewardsService';
+import { STAMPS, CREDITS_PAUSED } from '../services/rewardsService';
 
 export default function StampsRow({ stamps, credits = 0, colors, onShop, onStamp }) {
   const row = stamps?.length
@@ -11,12 +11,16 @@ export default function StampsRow({ stamps, credits = 0, colors, onShop, onStamp
     <View style={[styles.card, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
       <View style={styles.head}>
         <Text style={[styles.title, { color: colors.muted }]}>Stamps</Text>
-        <TouchableOpacity onPress={onShop} accessibilityLabel="Open credits shop">
-          <Text style={[styles.credits, { color: colors.blueSoft }]}>Credits {credits} · Shop</Text>
-        </TouchableOpacity>
+        {CREDITS_PAUSED ? null : (
+          <TouchableOpacity onPress={onShop} accessibilityLabel="Open credits shop">
+            <Text style={[styles.credits, { color: colors.blueSoft }]}>Credits {credits} · Shop</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <Text style={[styles.hint, { color: colors.faint }]}>
-        Private. Fill a tile by doing the thing. First row of four gives +2 credits, once.
+        {CREDITS_PAUSED
+          ? 'Private. Fill a tile by doing the thing.'
+          : 'Private. Fill a tile by doing the thing. First row of four gives +2 credits, once.'}
       </Text>
       <View style={styles.grid}>
         {row.map((s) => (

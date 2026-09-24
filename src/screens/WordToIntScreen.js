@@ -48,6 +48,7 @@ import {
   hasPerk,
   SHARE_WORDS_COST,
   SHARE_WORDS_PERK,
+  CREDITS_PAUSED,
 } from '../services/rewardsService';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
 import WordGraphScreen from './WordGraphScreen';
@@ -456,7 +457,7 @@ function WordToIntScreen({ navigation, route }) {
     }
   };
 
-  const wordsUnlocked = hasPerk(rewards, SHARE_WORDS_PERK);
+  const wordsUnlocked = CREDITS_PAUSED || hasPerk(rewards, SHARE_WORDS_PERK);
   const selectedItems = sortedList.filter((item) => selected[item.id]);
 
   const toggleWord = (id) => {

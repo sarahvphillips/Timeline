@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getWordNumbers, preferredNumber } from '../services/wordToIntService';
-import { claimFirstGraphSave, GRAPH_SHARE_DATA_COST, spendCredits } from '../services/rewardsService';
+import { claimFirstGraphSave, GRAPH_SHARE_DATA_COST, spendCredits, CREDITS_PAUSED } from '../services/rewardsService';
 import { createGraphShare, copyTextToClipboard, takeSharedGraph } from '../services/shareService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
@@ -1719,11 +1719,11 @@ function WordGraphScreen({ onClose, navigation }) {
     const count = graphRef.current?.nodes?.length || 0;
     Alert.alert(
       'Share graph data',
-      `This sends the words, notes, numbers and node positions, not just a picture. It costs ${GRAPH_SHARE_DATA_COST} credits. This graph has ${count} nodes.`,
+      `This sends the words, notes, numbers and node positions, not just a picture.${CREDITS_PAUSED ? '' : ` It costs ${GRAPH_SHARE_DATA_COST} credits.`} This graph has ${count} nodes.`,
       [
         { text: 'Not now', style: 'cancel' },
         {
-          text: `Share (${GRAPH_SHARE_DATA_COST} credits)`,
+          text: CREDITS_PAUSED ? 'Share' : `Share (${GRAPH_SHARE_DATA_COST} credits)`,
           onPress: async () => {
             if (sharingGraph) return;
             if (typeof createGraphShare !== 'function') {
@@ -2065,7 +2065,7 @@ function WordGraphScreen({ onClose, navigation }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.chip} onPress={shareGraphData} disabled={sharingGraph}>
           <Text style={styles.chipText}>
-            {sharingGraph ? 'Sharing…' : `Share data · ${GRAPH_SHARE_DATA_COST} credits`}
+            {sharingGraph ? 'Sharing…' : CREDITS_PAUSED ? 'Share data' : `Share data · ${GRAPH_SHARE_DATA_COST} credits`}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity

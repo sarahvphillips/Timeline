@@ -21,6 +21,7 @@ import {
   getRewards,
   spendShopItem,
   hasPerk,
+  CREDITS_PAUSED,
 } from '../services/rewardsService';
 
 const PERK = 'openBanking';
@@ -53,7 +54,7 @@ export default function OpenBankingScreen({ navigation }) {
     }, [load])
   );
 
-  const unlocked = hasPerk(rewards, PERK);
+  const unlocked = CREDITS_PAUSED || hasPerk(rewards, PERK);
   const credits = rewards?.credits || 0;
   const sandbox = conn?.status === 'sandbox';
 
@@ -208,9 +209,11 @@ export default function OpenBankingScreen({ navigation }) {
         ) : null}
 
         {status ? <Text style={styles.status}>{status}</Text> : null}
+        {CREDITS_PAUSED ? null : (
         <TouchableOpacity onPress={() => navigation.navigate('CreditsShop')}>
           <Text style={styles.link}>Credits shop</Text>
         </TouchableOpacity>
+        )}
       </ScrollView>
       <HomeFab navigation={navigation} besidePlus={false} />
     </View>

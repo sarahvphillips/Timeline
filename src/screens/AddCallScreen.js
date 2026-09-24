@@ -23,6 +23,7 @@ import {
   hasPerk,
   CALL_RECORDING_COST,
   CALL_RECORDING_PERK,
+  CREDITS_PAUSED,
 } from '../services/rewardsService';
 import { auth } from '../services/firebase';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
@@ -403,7 +404,7 @@ export default function AddCallScreen({ navigation, route }) {
             audioUri={audioUri}
             audioName={audioName}
             audioKind={audioKind}
-            unlocked={hasPerk(rewards, CALL_RECORDING_PERK)}
+            unlocked={CREDITS_PAUSED || hasPerk(rewards, CALL_RECORDING_PERK)}
             credits={rewards?.credits || 0}
             cost={CALL_RECORDING_COST}
             unlocking={unlocking}

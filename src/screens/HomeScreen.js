@@ -21,6 +21,7 @@ import {
   applyJoinRewards,
   getRewards,
   STAMPS,
+  CREDITS_PAUSED,
 } from '../services/rewardsService';
 import StampsRow from '../components/StampsRow';
 
@@ -103,7 +104,9 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           if (cancelled) return;
           setCredits(rewards.credits || 0);
           if (stampResult.newlyClaimed?.length) {
-            Alert.alert('Stamps', `${stampResult.newlyClaimed[0].label}. Open Credits shop to spend them.`);
+            Alert.alert('Stamps', CREDITS_PAUSED
+              ? stampResult.newlyClaimed[0].label
+              : `${stampResult.newlyClaimed[0].label}. Open Credits shop to spend them.`);
           }
         } catch {
           try {
@@ -316,9 +319,11 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Events with friends</Text>
       </TouchableOpacity>
 
+      {CREDITS_PAUSED ? null : (
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditsShop')}>
         <Text style={styles.buttonText}>Credits shop</Text>
       </TouchableOpacity>
+      )}
 
       <TouchableOpacity
         style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}

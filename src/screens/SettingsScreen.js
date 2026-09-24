@@ -41,7 +41,7 @@ import {
   otherRecentSessions,
 } from '../services/deviceSession';
 import { syncAcceptedJoins } from '../services/peopleService';
-import { applyJoinRewards, perkLabel, getRewards, hasPerk } from '../services/rewardsService';
+import { applyJoinRewards, perkLabel, getRewards, hasPerk, CREDITS_PAUSED } from '../services/rewardsService';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -120,7 +120,7 @@ export default function SettingsScreen({ navigation }) {
     setLabels(labs);
     setPoemCats(cats);
     setEventCats(evCats);
-    setCanCustomCats(hasPerk(rewards, 'customCategories'));
+    setCanCustomCats(CREDITS_PAUSED || hasPerk(rewards, 'customCategories'));
     setShowFoodInMenu(!!foodOn);
     setShowWashInMenu(washOn !== false);
     try {
@@ -552,8 +552,9 @@ export default function SettingsScreen({ navigation }) {
 
         <Text style={[styles.section, { color: colors.muted }]}>Event categories</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Built-in stay. Add your own after unlocking Custom event categories in the Credits shop.
-          Custom chips: tap × to remove. Events already saved keep their old category id.
+          {CREDITS_PAUSED
+            ? 'Built-in stay. Add your own below. Custom chips: tap × to remove. Events already saved keep their old category id.'
+            : 'Built-in stay. Add your own after unlocking Custom event categories in the Credits shop. Custom chips: tap × to remove. Events already saved keep their old category id.'}
         </Text>
         <View style={styles.row}>
           {eventCats.map((cat) => (

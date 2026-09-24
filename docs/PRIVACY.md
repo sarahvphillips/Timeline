@@ -34,7 +34,7 @@ Nothing is public by default. You share specific events with Timeline friends yo
 
 ## Credits
 
-Balances in Firestore. Packs will sell only in the Google Play Android app.
+Balances in Firestore. Purchases are off while the app is in testing. Packs will sell only in the Google Play Android app.
 
 ## UK GDPR
 

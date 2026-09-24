@@ -35,7 +35,7 @@ export const PRIVACY_SECTIONS = [
   },
   {
     heading: 'Credits and purchases',
-    body: 'Credit balances live in Firestore on your account. Packs will be sold only in the Google Play Android app (SKUs 1_credits, 10_credits, 25_credits, 100_credits). The browser does not take card payments. Google processes those purchases. Timeline then records that the pack was granted.',
+    body: 'Credit balances live in Firestore on your account. Purchases are turned off while Timeline is in testing, so testers are not asked to pay. When packs return, they will be sold only in the Google Play Android app (SKUs 1_credits, 10_credits, 25_credits, 100_credits). The browser does not take card payments.',
   },
   {
     heading: 'Legal basis (UK GDPR)',

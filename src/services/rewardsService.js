@@ -4,6 +4,9 @@ import { auth, db } from './firebase';
 
 const KEY_PREFIX = '@timeline_rewards_v1_';
 
+/** Testers are not asked to pay. Turn this back on when Play products exist. */
+export const CREDITS_PAUSED = true;
+
 /** First reward at 3 friends who actually joined (accepted a join code). */
 export const JOIN_MILESTONES = [
   {
@@ -572,6 +575,7 @@ export async function claimFirstGraphSave(nodeCount) {
 export async function spendCredits(amount) {
   const n = Number(amount) || 0;
   const current = await getRewards();
+  if (CREDITS_PAUSED) return current;
   if (n > 0 && current.credits < n) {
     const err = new Error(`Need ${n} credits (you have ${current.credits}).`);
     err.code = 'NEED_CREDITS';
@@ -591,6 +595,12 @@ export async function spendShopItem(itemId) {
     const err = new Error('Already unlocked');
     err.code = 'OWNED';
     throw err;
+  }
+  if (CREDITS_PAUSED) {
+    return writeRewards({
+      ...current,
+      unlockedPerks: [...current.unlockedPerks, item.perk],
+    });
   }
   if (current.credits < item.cost) {
     const err = new Error(`Need ${item.cost} credits (you have ${current.credits}).`);

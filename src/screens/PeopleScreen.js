@@ -25,7 +25,7 @@ import {
 } from '../services/peopleService';
 import { daysUntilNext, formatUk } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
-import { applyJoinRewards } from '../services/rewardsService';
+import { applyJoinRewards, CREDITS_PAUSED } from '../services/rewardsService';
 import { copyTextToClipboard } from '../services/shareService';
 
 function todayIso() {
@@ -304,11 +304,12 @@ export default function PeopleScreen({ navigation }) {
             <Text style={styles.rewardTitle}>
               {stats.invited} invited · {stats.joined} joined
             </Text>
-            <Text style={styles.rewardMeta}>Credits {credits}</Text>
+            {CREDITS_PAUSED ? null : <Text style={styles.rewardMeta}>Credits {credits}</Text>}
             {stats.nextMilestone ? (
               <Text style={styles.rewardHint}>
-                {stats.remaining} more joined friend{stats.remaining === 1 ? '' : 's'} unlocks{' '}
-                {stats.nextMilestone.label} (at {stats.nextMilestone.joined}).
+                {CREDITS_PAUSED
+                  ? `${stats.remaining} more joined friend${stats.remaining === 1 ? '' : 's'} to reach ${stats.nextMilestone.joined}.`
+                  : `${stats.remaining} more joined friend${stats.remaining === 1 ? '' : 's'} unlocks ${stats.nextMilestone.label} (at ${stats.nextMilestone.joined}).`}
               </Text>
             ) : (
               <Text style={styles.rewardHint}>All current referral rewards claimed. Thank you.</Text>
