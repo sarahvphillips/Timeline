@@ -185,20 +185,27 @@ export default function YearOverviewScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {filters.map((f) => {
-          const on = filterId === f.id;
-          return (
-            <TouchableOpacity
-              key={f.id}
-              style={[styles.filterChip, on && styles.filterChipOn]}
-              onPress={() => setFilterId(f.id)}
-            >
-              <Text style={[styles.filterText, on && styles.filterTextOn]}>{f.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      <View style={styles.filterBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filters}
+        >
+          {filters.map((f) => {
+            const on = filterId === f.id;
+            return (
+              <TouchableOpacity
+                key={f.id}
+                style={[styles.filterChip, on && styles.filterChipOn]}
+                onPress={() => setFilterId(f.id)}
+              >
+                <Text style={[styles.filterText, on && styles.filterTextOn]}>{f.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
       {itemView ? (
         <Text style={styles.filterHint}>
           {activeFilter.label} on the timeline — each bubble is one item, grouped by year.
@@ -296,10 +303,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f1024',
   },
+  filterBar: {
+    paddingTop: 8,
+    paddingBottom: 8,
+    backgroundColor: '#0f1024',
+  },
+  filterScroll: {
+    flexGrow: 0,
+  },
   filters: {
     paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 6,
+    paddingVertical: 6,
     gap: 8,
     alignItems: 'center',
   },

@@ -8,10 +8,11 @@ const OFFSETS = [36, 84, 52, 108, 64, 44, 96];
 const MAX_REACH = LABEL_COL / 2 + 18 + Math.max(...OFFSETS) + BUBBLE_SIZE + 20;
 export const SPINE_CANVAS_WIDTH = Math.ceil(MAX_REACH * 2);
 
-/** Wider than the phone so edge bubbles are on the canvas. Opens centred. Drag sideways to see them. */
+/** Opens centred. Sideways drag stays available if a row is still wider than the phone. */
 export function SpineStage({ children }) {
   const { width: screenW } = useWindowDimensions();
-  const canvas = Math.max(SPINE_CANVAS_WIDTH, screenW);
+  const canvas = screenW;
+
   const scroller = useRef(null);
   const centered = useRef(false);
   const viewW = useRef(0);
@@ -156,22 +157,29 @@ export default function SpineKindBlock({
   onOpenBubble,
   boxedLabel = false,
 }) {
+  const { width: screenW } = useWindowDimensions();
   const list = bubbles || [];
   const primaryLeft = blockIndex % 2 === 0;
   const n = list.length;
+  const crowded = n >= 5;
+  const vertGap = crowded ? BUBBLE_SIZE + 12 : VERT_GAP;
   const twoLine = boxedLabel && !!sublabel;
-  const stackHeight = n === 0 ? (twoLine ? 112 : 96) : Math.max(twoLine ? 112 : 96, (n - 1) * VERT_GAP + BUBBLE_SIZE + 28);
+  const stackHeight = n === 0 ? (twoLine ? 112 : 96) : Math.max(twoLine ? 112 : 96, (n - 1) * vertGap + BUBBLE_SIZE + 28);
   const spineY = stackHeight / 2;
   const seed = id ?? blockIndex;
+  const maxDistance = Math.max(
+    LABEL_COL / 2 + 28 + BUBBLE_SIZE / 2,
+    screenW / 2 - BUBBLE_SIZE / 2 - 10
+  );
 
   const placements = list.map((b, i) => {
     let side = (i + (primaryLeft ? 0 : 1)) % 2 === 0 ? 'left' : 'right';
     if (n >= 5 && i === 2) side = primaryLeft ? 'right' : 'left';
-    const offset = staggerOffset(seed, i);
-    const distance = LABEL_COL / 2 + 18 + offset + BUBBLE_SIZE / 2;
+    const rawOffset = staggerOffset(seed, i) * (crowded ? 0.5 : 0.8);
+    const distance = Math.min(LABEL_COL / 2 + 18 + rawOffset + BUBBLE_SIZE / 2, maxDistance);
     const jitter = ((seedNumber(`${seed}:${i}`) % 5) - 2) * 4;
     const bubbleCenterY =
-      n === 1 ? spineY + jitter : spineY - ((n - 1) * VERT_GAP) / 2 + i * VERT_GAP + jitter;
+      n === 1 ? spineY + jitter : spineY - ((n - 1) * vertGap) / 2 + i * vertGap + jitter;
     return { bubble: b, side, distance, bubbleCenterY };
   });
 
