@@ -24,7 +24,7 @@ import {
 import { getEventCategories } from '../services/profileService';
 import { pickFromGallery } from '../services/imagePicker';
 import HomeFab from '../components/HomeFab';
-import SpineKindBlock from '../components/SpineKindBlock';
+import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
 
 export default function YearOverviewScreen({ navigation, route }) {
@@ -204,24 +204,26 @@ export default function YearOverviewScreen({ navigation, route }) {
           {activeFilter.label} on the timeline — each bubble is one item, grouped by year.
         </Text>
       ) : null}
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.spine} />
+      <ScrollView contentContainerStyle={styles.scroll} directionalLockEnabled nestedScrollEnabled>
         {years.length === 0 ? (
           <Text style={styles.empty}>Nothing in {activeFilter.label} yet.</Text>
         ) : (
-          years.map((item, index) => (
-          <SpineKindBlock
-            key={item.year}
-            id={item.year}
-            label={String(item.year)}
-            bubbles={item.bubbles}
-            blockIndex={index}
-            glowKey={itemView ? null : glowKey}
-            boxedLabel
-            onOpenLabel={() => openYear(item.year)}
-            onOpenBubble={(bubble) => openBubble(item.year, bubble)}
-          />
-          ))
+          <SpineStage>
+            <View style={styles.spine} />
+            {years.map((item, index) => (
+              <SpineKindBlock
+                key={item.year}
+                id={item.year}
+                label={String(item.year)}
+                bubbles={item.bubbles}
+                blockIndex={index}
+                glowKey={itemView ? null : glowKey}
+                boxedLabel
+                onOpenLabel={() => openYear(item.year)}
+                onOpenBubble={(bubble) => openBubble(item.year, bubble)}
+              />
+            ))}
+          </SpineStage>
         )}
       </ScrollView>
       <HomeFab navigation={navigation} besidePlus={false} />

@@ -1,10 +1,51 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 
 export const BUBBLE_SIZE = 78;
 const VERT_GAP = 62;
 const LABEL_COL = 86;
 const OFFSETS = [36, 84, 52, 108, 64, 44, 96];
+const MAX_REACH = LABEL_COL / 2 + 18 + Math.max(...OFFSETS) + BUBBLE_SIZE + 20;
+export const SPINE_CANVAS_WIDTH = Math.ceil(MAX_REACH * 2);
+
+/** Wider than the phone so edge bubbles are on the canvas. Opens centred. Drag sideways to see them. */
+export function SpineStage({ children }) {
+  const { width: screenW } = useWindowDimensions();
+  const canvas = Math.max(SPINE_CANVAS_WIDTH, screenW);
+  const scroller = useRef(null);
+  const centered = useRef(false);
+  const viewW = useRef(0);
+  const contentW = useRef(0);
+
+  const tryCenter = () => {
+    if (centered.current || !contentW.current || !viewW.current) return;
+    const x = Math.max(0, (contentW.current - viewW.current) / 2);
+    centered.current = true;
+    requestAnimationFrame(() => {
+      scroller.current?.scrollTo({ x, y: 0, animated: false });
+    });
+  };
+
+  return (
+    <ScrollView
+      ref={scroller}
+      horizontal
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator={false}
+      onLayout={(e) => {
+        viewW.current = e.nativeEvent.layout.width;
+        tryCenter();
+      }}
+      onContentSizeChange={(w) => {
+        contentW.current = w;
+        tryCenter();
+      }}
+      style={styles.stage}
+    >
+      <View style={[styles.stageCanvas, { width: canvas }]}>{children}</View>
+    </ScrollView>
+  );
+}
 
 function quadPoint(p0, p1, p2, t) {
   const u = 1 - t;
@@ -184,6 +225,8 @@ export default function SpineKindBlock({
 }
 
 const styles = StyleSheet.create({
+  stage: { alignSelf: 'stretch' },
+  stageCanvas: { position: 'relative' },
   block: {
     position: 'relative',
     width: '100%',

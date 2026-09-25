@@ -17,7 +17,7 @@ import {
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
-import SpineKindBlock from '../components/SpineKindBlock';
+import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import FilteredMonthSpine from '../components/FilteredMonthSpine';
 import EventLabelChips from '../components/EventLabelChips';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
@@ -180,7 +180,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scroll, filtered && styles.scrollFiltered]}>
+      <ScrollView contentContainerStyle={[styles.scroll, filtered && styles.scrollFiltered]} directionalLockEnabled nestedScrollEnabled>
         <Text style={[styles.yearHeading, filtered && styles.yearHeadingFiltered]}>
           {filtered ? `${startYear} Months` : String(startYear)}
         </Text>
@@ -212,7 +212,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
             onOpenMonth={openMonth}
           />
         ) : (
-          <>
+          <SpineStage>
             <View style={styles.spine} />
             {months.map((m, index) => (
               <SpineKindBlock
@@ -228,7 +228,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
                 onOpenBubble={(bubble) => openBubble(m, bubble)}
               />
             ))}
-          </>
+          </SpineStage>
         )}
       </ScrollView>
 

@@ -19,7 +19,7 @@ import {
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
-import SpineKindBlock from '../components/SpineKindBlock';
+import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
 
@@ -234,7 +234,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} directionalLockEnabled nestedScrollEnabled>
         <View style={styles.weekNav}>
           <TouchableOpacity onPress={() => goWeek(-1)} accessibilityLabel="Previous week">
             <Text style={styles.weekNavBtn}>‹</Text>
@@ -258,6 +258,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
           </View>
         ) : null}
 
+        <SpineStage>
         <View style={styles.spine} />
         {daysWithBubbles.map((day, index) => (
           <SpineKindBlock
@@ -274,6 +275,7 @@ export default function WeekOverviewScreen({ navigation, route }) {
             onOpenBubble={(bubble) => openBubble(day, bubble)}
           />
         ))}
+        </SpineStage>
       </ScrollView>
 
       <HomeFab navigation={navigation} />
