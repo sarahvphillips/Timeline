@@ -13,7 +13,7 @@ Paste these into Play Console. Images are in this folder.
 
 Store name: Timeline (30 characters max). The Android package stays `com.sarahphillips.timelineapp`.
 
-The phone images match the current layout and colours. If you later take screenshots on the phone of the same four screens, those can replace these before the public release.
+The phone images are real screens from 25 September 2026, sized 1080×1920. The email address is not in them.
 
 ## Short description
 
