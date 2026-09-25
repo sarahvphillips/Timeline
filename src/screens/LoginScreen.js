@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,10 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  loadRememberMe,
+  loadRememberedEmail,
+  prepareSignIn,
+  saveRememberedEmail,
 } from '../services/firebase';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 
@@ -26,6 +30,21 @@ export default function LoginScreen() {
   const [resetLoading, setResetLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const on = await loadRememberMe();
+      const savedEmail = on ? await loadRememberedEmail() : '';
+      if (!alive) return;
+      setRemember(on);
+      if (savedEmail) setEmail(savedEmail);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim()) {
@@ -46,6 +65,7 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
+      await prepareSignIn(remember);
       if (isRegisterMode) {
         await AsyncStorage.setItem(WELCOME_NEXT_KEY, '1');
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -57,6 +77,7 @@ export default function LoginScreen() {
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
+      await saveRememberedEmail(email.trim(), remember);
     } catch (error) {
       let message = 'Something went wrong. Please try again.';
 
@@ -192,6 +213,26 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.rememberRow}
+          onPress={() => setRemember((v) => !v)}
+          disabled={loading || resetLoading}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: remember }}
+        >
+          <View style={[styles.rememberBox, remember && styles.rememberBoxOn]}>
+            {remember ? <Text style={styles.rememberTick}>✓</Text> : null}
+          </View>
+          <View style={styles.rememberCopy}>
+            <Text style={styles.rememberText}>Remember me</Text>
+            <Text style={styles.rememberHint}>
+              {remember
+                ? 'Stay signed in on this device.'
+                : 'Ask for the password next time the app is opened.'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
         {!isRegisterMode && (
           <TouchableOpacity
             style={styles.forgotButton}
@@ -290,6 +331,45 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     fontSize: 18,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  rememberBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#64748b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  rememberBoxOn: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  rememberTick: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  rememberCopy: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  rememberText: {
+    color: '#f8fafc',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rememberHint: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginTop: 2,
   },
   forgotButton: {
     alignSelf: 'flex-end',

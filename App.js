@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 
-import { auth, onAuthStateChanged, signOut } from './src/services/firebase';
+import { auth, onAuthStateChanged, signOut, dropUnrememberedSession } from './src/services/firebase';
 import { getMonthName } from './src/services/eventService';
 import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY, beginAuthScope, EVENTS_FIRESTORE_SYNC_ENABLED } from './src/services/eventService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -78,8 +78,16 @@ function AppShell() {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    try {
-      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await dropUnrememberedSession();
+      } catch {
+        /* still start auth */
+      }
+      if (cancelled) return;
+      try {
+        unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
         setUser(firebaseUser);
         if (firebaseUser) {
           const uid = firebaseUser.uid;
@@ -144,11 +152,13 @@ function AppShell() {
             .catch(() => {});
         }
       });
-    } catch (e) {
-      setError(e?.message || 'Auth failed to start');
-      setInitializing(false);
-    }
+      } catch (e) {
+        setError(e?.message || 'Auth failed to start');
+        setInitializing(false);
+      }
+    })();
     return () => {
+      cancelled = true;
       try {
         unsubscribe();
       } catch (_) {}
