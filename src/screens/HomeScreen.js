@@ -43,7 +43,8 @@ function formatLastSeen(iso) {
 
 export default function HomeScreen({ navigation, user, onLogout }) {
   const { colors } = useTheme();
-  const initial = (user?.email || 'S').charAt(0).toUpperCase();
+  const guest = !!(user?.isGuest || user?.uid === 'guest-local');
+  const initial = (user?.email || (guest ? 'G' : 'S')).charAt(0).toUpperCase();
   const [photoUri, setPhotoUri] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [thisDeviceId, setThisDeviceId] = useState(null);
@@ -153,7 +154,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   }, [user?.uid]);
 
   useEffect(() => {
-    if (!user?.uid) return undefined;
+    if (!user?.uid || guest) return undefined;
     let cancelled = false;
 
     const load = async () => {
@@ -299,8 +300,19 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         </TouchableOpacity>
         <Text style={[styles.photoHint, { color: colors.muted }]}>{photoUri ? 'Tap to change photo' : 'Tap to add a profile photo'}</Text>
         <Text style={[styles.title, { color: colors.text }]}>Timeline</Text>
-        <Text style={[styles.email, { color: colors.faint }]}>{user?.email || 'Signed in'}</Text>
+        <Text style={[styles.email, { color: colors.faint }]}>
+          {guest ? 'Guest · this device only' : user?.email || 'Signed in'}
+        </Text>
       </View>
+
+      {guest ? (
+        <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+          <Text style={[styles.devicesTitle, { color: colors.muted }]}>Guest mode</Text>
+          <Text style={[styles.devicesNote, { color: colors.muted }]}>
+            Events stay on this phone or laptop. Create an account when you want a backup and friends features.
+          </Text>
+        </View>
+      ) : null}
 
       <StampsRow
         stamps={stamps}
@@ -310,6 +322,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         onStamp={(s) => s.screen && navigation.navigate(s.screen)}
       />
 
+      {!guest ? (
       <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
         <Text style={[styles.devicesTitle, { color: colors.muted }]}>Signed-in devices</Text>
         <View style={styles.deviceRow}>
@@ -346,6 +359,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           <Text style={styles.devicesNew}>A new sign-in was recorded on another device in the last 15 minutes.</Text>
         ) : null}
       </View>
+      ) : null}
 
       <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('YearOverview')}>
         <Text style={styles.buttonText}>Timeline</Text>
@@ -414,12 +428,18 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={[styles.ghostText, { color: colors.faint }]}>Settings</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleAddAccount}>
-        <Text style={[styles.ghostText, { color: colors.faint }]}>Add another account</Text>
-      </TouchableOpacity>
+      {guest ? (
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={onLogout}>
+          <Text style={styles.buttonText}>Create an account</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleAddAccount}>
+          <Text style={[styles.ghostText, { color: colors.faint }]}>Add another account</Text>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={onLogout}>
-        <Text style={[styles.ghostText, { color: colors.faint }]}>Log out</Text>
+        <Text style={[styles.ghostText, { color: colors.faint }]}>{guest ? 'Leave guest mode' : 'Log out'}</Text>
       </TouchableOpacity>
 
       {Platform.OS === 'web' ? (

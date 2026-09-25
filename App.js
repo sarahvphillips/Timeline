@@ -64,6 +64,13 @@ import AddLocationScreen from './src/screens/AddLocationScreen';
 import AddLifeEventScreen from './src/screens/AddLifeEventScreen';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
 import { ThemeProvider, useTheme } from './src/themeContext';
+import {
+  GUEST_UID,
+  GUEST_USER,
+  loadGuestSession,
+  startGuestSession,
+  endGuestSession,
+} from './src/services/guestSession';
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
@@ -86,8 +93,40 @@ function AppShell() {
         /* still start auth */
       }
       if (cancelled) return;
+      let guestOn = false;
+      try {
+        guestOn = await loadGuestSession();
+      } catch {
+        guestOn = false;
+      }
+      if (cancelled) return;
+      if (guestOn && !auth.currentUser) {
+        beginAuthScope(GUEST_UID);
+        beginWordNumbersAuthScope(GUEST_UID);
+        beginSpansAuthScope(GUEST_UID);
+        setUser(GUEST_USER);
+        setWelcomePending(false);
+        setCloudSyncing(false);
+        setInitializing(false);
+        readLocalEvents(GUEST_UID).catch(() => {});
+        syncWordNumbersFromCloud(null).catch(() => {});
+        syncSettingsFromCloud(null).catch(() => {});
+      }
       try {
         unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+          endGuestSession().catch(() => {});
+        }
+        if (!firebaseUser && guestOn) {
+          setUser(GUEST_USER);
+          beginAuthScope(GUEST_UID);
+          beginWordNumbersAuthScope(GUEST_UID);
+          beginSpansAuthScope(GUEST_UID);
+          setCloudSyncing(false);
+          setWelcomePending(false);
+          setInitializing(false);
+          return;
+        }
         setUser(firebaseUser);
         if (firebaseUser) {
           const uid = firebaseUser.uid;
@@ -165,12 +204,31 @@ function AppShell() {
     };
   }, []);
 
+  const enterGuest = async () => {
+    try {
+      await startGuestSession();
+      beginAuthScope(GUEST_UID);
+      beginWordNumbersAuthScope(GUEST_UID);
+      beginSpansAuthScope(GUEST_UID);
+      setWelcomePending(false);
+      setCloudSyncing(false);
+      setUser(GUEST_USER);
+      readLocalEvents(GUEST_UID).catch(() => {});
+    } catch (e) {
+      console.warn('Guest start failed', e);
+    }
+  };
+
   const handleLogout = async () => {
+    try {
+      await endGuestSession();
+    } catch (_) {}
     try {
       await signOut(auth);
     } catch (e) {
       console.warn('Logout error:', e);
     }
+    setUser(null);
   };
 
   if (error) {
@@ -203,9 +261,10 @@ function AppShell() {
           {!user ? (
             <Stack.Screen
               name="Login"
-              component={LoginScreen}
               options={{ title: 'Timeline App – Login' }}
-            />
+            >
+              {(props) => <LoginScreen {...props} onEnterGuest={enterGuest} />}
+            </Stack.Screen>
           ) : (
             <>
               <Stack.Screen

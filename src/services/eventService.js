@@ -2,6 +2,7 @@ import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { isGuestUid } from './guestSession';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
 const GUEST_EVENTS_KEY = '@timeline_events_guest';
@@ -265,7 +266,7 @@ function warnCloud(message, error) {
 }
 
 function getUid() {
-  return auth.currentUser?.uid || null;
+  return auth.currentUser?.uid || activeAuthUid || null;
 }
 
 // Bumps on login/logout so in-flight sync cannot write after an auth switch.
@@ -400,7 +401,7 @@ function eventVisibleForUid(ev, uid) {
 async function pushEventToCloud(event) {
   if (!EVENTS_FIRESTORE_SYNC_ENABLED) return;
   const uid = getUid();
-  if (!uid || !event?.id) return;
+  if (!uid || isGuestUid(uid) || !event?.id) return;
   if (event.ownerUid !== uid) {
     console.warn('Refusing to upload event without matching ownerUid', event.id);
     return;
@@ -458,7 +459,7 @@ export async function getEvents() {
  * (self-heal for historical cross-account contamination under this uid path).
  */
 export async function syncEventsFromCloud(uid) {
-  if (!uid) return readLocalEvents(null);
+  if (!uid || isGuestUid(uid)) return readLocalEvents(uid || null);
 
   const epoch = authEpoch;
   await migrateLegacyEventsOnce(uid);

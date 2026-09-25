@@ -23,7 +23,7 @@ import {
 } from '../services/firebase';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 
-export default function LoginScreen() {
+export default function LoginScreen({ onEnterGuest }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -272,6 +272,17 @@ export default function LoginScreen() {
               : "Don't have an account? Create one"}
           </Text>
         </TouchableOpacity>
+
+        {typeof onEnterGuest === 'function' ? (
+          <TouchableOpacity
+            style={styles.guestButton}
+            onPress={onEnterGuest}
+            disabled={loading || resetLoading}
+          >
+            <Text style={styles.guestText}>Continue as guest</Text>
+            <Text style={styles.guestHint}>Try the app on this device. You can create an account later.</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -403,5 +414,23 @@ const styles = StyleSheet.create({
   switchText: {
     color: '#60a5fa',
     fontSize: 14,
+  },
+  guestButton: {
+    marginTop: 22,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#2a2b4a',
+  },
+  guestText: {
+    color: '#c4b5fd',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  guestHint: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
