@@ -145,9 +145,4 @@ export {
   deleteUser,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  loadRememberMe,
-  loadRememberedEmail,
-  prepareSignIn,
-  saveRememberedEmail,
-  dropUnrememberedSession,
 };
