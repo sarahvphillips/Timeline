@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 const DEVICE_ID_KEY = '@timeline_device_id';
@@ -138,4 +138,20 @@ export function otherRecentSessions(sessions, thisId) {
     const seen = new Date(s.lastSeen || 0).getTime();
     return Number.isFinite(seen) && seen >= cutoff;
   });
+}
+
+export async function removeSession(uid, sessionId) {
+  if (!uid || !sessionId) return;
+  const mine = await getOrCreateDeviceId();
+  if (sessionId === mine) throw new Error('This device stays on the list.');
+  await deleteDoc(sessionDoc(uid, sessionId));
+}
+
+export async function removeOtherSessions(uid) {
+  if (!uid) return 0;
+  const mine = await getOrCreateDeviceId();
+  const listed = await listSessions(uid);
+  const others = listed.filter((s) => s.id && s.id !== mine);
+  await Promise.all(others.map((s) => deleteDoc(sessionDoc(uid, s.id))));
+  return others.length;
 }

@@ -4,7 +4,8 @@ import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSour
 import {
   getOrCreateDeviceId,
   listSessions,
-  otherRecentSessions,
+  removeSession,
+  removeOtherSessions,
 } from '../services/deviceSession';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../themeContext';
@@ -214,10 +215,55 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     navigation.navigate('Settings');
   };
 
+  const forgetSession = async (session) => {
+    const uid = user?.uid;
+    if (!uid || !session?.id) return;
+    try {
+      await removeSession(uid, session.id);
+      setSessions((cur) => cur.filter((s) => s.id !== session.id));
+    } catch (e) {
+      Alert.alert('Could not remove', e?.message || 'Try again.');
+    }
+  };
+
+  const forgetOtherSessions = async () => {
+    const uid = user?.uid;
+    if (!uid) return;
+    try {
+      await removeOtherSessions(uid);
+      setSessions((cur) => cur.filter((s) => s.id === thisDeviceId));
+    } catch (e) {
+      Alert.alert('Could not clear', e?.message || 'Try again.');
+    }
+  };
+
+  const confirmForget = (session) => {
+    const label = platformLabel(session.platform);
+    const run = () => forgetSession(session);
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      if (window.confirm(`Remove ${label} from this list?`)) run();
+      return;
+    }
+    Alert.alert('Remove device', `Take ${label} off this list?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: run },
+    ]);
+  };
+
+  const confirmForgetOthers = () => {
+    const run = () => forgetOtherSessions();
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      if (window.confirm('Remove every other device from this list? This device stays.')) run();
+      return;
+    }
+    Alert.alert('Clear other devices', 'Remove every other device from this list? This device stays.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: run },
+    ]);
+  };
+
   const thisSession = sessions.find((s) => s.id === thisDeviceId);
   const otherSessions = sessions.filter((s) => s.id !== thisDeviceId);
-  const recentOthers = otherRecentSessions(sessions, thisDeviceId);
-  const otherCount = recentOthers.length;
   const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
   const newlyCreatedOther =
     sessions.length >= 2 &&
@@ -277,13 +323,23 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         </View>
         {otherSessions.map((s) => (
           <View key={s.id} style={styles.deviceRow}>
-            <Text style={[styles.deviceName, { color: colors.text }]}>{platformLabel(s.platform)}</Text>
-            <Text style={[styles.deviceMeta, { color: colors.faint }]}>Last seen {formatLastSeen(s.lastSeen)}</Text>
+            <View style={styles.deviceMain}>
+              <Text style={[styles.deviceName, { color: colors.text }]}>{platformLabel(s.platform)}</Text>
+              <Text style={[styles.deviceMeta, { color: colors.faint }]}>Last seen {formatLastSeen(s.lastSeen)}</Text>
+            </View>
+            <TouchableOpacity onPress={() => confirmForget(s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.deviceRemove}>Remove</Text>
+            </TouchableOpacity>
           </View>
         ))}
-        {otherCount > 0 ? (
+        {otherSessions.length > 0 ? (
+          <TouchableOpacity onPress={confirmForgetOthers}>
+            <Text style={styles.deviceClear}>Clear other devices</Text>
+          </TouchableOpacity>
+        ) : null}
+        {otherSessions.length > 0 ? (
           <Text style={[styles.devicesNote, { color: colors.muted }]}>
-            This account is also signed in on {otherCount} other device{otherCount === 1 ? '' : 's'}. Laptop and phone both count.
+            These are past opens of Timeline, not a live lock. Removing one takes it off the list. It can show up again if that browser is still signed in and is opened later.
           </Text>
         ) : null}
         {newlyCreatedOther ? (
@@ -447,8 +503,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   deviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 8,
   },
+  deviceMain: { flex: 1, paddingRight: 8 },
   deviceName: {
     color: '#e2e8f0',
     fontSize: 14,
@@ -470,6 +529,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 17,
   },
+  deviceRemove: { color: '#fca5a5', fontSize: 13, fontWeight: '700' },
+  deviceClear: { color: '#fca5a5', fontSize: 13, fontWeight: '700', marginTop: 6 },
   devicesNew: {
     color: '#fbbf24',
     fontSize: 12,

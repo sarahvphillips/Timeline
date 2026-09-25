@@ -38,6 +38,8 @@ import {
   getOrCreateDeviceId,
   listSessions,
   otherRecentSessions,
+  removeSession,
+  removeOtherSessions,
 } from '../services/deviceSession';
 import { syncAcceptedJoins } from '../services/peopleService';
 import { applyJoinRewards, perkLabel, getRewards, hasPerk, CREDITS_PAUSED } from '../services/rewardsService';
@@ -636,7 +638,7 @@ export default function SettingsScreen({ navigation }) {
 
         <Text style={[styles.section, { color: colors.muted }]}>Account</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Signed-in devices use the same sessions list as Home (Firestore users/.../sessions).
+          Past browsers and phones that opened Timeline. Remove takes one off the list. This device stays.
         </Text>
         <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
           <Text style={[styles.devicesTitle, { color: colors.text }]}>Signed-in devices</Text>
@@ -657,15 +659,63 @@ export default function SettingsScreen({ navigation }) {
               </View>
               {otherSessions.map((s) => (
                 <View key={s.id} style={styles.deviceRow}>
-                  <Text style={[styles.deviceName, { color: colors.text }]}>{platformLabel(s.platform)}</Text>
-                  <Text style={[styles.deviceMeta, { color: colors.faint }]}>
-                    Last seen {formatLastSeen(s.lastSeen)}
-                  </Text>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={[styles.deviceName, { color: colors.text }]}>{platformLabel(s.platform)}</Text>
+                    <Text style={[styles.deviceMeta, { color: colors.faint }]}>
+                      Last seen {formatLastSeen(s.lastSeen)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const run = async () => {
+                        try {
+                          await removeSession(auth.currentUser?.uid, s.id);
+                          setSessions((cur) => cur.filter((row) => row.id !== s.id));
+                        } catch (e) {
+                          Alert.alert('Could not remove', e?.message || 'Try again.');
+                        }
+                      };
+                      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+                        if (window.confirm(`Remove ${platformLabel(s.platform)} from this list?`)) run();
+                        return;
+                      }
+                      Alert.alert('Remove device', `Take ${platformLabel(s.platform)} off this list?`, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Remove', style: 'destructive', onPress: run },
+                      ]);
+                    }}
+                  >
+                    <Text style={{ color: '#fca5a5', fontWeight: '700', fontSize: 13 }}>Remove</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
+              {otherSessions.length > 0 ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    const run = async () => {
+                      try {
+                        await removeOtherSessions(auth.currentUser?.uid);
+                        setSessions((cur) => cur.filter((row) => row.id === thisDeviceId));
+                      } catch (e) {
+                        Alert.alert('Could not clear', e?.message || 'Try again.');
+                      }
+                    };
+                    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+                      if (window.confirm('Remove every other device from this list? This device stays.')) run();
+                      return;
+                    }
+                    Alert.alert('Clear other devices', 'Remove every other device from this list? This device stays.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Clear', style: 'destructive', onPress: run },
+                    ]);
+                  }}
+                >
+                  <Text style={{ color: '#fca5a5', fontWeight: '700', fontSize: 13, marginTop: 6 }}>Clear other devices</Text>
+                </TouchableOpacity>
+              ) : null}
               {otherCount > 0 ? (
                 <Text style={[styles.devicesNote, { color: colors.muted }]}>
-                  Also signed in on {otherCount} other device{otherCount === 1 ? '' : 's'} recently.
+                  {otherCount} of these {otherCount === 1 ? 'was' : 'were'} opened in the last 7 days.
                 </Text>
               ) : null}
             </>
@@ -1044,6 +1094,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   deviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 8,
   },
   deviceName: {
