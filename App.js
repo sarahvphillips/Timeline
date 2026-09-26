@@ -56,6 +56,7 @@ import OpenBankingScreen from './src/screens/OpenBankingScreen';
 import LegalScreen from './src/screens/LegalScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
+import SharePostScreen from './src/screens/SharePostScreen';
 import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
 import ShareProfileScreen from './src/screens/ShareProfileScreen';
 import PublicProfileScreen from './src/screens/PublicProfileScreen';
@@ -321,6 +322,12 @@ function AppShell() {
                 name="EventView"
                 component={EventViewScreen}
                 options={{ title: 'Event', headerBackTitle: 'Back' }}
+              />
+
+              <Stack.Screen
+                name="SharePost"
+                component={SharePostScreen}
+                options={{ title: 'Share post' }}
               />
 
               <Stack.Screen

@@ -119,6 +119,9 @@ export default function EventViewScreen({ navigation, route }) {
         <Text style={styles.noBody}>No extra text was saved with this.</Text>
       )}
 
+      <TouchableOpacity style={styles.edit} onPress={() => navigation.navigate('SharePost', { event })} activeOpacity={0.85}>
+        <Text style={styles.editText}>Share post</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.edit} onPress={() => openEventEditor(navigation, event)} activeOpacity={0.85}>
         <Text style={styles.editText}>Edit</Text>
       </TouchableOpacity>

@@ -28,6 +28,7 @@ export default function AddPoemScreen({ navigation, route }) {
   const [photoNote, setPhotoNote] = useState(existing?.photoNote || '');
   const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
+  const [shareCaption, setShareCaption] = useState(existing?.shareCaption || '');
   const [labels, setLabels] = useState(existing?.labels || []);
   const [saving, setSaving] = useState(false);
   const [eventCats, setEventCats] = useState(CATEGORIES);
@@ -65,6 +66,7 @@ export default function AddPoemScreen({ navigation, route }) {
         coverPhotoNote: coverPhotoNote.trim() || undefined,
         imageUri: imageUri || undefined,
         photoNote: photoNote.trim() || undefined,
+        shareCaption: shareCaption.trim() || undefined,
         labels,
         nextAction: 'none',
       });
@@ -158,6 +160,20 @@ export default function AddPoemScreen({ navigation, route }) {
           textAlignVertical="top"
         />
 
+        <Text style={styles.label}>Sharing text</Text>
+        <Text style={styles.hint}>
+          Caption for X, Instagram, Facebook or email. Leave blank to use the title and the first lines of the poem.
+        </Text>
+        <TextInput
+          style={[styles.input, styles.shareBox]}
+          placeholder="Optional post text"
+          placeholderTextColor="#64748b"
+          value={shareCaption}
+          onChangeText={setShareCaption}
+          multiline
+          textAlignVertical="top"
+        />
+
         <TouchableOpacity style={styles.save} onPress={handleSave} disabled={saving}>
           <Text style={styles.saveText}>{saving ? 'Saving?' : existing ? 'Update poem' : 'Add poem'}</Text>
         </TouchableOpacity>
@@ -180,6 +196,8 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
   },
   poem: { minHeight: 180 },
+  shareBox: { minHeight: 100 },
+  hint: { color: '#64748b', fontSize: 13, lineHeight: 18, marginBottom: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 12,
