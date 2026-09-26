@@ -134,7 +134,14 @@ function KindBubble({ bubble, glow, onPress, style }) {
       <Text style={styles.kindLabel} numberOfLines={1}>
         {bubble.label}
       </Text>
-      <Text style={styles.kindCount}>{bubble.count}</Text>
+      <Text
+        style={[
+          styles.kindCount,
+          String(bubble.count || '').includes('/') && styles.kindCountDate,
+        ]}
+      >
+        {bubble.count}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -341,5 +348,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginTop: 2,
+  },
+  kindCountDate: {
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
 });

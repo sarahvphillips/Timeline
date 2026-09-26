@@ -1675,7 +1675,7 @@ function shortBubbleTitle(title) {
 }
 
 /** One bubble per matching event, grouped by year — all poems (etc.) on one spine. */
-export function getItemBubblesByYear(events, filterId) {
+export function getItemBubblesByYear(events, filterId, dateFormat = 'dmy') {
   const matched = (events || [])
     .filter((e) => eventMatchesTimelineFilter(e, filterId))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1686,11 +1686,14 @@ export function getItemBubblesByYear(events, filterId) {
     const year = d.getFullYear();
     if (!byYear[year]) byYear[year] = [];
     const meta = classifyYearBubbleKind(event);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dayMonth = dateFormat === 'mdy' ? `${mm}/${dd}` : `${dd}/${mm}`;
     byYear[year].push({
       kind: `item:${event.id}`,
       label: shortBubbleTitle(event.title),
       color: meta.color,
-      count: String(d.getDate()),
+      count: dayMonth,
       filter: { eventId: event.id },
       event,
     });

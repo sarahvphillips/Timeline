@@ -43,6 +43,12 @@ import {
 } from '../services/deviceSession';
 import { syncAcceptedJoins } from '../services/peopleService';
 import { applyJoinRewards, perkLabel, getRewards, hasPerk, CREDITS_PAUSED } from '../services/rewardsService';
+import {
+  DATE_FORMAT_DMY,
+  DATE_FORMAT_MDY,
+  getDateFormat,
+  saveDateFormat,
+} from '../services/dateFormat';
 
 function platformLabel(platform) {
   if (platform === 'ios') return 'iOS';
@@ -101,11 +107,12 @@ export default function SettingsScreen({ navigation }) {
   const [showWashInMenu, setShowWashInMenu] = useState(true);
   const [savingWashPref, setSavingWashPref] = useState(false);
   const [referralLine, setReferralLine] = useState('');
+  const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
 
   const about = appAboutInfo();
 
   const load = useCallback(async () => {
-    const [profile, labs, cats, evCats, foodOn, washOn, rewards] = await Promise.all([
+    const [profile, labs, cats, evCats, foodOn, washOn, rewards, format] = await Promise.all([
       getProfile(),
       getLabels(),
       getPoemCategories(),
@@ -113,6 +120,7 @@ export default function SettingsScreen({ navigation }) {
       getShowFoodInMenu(),
       getShowWashInMenu(),
       getRewards().catch(() => null),
+      getDateFormat().catch(() => DATE_FORMAT_DMY),
     ]);
     setDisplayName(profile.displayName);
     setDateOfBirth(profile.dateOfBirth);
@@ -124,6 +132,7 @@ export default function SettingsScreen({ navigation }) {
     setCanCustomCats(CREDITS_PAUSED || hasPerk(rewards, 'customCategories'));
     setShowFoodInMenu(!!foodOn);
     setShowWashInMenu(washOn !== false);
+    setDateFormat(format === DATE_FORMAT_MDY ? DATE_FORMAT_MDY : DATE_FORMAT_DMY);
     try {
       const people = await syncAcceptedJoins();
       const { rewards, stats } = await applyJoinRewards(people);
@@ -465,6 +474,37 @@ export default function SettingsScreen({ navigation }) {
             </TouchableOpacity>
           );
         })}
+
+        <Text style={[styles.section, { color: colors.muted }]}>Short date on bubbles</Text>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Used on year view when each bubble is one item, for example Poems. Default is day first (25/09).
+        </Text>
+        <View style={styles.row}>
+          {[
+            { id: DATE_FORMAT_DMY, label: '25/09  day first' },
+            { id: DATE_FORMAT_MDY, label: '09/25  month first' },
+          ].map((item) => {
+            const on = dateFormat === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.chip,
+                  { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                  on && { backgroundColor: colors.blue, borderColor: colors.blue },
+                ]}
+                onPress={async () => {
+                  setDateFormat(item.id);
+                  try {
+                    await saveDateFormat(item.id);
+                  } catch (_) {}
+                }}
+              >
+                <Text style={[styles.chipText, { color: on ? '#fff' : colors.text }]}>{item.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <Text style={[styles.section, { color: colors.muted }]}>Labels</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>

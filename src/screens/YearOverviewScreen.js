@@ -22,6 +22,7 @@ import {
   saveEvent,
 } from '../services/eventService';
 import { getEventCategories } from '../services/profileService';
+import { getDateFormat, formatDayMonth } from '../services/dateFormat';
 import { pickFromGallery } from '../services/imagePicker';
 import HomeFab from '../components/HomeFab';
 import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
@@ -34,6 +35,7 @@ export default function YearOverviewScreen({ navigation, route }) {
   const [preview, setPreview] = useState(null);
   const [filterId, setFilterId] = useState(route.params?.filter || 'all');
   const [filters, setFilters] = useState(TIMELINE_FILTERS);
+  const [dateFormat, setDateFormat] = useState('dmy');
   const activeFilter = filters.find((f) => f.id === filterId) || filters[0];
   const itemView = !!activeFilter.itemView;
 
@@ -44,9 +46,11 @@ export default function YearOverviewScreen({ navigation, route }) {
       const cats = await getEventCategories().catch(() => []);
       setFilters(timelineFiltersFor(cats));
       setEvents(data);
+      const nextFormat = await getDateFormat().catch(() => 'dmy');
+      setDateFormat(nextFormat);
       setYears(
         (filterId && filterId !== 'all'
-          ? getItemBubblesByYear(data, filterId)
+          ? getItemBubblesByYear(data, filterId, nextFormat)
           : getYearBubbleSummaries(data))
       );
     } finally {
@@ -100,9 +104,7 @@ export default function YearOverviewScreen({ navigation, route }) {
           {
             id: e.id,
             title: e.title || 'Untitled',
-            dateLabel: Number.isNaN(d.getTime())
-              ? ''
-              : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}`,
+            dateLabel: Number.isNaN(d.getTime()) ? '' : `${formatDayMonth(d, dateFormat)} ${d.getFullYear()}`,
             labels: e.labels || [],
             imageUri: e.imageUri || '',
             event: e,
