@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  Modal,
+  Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { classifyYearBubbleKind, washStatusLabel } from '../services/eventService';
 import EventLabelChips from '../components/EventLabelChips';
@@ -54,6 +57,8 @@ function Meta({ label, value }) {
 
 export default function EventViewScreen({ navigation, route }) {
   const event = route.params?.event;
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const [fullOpen, setFullOpen] = useState(false);
   if (!event) {
     return (
       <View style={styles.emptyWrap}>
@@ -70,6 +75,7 @@ export default function EventViewScreen({ navigation, route }) {
     Number(event.callMinutes) || Number(event.callSeconds)
       ? `${Number(event.callMinutes) || 0}m ${Number(event.callSeconds) || 0}s`
       : '';
+  const previewHeight = poem ? Math.min(560, Math.round(screenW * 1.45)) : 240;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -79,7 +85,20 @@ export default function EventViewScreen({ navigation, route }) {
       <Text style={styles.title}>{event.title || 'Untitled'}</Text>
       <Text style={styles.when}>{formatWhen(event.date)}</Text>
 
-      {photo ? <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" /> : null}
+      {photo ? (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => setFullOpen(true)}
+          accessibilityLabel="View full image"
+        >
+          <Image
+            source={{ uri: photo }}
+            style={[styles.photo, { height: previewHeight }]}
+            resizeMode="contain"
+          />
+          <Text style={styles.photoHint}>Tap image to view full size</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <EventLabelChips labels={event.labels} />
 
@@ -103,6 +122,26 @@ export default function EventViewScreen({ navigation, route }) {
       <TouchableOpacity style={styles.edit} onPress={() => openEventEditor(navigation, event)} activeOpacity={0.85}>
         <Text style={styles.editText}>Edit</Text>
       </TouchableOpacity>
+
+      <Modal visible={fullOpen} transparent animationType="fade" onRequestClose={() => setFullOpen(false)}>
+        <View style={styles.fullWrap}>
+          <Pressable style={styles.fullCloseHit} onPress={() => setFullOpen(false)}>
+            <Text style={styles.fullClose}>Close</Text>
+          </Pressable>
+          <ScrollView
+            maximumZoomScale={4}
+            minimumZoomScale={1}
+            contentContainerStyle={styles.fullScroll}
+            centerContent
+          >
+            <Image
+              source={{ uri: photo }}
+              style={{ width: screenW, height: Math.max(screenH - 80, screenW * 1.8) }}
+              resizeMode="contain"
+            />
+          </ScrollView>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -125,10 +164,34 @@ const styles = StyleSheet.create({
   when: { color: '#94a3b8', fontSize: 15, marginTop: 8, marginBottom: 16 },
   photo: {
     width: '100%',
-    height: 220,
+    height: 240,
     borderRadius: 14,
-    backgroundColor: '#1a1b36',
+    backgroundColor: '#0a0b18',
+    marginBottom: 6,
+  },
+  photoHint: {
+    color: '#64748b',
+    fontSize: 13,
     marginBottom: 16,
+  },
+  fullWrap: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  fullCloseHit: {
+    paddingTop: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  fullClose: {
+    color: '#93c5fd',
+    fontSize: 16,
+    fontWeight: '700',
+    alignSelf: 'flex-end',
+  },
+  fullScroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   meta: { color: '#e2e8f0', fontSize: 15, marginBottom: 6, lineHeight: 22 },
   metaLabel: { color: '#64748b', fontWeight: '600' },
