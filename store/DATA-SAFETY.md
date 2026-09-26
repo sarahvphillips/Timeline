@@ -18,6 +18,7 @@ This matches the app as of 26 September 2026. Purchases are off. Photos, video, 
 | Is all of the user data collected by your app encrypted in transit? | Yes (Firebase uses HTTPS) |
 | Do you provide a way for users to request that their data is deleted? | Yes |
 | Account created in the app? | Yes |
+| Delete some or all data without deleting the account? (optional) | Yes. In the app they can delete single events, leave a shared event, remove a profile photo, clear this device’s local cache (Settings), and remove other signed-in devices. That does not close the login. To delete everything including the account: Settings → Delete account, or email sarah.v.phillips@googlemail.com. |
 | Delete account | In the app: Settings → Delete account. Or email sarah.v.phillips@googlemail.com with subject “Delete my TimelineApp account”. Full steps: https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-ACCOUNT.md |
 | Ads | No |
 | Data sold | No |
