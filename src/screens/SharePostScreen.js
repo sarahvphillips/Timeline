@@ -72,8 +72,16 @@ export default function SharePostScreen({ navigation, route }) {
   const handleX = async () => {
     await persistCaption();
     try {
-      const result = await openXCompose(caption, photo);
-      if (result === 'x-text-only') {
+      const sent = photo
+        ? await shareTextAndImage({
+            title: 'Share to X',
+            message: caption,
+            imageUri: photo,
+          })
+        : await openXCompose(caption, '');
+      if (photo && sent === 'sheet') {
+        Alert.alert('Pick X', 'The image is attached and the caption is copied. Choose X in the list.');
+      } else if (sent === 'x-text-only' || sent === 'x-web') {
         Alert.alert(
           'Text sent to X',
           'The caption is in the post box and also copied. Attach the image in X if it did not appear.',
@@ -132,7 +140,7 @@ export default function SharePostScreen({ navigation, route }) {
         <Text style={styles.ghostText}>Open in X</Text>
       </TouchableOpacity>
       <Text style={styles.hint}>
-        Opens an X compose window with this text. Attach the image there if the sheet did not include it.
+        Uses the same share sheet as above so the image is included. Pick X, then paste the caption if it is not already in the box.
       </Text>
 
       <TouchableOpacity style={styles.ghost} onPress={handleEmail}>
