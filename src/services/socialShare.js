@@ -1,4 +1,5 @@
 import { Platform, Share, Linking } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 import { copyTextToClipboard } from './shareService';
 
 export function defaultShareCaption(event) {
@@ -60,18 +61,74 @@ export async function shareTextAndImage({ title, message, imageUri }) {
   }
 }
 
-export async function openXCompose(message) {
-  const text = encodeURIComponent(String(message || '').trim());
-  const app = `twitter://post?message=${text}`;
-  const web = `https://x.com/intent/tweet?text=${text}`;
+function tweetUrlText(message) {
+  const raw = String(message || '').trim();
+  if (raw.length <= 900) return raw;
+  return `${raw.slice(0, 880)}…`;
+}
+
+async function contentUriForShare(imageUri) {
+  if (!imageUri) return '';
+  if (/^content:\/\//i.test(imageUri)) return imageUri;
   try {
-    const can = await Linking.canOpenURL('twitter://post');
-    if (can) {
-      await Linking.openURL(app);
-      return;
+    return await FileSystem.getContentUriAsync(imageUri);
+  } catch (_) {
+    return imageUri;
+  }
+}
+
+async function sendToXApp(message, imageUri) {
+  if (Platform.OS !== 'android') return false;
+  let IntentLauncher;
+  try {
+    IntentLauncher = require('expo-intent-launcher');
+  } catch (_) {
+    return false;
+  }
+  const extra = { 'android.intent.extra.TEXT': String(message || '') };
+  const params = {
+    extra,
+    flags: 1,
+    packageName: 'com.twitter.android',
+  };
+  if (imageUri) {
+    params.type = 'image/jpeg';
+    extra['android.intent.extra.STREAM'] = await contentUriForShare(imageUri);
+  } else {
+    params.type = 'text/plain';
+  }
+  try {
+    await IntentLauncher.startActivityAsync('android.intent.action.SEND', params);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export async function openXCompose(message, imageUri) {
+  const text = String(message || '').trim();
+  if (text) await copyTextToClipboard(text);
+
+  if (await sendToXApp(text, imageUri)) return 'x-app';
+
+  const encoded = encodeURIComponent(tweetUrlText(text));
+  const urls = [
+    `twitter://post?text=${encoded}`,
+    `twitter://post?message=${encoded}`,
+    `https://twitter.com/intent/tweet?text=${encoded}`,
+    `https://x.com/intent/tweet?text=${encoded}`,
+    `https://x.com/compose/post?text=${encoded}`,
+  ];
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      await Linking.openURL(url);
+      return imageUri ? 'x-text-only' : 'x-web';
+    } catch (e) {
+      lastError = e;
     }
-  } catch (_) {}
-  await Linking.openURL(web);
+  }
+  throw lastError || new Error('Could not open X');
 }
 
 export async function openEmailCompose(title, message) {

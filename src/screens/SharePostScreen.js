@@ -72,9 +72,15 @@ export default function SharePostScreen({ navigation, route }) {
   const handleX = async () => {
     await persistCaption();
     try {
-      await openXCompose(caption);
+      const result = await openXCompose(caption, photo);
+      if (result === 'x-text-only') {
+        Alert.alert(
+          'Text sent to X',
+          'The caption is in the post box and also copied. Attach the image in X if it did not appear.',
+        );
+      }
     } catch (e) {
-      Alert.alert('Could not open X', e?.message || 'Use Share to apps instead.');
+      Alert.alert('Could not open X', e?.message || 'Use Share to apps and pick X.');
     }
   };
 
