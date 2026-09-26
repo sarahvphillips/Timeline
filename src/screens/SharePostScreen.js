@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import { FontAwesome6 } from '@expo/vector-icons';
 import { saveEvent } from '../services/eventService';
 import {
   defaultShareCaption,
@@ -137,7 +138,10 @@ export default function SharePostScreen({ navigation, route }) {
       <Text style={styles.hint}>Opens the phone share sheet — pick X, Instagram, Facebook or Gmail.</Text>
 
       <TouchableOpacity style={styles.ghost} onPress={handleX}>
-        <Text style={styles.ghostText}>Open in X</Text>
+        <View style={styles.xRow}>
+          <FontAwesome6 name="x-twitter" size={18} color="#f8fafc" />
+          <Text style={styles.ghostText}>Open in X</Text>
+        </View>
       </TouchableOpacity>
       <Text style={styles.hint}>
         Uses the same share sheet as above so the image is included. Pick X, then paste the caption if it is not already in the box.
@@ -204,4 +208,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   ghostText: { color: '#93c5fd', fontWeight: '700', fontSize: 16 },
+  xRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
 });
