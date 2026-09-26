@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Pressable,
   useWindowDimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { classifyYearBubbleKind, washStatusLabel } from '../services/eventService';
 import EventLabelChips from '../components/EventLabelChips';
 
@@ -59,6 +60,22 @@ export default function EventViewScreen({ navigation, route }) {
   const event = route.params?.event;
   const { width: screenW, height: screenH } = useWindowDimensions();
   const [fullOpen, setFullOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () =>
+        event ? (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('SharePost', { event })}
+            accessibilityLabel="Share post"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{ paddingHorizontal: 6 }}
+          >
+            <Ionicons name="share-social-outline" size={24} color="#93c5fd" />
+          </TouchableOpacity>
+        ) : null,
+    });
+  }, [navigation, event]);
   if (!event) {
     return (
       <View style={styles.emptyWrap}>
@@ -119,9 +136,6 @@ export default function EventViewScreen({ navigation, route }) {
         <Text style={styles.noBody}>No extra text was saved with this.</Text>
       )}
 
-      <TouchableOpacity style={styles.edit} onPress={() => navigation.navigate('SharePost', { event })} activeOpacity={0.85}>
-        <Text style={styles.editText}>Share post</Text>
-      </TouchableOpacity>
       <TouchableOpacity style={styles.edit} onPress={() => openEventEditor(navigation, event)} activeOpacity={0.85}>
         <Text style={styles.editText}>Edit</Text>
       </TouchableOpacity>
