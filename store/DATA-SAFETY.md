@@ -8,7 +8,9 @@ Delete account URL (paste this in Play Console → App content → Account delet
 
 https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-ACCOUNT.md
 
-This matches the app as of 26 September 2026. Purchases are off. Photos, video, and audio stay on the device.
+Delete data URL (paste this in Play Console when it asks for deletion of data without closing the account):
+
+https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-DATA.md
 
 ## Data safety — overview
 

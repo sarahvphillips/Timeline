@@ -48,5 +48,6 @@ Timeline is not for children under 13.
 Made by Sarah Phillips in the United Kingdom.
 Privacy policy: https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html
 Delete account: https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-ACCOUNT.md
+Delete data: https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-DATA.md
 Contact: sarah.v.phillips@googlemail.com
 ```
