@@ -119,6 +119,16 @@ function CurvedDashedSpoke({ side, distance, bubbleCenterY, spineY }) {
 }
 
 function KindBubble({ bubble, glow, onPress, style }) {
+  const raw = bubble.count;
+  const isDate = String(raw || '').includes('/');
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw || ''), 10);
+  const countText = isDate
+    ? String(raw)
+    : Number.isFinite(n)
+      ? n === 1
+        ? '1 item'
+        : `${n} items`
+      : String(raw || '');
   return (
     <TouchableOpacity
       style={[
@@ -128,19 +138,14 @@ function KindBubble({ bubble, glow, onPress, style }) {
         style,
       ]}
       onPress={onPress}
-      accessibilityLabel={`${bubble.label} ${bubble.count}`}
+      accessibilityLabel={`${bubble.label} ${countText}`}
       activeOpacity={0.85}
     >
       <Text style={styles.kindLabel} numberOfLines={1}>
         {bubble.label}
       </Text>
-      <Text
-        style={[
-          styles.kindCount,
-          String(bubble.count || '').includes('/') && styles.kindCountDate,
-        ]}
-      >
-        {bubble.count}
+      <Text style={[styles.kindCount, styles.kindCountDate]} numberOfLines={1}>
+        {countText}
       </Text>
     </TouchableOpacity>
   );

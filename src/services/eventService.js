@@ -1099,7 +1099,7 @@ const PREVIEW_MONTH_SHORT = [
 /**
  * Up to `limit` chronological blurbs (title + short date) for a year bubble preview sheet.
  */
-export function getYearBubblePreviewBlurbs(events, year, filter, limit = 6) {
+export function getYearBubblePreviewBlurbs(events, year, filter, limit) {
   const matched = (events || [])
     .filter((e) => {
       const d = new Date(e.date);
@@ -1108,7 +1108,8 @@ export function getYearBubblePreviewBlurbs(events, year, filter, limit = 6) {
     })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  return matched.slice(0, Math.max(0, limit)).map((e) => {
+  const list = limit == null ? matched : matched.slice(0, Math.max(0, limit));
+  return list.map((e) => {
     const d = new Date(e.date);
     return {
       id: e.id,
@@ -1196,7 +1197,7 @@ export function getMonthBubbleSummaries(events, year, filter) {
   }));
 }
 
-export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit = 6) {
+export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit) {
   const matched = (events || [])
     .filter((e) => {
       const d = new Date(e.date);
@@ -1207,7 +1208,8 @@ export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit =
     })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  return matched.slice(0, Math.max(0, limit)).map((e) => {
+  const list = limit == null ? matched : matched.slice(0, Math.max(0, limit));
+  return list.map((e) => {
     const d = new Date(e.date);
     return {
       id: e.id,

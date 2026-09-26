@@ -117,7 +117,7 @@ export default function YearOverviewScreen({ navigation, route }) {
       kind: bubble.kind,
       ...(bubble.filter || {}),
     };
-    const blurbs = getYearBubblePreviewBlurbs(events, year, filter, 6);
+    const blurbs = getYearBubblePreviewBlurbs(events, year, filter);
     setPreview({ year, bubble, blurbs });
   };
 
@@ -271,7 +271,7 @@ export default function YearOverviewScreen({ navigation, route }) {
         onRequestClose={closePreview}
       >
         <Pressable style={styles.sheetBackdrop} onPress={closePreview}>
-          <View style={styles.sheet}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation?.()}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{previewTitle}</Text>
@@ -283,7 +283,12 @@ export default function YearOverviewScreen({ navigation, route }) {
                 <Text style={styles.sheetClose}>✕</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.blurbList}>
+            <ScrollView
+              style={styles.blurbScroll}
+              contentContainerStyle={styles.blurbList}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {(preview?.blurbs || []).length === 0 ? (
                 <Text style={styles.blurbEmpty}>No events in this bubble yet.</Text>
               ) : (
@@ -311,7 +316,7 @@ export default function YearOverviewScreen({ navigation, route }) {
                   </TouchableOpacity>
                 ))
               )}
-            </View>
+            </ScrollView>
             <TouchableOpacity
               style={styles.zoomBtn}
               onPress={zoomInFromPreview}
@@ -320,7 +325,7 @@ export default function YearOverviewScreen({ navigation, route }) {
             >
               <Text style={styles.zoomBtnText}>{preview?.item ? 'Open' : 'Zoom in'}</Text>
             </TouchableOpacity>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </View>
@@ -445,7 +450,13 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     borderWidth: 1,
     borderColor: '#2a2b4a',
-    maxHeight: '70%',
+    maxHeight: '78%',
+  },
+  blurbScroll: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 160,
+    maxHeight: 420,
   },
   sheetHandle: {
     alignSelf: 'center',

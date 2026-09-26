@@ -145,7 +145,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
       kind: bubble.kind,
       ...(bubble.filter || {}),
     };
-    const blurbs = getMonthBubblePreviewBlurbs(events, startYear, monthRow.month, filter, 6);
+    const blurbs = getMonthBubblePreviewBlurbs(events, startYear, monthRow.month, filter);
     setPreview({ monthRow, bubble, blurbs });
   };
 
@@ -281,7 +281,7 @@ export default function MonthOverviewScreen({ navigation, route }) {
 
       <Modal visible={!!preview} transparent animationType="slide" onRequestClose={() => setPreview(null)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setPreview(null)}>
-          <View style={styles.sheet}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation?.()}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{previewTitle}</Text>
@@ -289,7 +289,12 @@ export default function MonthOverviewScreen({ navigation, route }) {
                 <Text style={styles.sheetClose}>✕</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.blurbList}>
+            <ScrollView
+              style={styles.blurbScroll}
+              contentContainerStyle={styles.blurbList}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {(preview?.blurbs || []).length === 0 ? (
                 <Text style={styles.blurbEmpty}>No events in this bubble yet.</Text>
               ) : (
@@ -316,11 +321,11 @@ export default function MonthOverviewScreen({ navigation, route }) {
                   </TouchableOpacity>
                 ))
               )}
-            </View>
+            </ScrollView>
             <TouchableOpacity style={styles.zoomBtn} onPress={zoomInFromPreview} activeOpacity={0.85}>
               <Text style={styles.zoomBtnText}>Zoom in</Text>
             </TouchableOpacity>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </View>
@@ -479,7 +484,13 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     borderWidth: 1,
     borderColor: '#2a2b4a',
-    maxHeight: '70%',
+    maxHeight: '78%',
+  },
+  blurbScroll: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 160,
+    maxHeight: 420,
   },
   sheetHandle: {
     alignSelf: 'center',
