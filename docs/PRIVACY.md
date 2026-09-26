@@ -43,6 +43,6 @@ Balances in Firestore. Purchases are off while the app is in testing. Packs will
 - Consent: camera, photos, Gmail, future bank connect.
 - Legitimate interests: security (sessions, admin audit, checksums).
 
-Kept while the account exists. Settings → Delete account removes the Firebase login, that account’s Firestore timeline data, invites and shares you created, a public profile if you had one, and this device’s copy. Clear local cache does not delete the account. Email the contact above, or the ICO (ico.org.uk).
+Kept while the account exists. Settings → Delete account removes the Firebase login, that account’s Firestore timeline data, invites and shares you created, a public profile if you had one, and this device’s copy. Clear local cache does not delete the account. Steps and what is kept: https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-ACCOUNT.md . Email the contact above, or the ICO (ico.org.uk).
 
 Not for children under 13. We do not sell data, run ads, or use your events to train public AI models.

@@ -4,7 +4,11 @@ Paste these when the console lets you in. Package `com.sarahphillips.timelineapp
 
 https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html
 
-This matches the app as of 24 September 2026. Purchases are off. Photos, video, and audio stay on the device.
+Delete account URL (paste this in Play Console → App content → Account deletion):
+
+https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-ACCOUNT.md
+
+This matches the app as of 26 September 2026. Purchases are off. Photos, video, and audio stay on the device.
 
 ## Data safety — overview
 
@@ -14,7 +18,7 @@ This matches the app as of 24 September 2026. Purchases are off. Photos, video, 
 | Is all of the user data collected by your app encrypted in transit? | Yes (Firebase uses HTTPS) |
 | Do you provide a way for users to request that their data is deleted? | Yes |
 | Account created in the app? | Yes |
-| Delete account | In the app: Settings → Delete account. That removes the login and the timeline data stored for it. The privacy page above explains the same thing. |
+| Delete account | In the app: Settings → Delete account. Or email sarah.v.phillips@googlemail.com with subject “Delete my TimelineApp account”. Full steps: https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-ACCOUNT.md |
 | Ads | No |
 | Data sold | No |
 | Data shared with third parties for their own use | No. Google Firebase only processes it for Timeline. Another person sees an event only if the user shares that event or sends an invite. |
