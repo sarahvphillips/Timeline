@@ -96,7 +96,10 @@ export default function SharePostScreen({ navigation, route }) {
   const handleEmail = async () => {
     await persistCaption();
     try {
-      await openEmailCompose(event.title || 'Timeline', caption);
+      const result = await openEmailCompose(event.title || 'Timeline', caption, photo);
+      if (result === 'sheet') {
+        Alert.alert('Pick email', 'Choose Gmail or Email. The image is attached and the caption is copied.');
+      }
     } catch (e) {
       Alert.alert('Could not open email', e?.message || 'Use Share to apps instead.');
     }

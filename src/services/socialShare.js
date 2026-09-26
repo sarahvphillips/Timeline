@@ -131,8 +131,30 @@ export async function openXCompose(message, imageUri) {
   throw lastError || new Error('Could not open X');
 }
 
-export async function openEmailCompose(title, message) {
-  const subject = encodeURIComponent(String(title || 'Timeline'));
-  const body = encodeURIComponent(String(message || ''));
-  await Linking.openURL(`mailto:?subject=${subject}&body=${body}`);
+export async function openEmailCompose(title, message, imageUri) {
+  const subject = String(title || 'Timeline');
+  const body = String(message || '');
+  if (imageUri && Platform.OS === 'android') {
+    try {
+      const IntentLauncher = require('expo-intent-launcher');
+      const stream = await contentUriForShare(imageUri);
+      await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
+        type: 'image/jpeg',
+        extra: {
+          'android.intent.extra.SUBJECT': subject,
+          'android.intent.extra.TEXT': body,
+          'android.intent.extra.STREAM': stream,
+        },
+        flags: 1,
+      });
+      return 'intent';
+    } catch (_) {}
+  }
+  if (imageUri) {
+    return shareTextAndImage({ title: subject, message: body, imageUri });
+  }
+  await Linking.openURL(
+    `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+  );
+  return 'mailto';
 }
