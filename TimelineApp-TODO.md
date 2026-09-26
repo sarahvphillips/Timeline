@@ -1,7 +1,7 @@
 # Timeline App â Todo List
 **Project:** Timeline App (KD #kern2622 / RN #kern2622)  
 **Owner:** Sarah Victoria Pauline Phillips  
-**Last updated:** 25 Sep 2026 (2FA and biometric unlock noted; Play Store still first)
+**Last updated:** 26 Sep 2026 (Home shortened for testers; guest locks; login legal links)
 
 ---
 

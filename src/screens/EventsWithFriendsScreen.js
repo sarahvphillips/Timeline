@@ -477,6 +477,18 @@ export default function EventsWithFriendsScreen({ navigation }) {
     [navigation],
   );
 
+  if (!myUid) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.emptyTitle}>Create an account for this</Text>
+        <Text style={styles.emptyBody}>
+          Events with friends needs a signed-in Timeline account. Guest mode stays on this device only.
+        </Text>
+        <HomeFab navigation={navigation} besidePlus={false} />
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>

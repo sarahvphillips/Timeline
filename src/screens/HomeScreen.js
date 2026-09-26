@@ -314,14 +314,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         </View>
       ) : null}
 
-      <StampsRow
-        stamps={stamps}
-        credits={credits}
-        colors={colors}
-        onShop={() => navigation.navigate('CreditsShop')}
-        onStamp={(s) => s.screen && navigation.navigate(s.screen)}
-      />
-
       {!guest ? (
       <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
         <Text style={[styles.devicesTitle, { color: colors.muted }]}>Signed-in devices</Text>
@@ -371,36 +363,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         </TouchableOpacity>
       ) : null}
 
-      {staff ? (
-        <TouchableOpacity
-          style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
-          onPress={() => navigation.navigate('Admin')}
-        >
-          <Text style={[styles.ghostText, { color: colors.faint }]}>Admin</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('EventsWithFriends')}>
-        <Text style={styles.buttonText}>Events with friends</Text>
-      </TouchableOpacity>
-
-      {CREDITS_PAUSED ? (
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditFeedback')}>
-        <Text style={styles.buttonText}>Credits later</Text>
-      </TouchableOpacity>
-      ) : (
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('CreditsShop')}>
-        <Text style={styles.buttonText}>Credits shop</Text>
-      </TouchableOpacity>
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
-        onPress={() => navigation.navigate('AcceptInvite')}
-      >
-        <Text style={[styles.ghostText, { color: colors.faint }]}>Enter invite code</Text>
-      </TouchableOpacity>
-
       <TouchableOpacity
         style={[styles.button, { backgroundColor: colors.blue }]}
         onPress={() => navigation.navigate('Utilities')}
@@ -408,19 +370,12 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         <Text style={styles.buttonText}>Utilities</Text>
       </TouchableOpacity>
 
-      {showWash && latestWash ? (
+      {staff ? (
         <TouchableOpacity
-          style={[styles.latestWash, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
-          onPress={() => navigation.navigate('AddWashLoad', { event: latestWash })}
+          style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
+          onPress={() => navigation.navigate('Admin')}
         >
-          <Text style={[styles.latestLabel, { color: colors.muted }]}>Latest wash</Text>
-          <Text style={[styles.latestTitle, { color: colors.text }]} numberOfLines={2}>
-            {latestWash.title}
-          </Text>
-          <Text style={[styles.latestMeta, { color: colors.faint }]}>
-            {washStatusLabel(latestWash.washStatus) || 'Wash'}
-            {latestWash.date ? ` · ${String(latestWash.date).slice(0, 10)}` : ''}
-          </Text>
+          <Text style={[styles.ghostText, { color: colors.faint }]}>Admin</Text>
         </TouchableOpacity>
       ) : null}
 

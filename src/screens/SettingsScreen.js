@@ -244,7 +244,7 @@ export default function SettingsScreen({ navigation }) {
   };
 
   const showComingLater = (feature) => {
-    notify('Coming later', feature + ' will be available in a future update.');
+    notify('Not in this test', feature + ' is not part of this test. It will come in a later update.');
   };
 
   const handleClearLocalCache = async () => {
@@ -329,7 +329,7 @@ export default function SettingsScreen({ navigation }) {
     >
       <View style={styles.menuRowText}>
         <Text style={[styles.menuRowLabel, { color: colors.muted }]}>{label}</Text>
-        <Text style={[styles.soonBadge, { color: colors.faint }]}>Soon</Text>
+        <Text style={[styles.soonBadge, { color: colors.faint }]}>Not in this test</Text>
       </View>
       <Text style={[styles.chevron, { color: colors.faint }]}>›</Text>
     </TouchableOpacity>
@@ -340,7 +340,7 @@ export default function SettingsScreen({ navigation }) {
       <ScrollView contentContainerStyle={[styles.content, { backgroundColor: colors.bg }]}>
         <Text style={[styles.heading, { color: colors.text }]}>Settings</Text>
         <Text style={[styles.intro, { color: colors.faint }]}>
-          Working preferences at the top. Account tools, coming-soon options, and About further down.
+          Working preferences at the top. Account tools and About further down. Rows marked “Not in this test” are not wired yet.
         </Text>
 
         <Text style={[styles.section, { color: colors.muted }]}>Profile</Text>

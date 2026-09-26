@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -22,6 +23,7 @@ import {
   saveRememberedEmail,
 } from '../services/firebase';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
+import { PRIVACY_URL, DELETE_ACCOUNT_URL, DELETE_DATA_URL } from '../legal/docs';
 
 export default function LoginScreen({ onEnterGuest }) {
   const [email, setEmail] = useState('');
@@ -283,6 +285,20 @@ export default function LoginScreen({ onEnterGuest }) {
             <Text style={styles.guestHint}>Try the app on this device. You can create an account later.</Text>
           </TouchableOpacity>
         ) : null}
+
+        <Text style={styles.legalLine}>
+          <Text style={styles.legalLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
+            Privacy policy
+          </Text>
+          {'  ·  '}
+          <Text style={styles.legalLink} onPress={() => Linking.openURL(DELETE_DATA_URL)}>
+            Delete data
+          </Text>
+          {'  ·  '}
+          <Text style={styles.legalLink} onPress={() => Linking.openURL(DELETE_ACCOUNT_URL)}>
+            Delete account
+          </Text>
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -432,5 +448,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
+  },
+  legalLine: {
+    marginTop: 18,
+    textAlign: 'center',
+    color: '#64748b',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  legalLink: {
+    color: '#93c5fd',
+    fontSize: 12,
   },
 });

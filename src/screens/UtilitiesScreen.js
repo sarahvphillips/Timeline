@@ -1,10 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import HomeFab from '../components/HomeFab';
 import { useTheme } from '../themeContext';
+import { auth } from '../services/firebase';
+import { CREDITS_PAUSED } from '../services/rewardsService';
 
 export default function UtilitiesScreen({ navigation }) {
   const { colors } = useTheme();
+  const signedIn = !!auth.currentUser?.uid;
+
+  const needAccount = (label) => {
+    Alert.alert(
+      'Create an account for this',
+      label + ' needs a signed-in Timeline account. Guest mode stays on this device only.',
+    );
+  };
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.bg }]}>
@@ -82,6 +92,42 @@ export default function UtilitiesScreen({ navigation }) {
         <Text style={[styles.hint, { color: colors.muted }]}>
           Whether this device is on Starlink (public IP ASN) and optional dish at 192.168.100.1.
         </Text>
+
+        <Text style={[styles.section, { color: colors.muted }]}>More</Text>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue }]}
+          onPress={() =>
+            signedIn ? navigation.navigate('EventsWithFriends') : needAccount('Events with friends')
+          }
+        >
+          <Text style={styles.buttonText}>Events with friends</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.ghost, { borderColor: colors.cardBorder }]}
+          onPress={() =>
+            signedIn ? navigation.navigate('AcceptInvite') : needAccount('Invite codes')
+          }
+        >
+          <Text style={[styles.ghostText, { color: colors.faint }]}>Enter invite code</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.ghost, { borderColor: colors.cardBorder }]}
+          onPress={() =>
+            signedIn
+              ? navigation.navigate(CREDITS_PAUSED ? 'CreditFeedback' : 'CreditsShop')
+              : needAccount('Credits')
+          }
+        >
+          <Text style={[styles.ghostText, { color: colors.faint }]}>
+            {CREDITS_PAUSED ? 'Credits later' : 'Credits shop'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.ghost, { borderColor: colors.cardBorder }]}
+          onPress={() => navigation.navigate('AddWashLoad')}
+        >
+          <Text style={[styles.ghostText, { color: colors.faint }]}>Wash loads</Text>
+        </TouchableOpacity>
       </ScrollView>
       <HomeFab navigation={navigation} besidePlus={false} />
     </View>
@@ -133,5 +179,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
     maxWidth: 320,
+    marginBottom: 8,
+  },
+  section: {
+    alignSelf: 'stretch',
+    maxWidth: 320,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  ghost: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginBottom: 8,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  ghostText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

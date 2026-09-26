@@ -21,6 +21,7 @@ import {
 } from '../services/shareService';
 import { parseInviteCodeFromScan } from '../utils/inviteCode';
 import { getJoinInvite, acceptJoinInvite } from '../services/peopleService';
+import { auth } from '../services/firebase';
 
 let CameraView = null;
 let useCameraPermissions = null;
@@ -126,6 +127,7 @@ function WebScanNote() {
 }
 
 export default function AcceptInviteScreen({ navigation, route }) {
+  const signedIn = !!auth?.currentUser?.uid;
   const initialCode = String(route.params?.code || '').trim().toUpperCase();
   const [code, setCode] = useState(initialCode);
   const [preview, setPreview] = useState(null);
@@ -363,6 +365,17 @@ export default function AcceptInviteScreen({ navigation, route }) {
       setRejecting(false);
     }
   };
+
+  if (!signedIn) {
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>Create an account for this</Text>
+        <Text style={styles.hint}>
+          Invite codes need a signed-in Timeline account. Guest mode stays on this device only.
+        </Text>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">

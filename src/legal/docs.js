@@ -7,6 +7,10 @@ export const PRIVACY_META = {
 };
 
 export const PRIVACY_URL = 'https://github.com/sarahvphillips/Timeline/blob/main/docs/privacy.html';
+export const DELETE_ACCOUNT_URL =
+  'https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-ACCOUNT.md';
+export const DELETE_DATA_URL =
+  'https://github.com/sarahvphillips/Timeline/blob/main/docs/DELETE-DATA.md';
 
 export const PRIVACY_SECTIONS = [
   {

@@ -213,7 +213,34 @@ export default function YearOverviewScreen({ navigation, route }) {
       ) : null}
       <ScrollView contentContainerStyle={styles.scroll} directionalLockEnabled nestedScrollEnabled>
         {years.length === 0 ? (
-          <Text style={styles.empty}>Nothing in {activeFilter.label} yet.</Text>
+          <View style={styles.emptyWrap}>
+            <Text style={styles.empty}>
+              {filterId === 'all'
+                ? 'Nothing on your timeline yet.'
+                : `Nothing in ${activeFilter.label} yet.`}
+            </Text>
+            {filterId === 'all' ? (
+              <>
+                <Text style={styles.emptyHint}>
+                  Tap Add event or Add poem. Then it shows up on this year line.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyBtn}
+                  onPress={() => navigation.navigate('AddEvent')}
+                >
+                  <Text style={styles.emptyBtnText}>Add event</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.emptyGhost}
+                  onPress={() => navigation.navigate('AddPoem')}
+                >
+                  <Text style={styles.emptyGhostText}>Add poem</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={styles.emptyHint}>Switch the filter to All, or add one of this type.</Text>
+            )}
+          </View>
         ) : (
           <SpineStage>
             <View style={styles.spine} />
@@ -337,11 +364,45 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   empty: {
+    color: '#e2e8f0',
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyWrap: {
+    paddingHorizontal: 28,
+    paddingTop: 56,
+    alignItems: 'center',
+  },
+  emptyHint: {
     color: '#94a3b8',
     textAlign: 'center',
-    marginTop: 48,
+    marginTop: 10,
     fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 280,
   },
+  emptyBtn: {
+    marginTop: 20,
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  emptyBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  emptyGhost: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  emptyGhostText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
   center: {
     flex: 1,
     backgroundColor: '#0f1024',
