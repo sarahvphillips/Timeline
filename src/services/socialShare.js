@@ -2,6 +2,8 @@ import { Platform, Share, Linking } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { copyTextToClipboard } from './shareService';
 
+export const SHARE_FOOTER = 'Shared with Timeline';
+
 export function defaultShareCaption(event) {
   if (!event) return '';
   if (event.shareCaption) return String(event.shareCaption);
@@ -24,6 +26,12 @@ export function defaultShareCaption(event) {
         .join(' ')
     : '';
   return [title, lines, tags].filter(Boolean).join('\n\n');
+}
+
+export function withShareFooter(text) {
+  const raw = String(text || '').trim();
+  if (/shared with timeline|posted with timeline/i.test(raw)) return raw;
+  return raw ? `${raw}\n\n${SHARE_FOOTER}` : SHARE_FOOTER;
 }
 
 export function eventShareImage(event) {

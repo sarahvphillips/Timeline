@@ -18,7 +18,11 @@ import {
   shareTextAndImage,
   openXCompose,
   openEmailCompose,
+  withShareFooter,
+  SHARE_FOOTER,
 } from '../services/socialShare';
+
+const APP_ICON = require('../../assets/icon.png');
 
 export default function SharePostScreen({ navigation, route }) {
   const event = route.params?.event;
@@ -27,9 +31,11 @@ export default function SharePostScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const postText = () => withShareFooter(caption);
+
   const copyCaption = async () => {
-    const text = String(caption || '').trim();
-    if (!text) {
+    const text = postText();
+    if (!String(caption || '').trim()) {
       Alert.alert('Nothing to copy', 'Write the sharing text first.');
       return false;
     }
@@ -76,7 +82,7 @@ export default function SharePostScreen({ navigation, route }) {
     try {
       const result = await shareTextAndImage({
         title: event.title || 'Timeline',
-        message: caption,
+        message: postText(),
         imageUri: photo,
       });
       if (result === 'sheet') {
@@ -99,10 +105,10 @@ export default function SharePostScreen({ navigation, route }) {
       const sent = photo
         ? await shareTextAndImage({
             title: 'Share to X',
-            message: caption,
+            message: postText(),
             imageUri: photo,
           })
-        : await openXCompose(caption, '');
+        : await openXCompose(postText(), '');
       if (photo && sent === 'sheet') {
         Alert.alert(
           copiedOk ? 'Copied — pick X' : 'Pick X',
@@ -125,7 +131,7 @@ export default function SharePostScreen({ navigation, route }) {
     await persistCaption();
     const copiedOk = await copyCaption();
     try {
-      const result = await openEmailCompose(event.title || 'Timeline', caption, photo);
+      const result = await openEmailCompose(event.title || 'Timeline', postText(), photo);
       if (result === 'sheet' || result === 'intent') {
         Alert.alert(
           copiedOk ? 'Copied — pick email' : 'Pick email',
@@ -180,6 +186,14 @@ export default function SharePostScreen({ navigation, route }) {
         placeholder="Write the post…"
         placeholderTextColor="#64748b"
       />
+
+      <View style={styles.brandRow}>
+        <Image source={APP_ICON} style={styles.brandIcon} />
+        <Text style={styles.brandText}>{SHARE_FOOTER}</Text>
+      </View>
+      <Text style={styles.hint}>
+        This line and the Timeline icon are added when you copy or share, unless the text already says Shared with Timeline or Posted with Timeline.
+      </Text>
 
       <TouchableOpacity style={styles.save} onPress={handleSave} disabled={saving}>
         <Text style={styles.saveText}>{saving ? 'Saving…' : 'Save sharing text'}</Text>
@@ -238,6 +252,18 @@ const styles = StyleSheet.create({
   },
   copyLabel: { color: '#93c5fd', fontWeight: '700', fontSize: 14 },
   copiedNote: { color: '#86efac', fontSize: 13, marginBottom: 8 },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#1a1b36',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  brandIcon: { width: 28, height: 28, borderRadius: 6 },
+  brandText: { color: '#e2e8f0', fontWeight: '700', fontSize: 15 },
   hint: { color: '#64748b', fontSize: 13, lineHeight: 18, marginBottom: 12 },
   input: {
     backgroundColor: '#1a1b36',
