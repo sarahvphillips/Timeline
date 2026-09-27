@@ -455,22 +455,8 @@ function nearestNode(x, y, nodes, pos, zoom, width, height) {
 }
 
 function openEvent(navigation, event) {
-  if (!event) return;
-  if (event.source === 'food') navigation.navigate('AddFood', { event });
-  else if (event.source === 'laundry') navigation.navigate('AddWashLoad', { event });
-  else if (event.source === 'youtube') navigation.navigate('YouTube', { event });
-  else if (event.source === 'spotify') navigation.navigate('Spotify', { event });
-  else if (event.source === 'game') navigation.navigate('Games', { event });
-  else if (event.source === 'watched' || event.watchKind) navigation.navigate('AddWatched', { event });
-  else if (event.source === 'social') navigation.navigate('Social', { event });
-  else if (event.source === 'sms') navigation.navigate('AddSms', { event });
-  else if (event.source === 'call') navigation.navigate('AddCall', { event });
-  else if (event.source === 'location') navigation.navigate('AddLocation', { event });
-  else if (event.source === 'life') navigation.navigate('AddLifeEvent', { event });
-  else if (event.hobbyType === 'poetry') navigation.navigate('AddPoem', { event });
-  else if (event.hobbyType === 'singing' || event.hobbyType === 'music') navigation.navigate('AddSinging', { event });
-  else if (event.source === 'qr') navigation.navigate('AddQr', { event });
-  else navigation.navigate('AddEvent', { event });
+  if (!event || !navigation) return;
+  navigation.navigate('EventView', { event });
 }
 
 export default function EventGraphScreen({ navigation }) {
