@@ -54,6 +54,10 @@ function weekFromParams(params) {
     const d = new Date(`${String(params.weekStart).slice(0, 10)}T12:00:00`);
     if (!Number.isNaN(d.getTime())) return getWeekStart(d);
   }
+  if (params?.day) {
+    const d = new Date(year, month, Number(params.day));
+    if (!Number.isNaN(d.getTime())) return getWeekStart(d);
+  }
   const now = new Date();
   if (now.getFullYear() === year && now.getMonth() === month) return getWeekStart(now);
   return getWeekStart(new Date(year, month, 1));

@@ -14,6 +14,7 @@ import {
   getEvents,
   getMonthBubbleSummaries,
   getMonthBubblePreviewBlurbs,
+  eventMatchesBubbleFilter,
   EVENTS_FIRESTORE_SYNC_ENABLED,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
@@ -39,8 +40,9 @@ function buildBubbleFilterFromParams(params) {
   };
 }
 
-function weekNavParams(year, month, filter, label) {
+function weekNavParams(year, month, filter, label, weekStart) {
   const base = { year, month };
+  if (weekStart) base.weekStart = weekStart;
   if (!filter) return base;
   return {
     ...base,
@@ -51,6 +53,25 @@ function weekNavParams(year, month, filter, label) {
     hobbyType: filter.hobbyType,
     bubbleFilter: filter,
   };
+}
+
+function firstIsoInMonth(events, year, month, filter) {
+  const hit = (events || [])
+    .filter((event) => {
+      const raw = String(event?.date || '');
+      const match = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        if (Number(match[1]) !== year || Number(match[2]) !== month + 1) return false;
+      } else {
+        const d = new Date(event.date);
+        if (Number.isNaN(d.getTime()) || d.getFullYear() !== year || d.getMonth() !== month) return false;
+      }
+      return eventMatchesBubbleFilter(event, filter);
+    })
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  if (!hit.length) return null;
+  const match = String(hit[0].date || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
 }
 
 export default function MonthOverviewScreen({ navigation, route }) {
@@ -137,7 +158,16 @@ export default function MonthOverviewScreen({ navigation, route }) {
   };
 
   const openMonth = (monthIndex) => {
-    navigation.navigate('WeekOverview', weekNavParams(startYear, monthIndex, activeFilter, filterLabel));
+    navigation.navigate(
+      'WeekOverview',
+      weekNavParams(
+        startYear,
+        monthIndex,
+        activeFilter,
+        filterLabel,
+        firstIsoInMonth(events, startYear, monthIndex, activeFilter),
+      ),
+    );
   };
 
   const openBubble = (monthRow, bubble) => {
@@ -157,9 +187,15 @@ export default function MonthOverviewScreen({ navigation, route }) {
       ...(bubble.filter || {}),
     };
     setPreview(null);
+    const fromBlurb = preview.blurbs?.[0]?.event?.date || preview.blurbs?.[0]?.id;
+    const weekStart =
+      firstIsoInMonth(events, startYear, monthRow.month, filter) ||
+      (typeof fromBlurb === 'string' && fromBlurb.match(/^\d{4}-\d{2}-\d{2}/)
+        ? String(fromBlurb).slice(0, 10)
+        : null);
     navigation.navigate(
       'WeekOverview',
-      weekNavParams(startYear, monthRow.month, filter, bubble.label)
+      weekNavParams(startYear, monthRow.month, filter, bubble.label, weekStart)
     );
   };
 
