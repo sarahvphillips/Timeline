@@ -139,6 +139,61 @@ export function analysePoems(events, wordList = []) {
   };
 }
 
+export function poemsToGraphEntries(events) {
+  const poems = (events || []).filter(isPoemEvent);
+  const entries = [];
+  const freq = new Map();
+  poems.forEach((event) => {
+    tokenize(poemBody(event)).forEach((word) => {
+      freq.set(word, (freq.get(word) || 0) + 1);
+    });
+  });
+  poems.forEach((event) => {
+    const title = String(event?.title || '').trim() || 'Untitled';
+    const nums = convertPhrase(title);
+    const tags = [];
+    if (event.collectionName) tags.push(String(event.collectionName).replace(/\s+/g, '_').toLowerCase());
+    (Array.isArray(event.labels) ? event.labels : []).forEach((label) => {
+      const t = String(label || '')
+        .replace(/^#/, '')
+        .trim()
+        .toLowerCase();
+      if (t) tags.push(t);
+    });
+    entries.push({
+      id: `poem:${event.id}`,
+      phrase: title,
+      ordinal: nums.ordinal,
+      pythagorean: nums.pythagorean,
+      reverse: nums.reverse,
+      reduced: nums.reducedOrdinal?.value,
+      notes: tags.map((t) => `#${t}`).join(' '),
+      poemId: event.id,
+      event,
+      kind: 'poem',
+    });
+  });
+  [...freq.entries()]
+    .filter((row) => row[1] >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 40)
+    .forEach(([word, count]) => {
+      const nums = convertPhrase(word);
+      entries.push({
+        id: `word:${word}`,
+        phrase: word,
+        ordinal: nums.ordinal,
+        pythagorean: nums.pythagorean,
+        reverse: nums.reverse,
+        reduced: nums.reducedOrdinal?.value,
+        notes: '',
+        count,
+        kind: 'word',
+      });
+    });
+  return entries;
+}
+
 export function poemPatternGraph(report, { maxWords = 18 } = {}) {
   const nodes = [];
   const edges = [];

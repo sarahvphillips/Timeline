@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,6 @@ import { getEvents } from '../services/eventService';
 import { getWordNumbers } from '../services/wordToIntService';
 import {
   analysePoems,
-  poemPatternGraph,
   POEM_INSIGHTS_COST,
   POEM_INSIGHTS_PERK,
 } from '../services/poemAnalysis';
@@ -27,33 +26,12 @@ import {
 } from '../services/rewardsService';
 import { formatFullDate } from '../services/dateFormat';
 
-function placeCircle(nodes, width, height) {
-  const pos = {};
-  const cx = width / 2;
-  const cy = height / 2;
-  const words = nodes.filter((n) => n.kind === 'word');
-  const poems = nodes.filter((n) => n.kind === 'poem');
-  words.forEach((node, i) => {
-    const ang = (i / Math.max(words.length, 1)) * Math.PI * 2 - Math.PI / 2;
-    const r = Math.min(width, height) * 0.34;
-    pos[node.id] = { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r };
-  });
-  poems.forEach((node, i) => {
-    const ang = (i / Math.max(poems.length, 1)) * Math.PI * 2 - Math.PI / 2 + 0.2;
-    const r = Math.min(width, height) * 0.16;
-    pos[node.id] = { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r };
-  });
-  return pos;
-}
-
 export default function PoemInsightsScreen({ navigation }) {
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
   const [unlocked, setUnlocked] = useState(CREDITS_PAUSED);
   const [busy, setBusy] = useState(false);
-  const [showGraph, setShowGraph] = useState(false);
-  const [selected, setSelected] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,11 +55,6 @@ export default function PoemInsightsScreen({ navigation }) {
       load();
     }, [load])
   );
-
-  const graph = useMemo(() => (report ? poemPatternGraph(report) : { nodes: [], edges: [] }), [report]);
-  const width = 320;
-  const height = 340;
-  const pos = useMemo(() => placeCircle(graph.nodes, width, height), [graph]);
 
   const unlock = async () => {
     if (busy) return;
@@ -255,71 +228,10 @@ export default function PoemInsightsScreen({ navigation }) {
 
             <TouchableOpacity
               style={[styles.btn, { backgroundColor: colors.blue }]}
-              onPress={() => setShowGraph((cur) => !cur)}
+              onPress={() => navigation.navigate('PoemGraph')}
             >
-              <Text style={styles.btnText}>{showGraph ? 'Hide pattern graph' : 'Show pattern graph'}</Text>
+              <Text style={styles.btnText}>Open poem graph</Text>
             </TouchableOpacity>
-            {showGraph ? (
-              <View style={[styles.canvas, { width, height, backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                {graph.edges.map((edge, i) => {
-                  const a = pos[edge.a];
-                  const b = pos[edge.b];
-                  if (!a || !b) return null;
-                  const len = Math.hypot(b.x - a.x, b.y - a.y);
-                  const ang = Math.atan2(b.y - a.y, b.x - a.x);
-                  return (
-                    <View
-                      key={`${edge.a}-${edge.b}-${i}`}
-                      pointerEvents="none"
-                      style={{
-                        position: 'absolute',
-                        left: a.x,
-                        top: a.y,
-                        width: len,
-                        height: 1,
-                        backgroundColor: edge.kind === 'number' ? colors.blueSoft : colors.cardBorder,
-                        transform: [{ rotate: `${ang}rad` }],
-                        transformOrigin: '0 0',
-                        opacity: 0.7,
-                      }}
-                    />
-                  );
-                })}
-                {graph.nodes.map((node) => {
-                  const p = pos[node.id];
-                  if (!p) return null;
-                  const on = selected === node.id;
-                  const size = node.kind === 'word' ? 18 + Math.min(14, (node.count || 1) * 2) : 22;
-                  return (
-                    <TouchableOpacity
-                      key={node.id}
-                      onPress={() => setSelected(node.id)}
-                      style={{
-                        position: 'absolute',
-                        left: p.x - size / 2,
-                        top: p.y - size / 2,
-                        width: size,
-                        height: size,
-                        borderRadius: size / 2,
-                        backgroundColor: node.kind === 'word' ? colors.blue : colors.blueSoft,
-                        borderWidth: on ? 2 : 0,
-                        borderColor: '#fff',
-                      }}
-                    />
-                  );
-                })}
-              </View>
-            ) : null}
-            {showGraph && selected ? (
-              <Text style={[styles.body, { color: colors.muted }]}>
-                {(graph.nodes.find((n) => n.id === selected) || {}).label}
-              </Text>
-            ) : null}
-            {showGraph ? (
-              <Text style={[styles.body, { color: colors.faint }]}>
-                Inner dots are poems. Outer dots are repeated words. Gold-tinted lines are shared title numbers.
-              </Text>
-            ) : null}
           </>
         )}
       </ScrollView>

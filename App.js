@@ -41,6 +41,7 @@ import WordToIntScreen from './src/screens/WordToIntScreen';
 import WordGraphScreen from './src/screens/WordGraphScreen';
 import EventGraphScreen from './src/screens/EventGraphScreen';
 import PoemInsightsScreen from './src/screens/PoemInsightsScreen';
+import PoemGraphScreen from './src/screens/PoemGraphScreen';
 import MotifsScreen from './src/screens/MotifsScreen';
 import PeopleDateGraphScreen from './src/screens/PeopleDateGraphScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
@@ -457,6 +458,12 @@ function AppShell() {
                 name="PoemInsights"
                 component={PoemInsightsScreen}
                 options={{ title: 'Poem patterns' }}
+              />
+
+              <Stack.Screen
+                name="PoemGraph"
+                component={PoemGraphScreen}
+                options={{ title: 'Poem graph' }}
               />
 
               <Stack.Screen
