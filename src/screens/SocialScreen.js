@@ -13,14 +13,17 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import HomeFab from '../components/HomeFab';
 import LabelPicker from '../components/LabelPicker';
-import { saveEvent, deleteEvent } from '../services/eventService';
+import { saveEvent, deleteEvent, getEvents } from '../services/eventService';
 import { pickFromGallery } from '../services/imagePicker';
+import { copyTextToClipboard } from '../services/shareService';
 import {
   loadSocial,
   saveSocial,
   parseSocialLink,
+  normalizeSocialUrl,
   PLATFORMS,
   ACTIONS,
 } from '../services/socialService';
@@ -34,6 +37,47 @@ function formatUk(iso) {
   const [y, m, d] = String(iso).slice(0, 10).split('-');
   if (!y || !m || !d) return String(iso);
   return `${Number(d)}/${Number(m)}/${y}`;
+}
+
+function platformIcon(name) {
+  switch (String(name || '')) {
+    case 'X':
+      return 'x-twitter';
+    case 'Instagram':
+      return 'instagram';
+    case 'Facebook':
+      return 'facebook';
+    case 'TikTok':
+      return 'tiktok';
+    case 'Threads':
+      return 'threads';
+    case 'Reddit':
+      return 'reddit';
+    case 'LinkedIn':
+      return 'linkedin';
+    case 'Bluesky':
+      return 'bluesky';
+    default:
+      return 'globe';
+  }
+}
+
+function eventFromSocial(p) {
+  return {
+    id: p.id,
+    title: `${p.platform} · ${p.title}`,
+    description: [p.action, p.note, p.url].filter(Boolean).join(' · '),
+    date: p.date ? `${String(p.date).slice(0, 10)}T12:00:00.000Z` : new Date().toISOString(),
+    category: 'hobby',
+    source: 'social',
+    labels: Array.from(new Set(['Social', p.platform, ...(p.labels || [])])),
+    socialUrl: p.url,
+    socialTitle: p.title,
+    socialPlatform: p.platform,
+    socialAction: p.action,
+    socialNote: p.note,
+    imageUri: p.imageUri,
+  };
 }
 
 export default function SocialScreen({ navigation, route }) {
@@ -119,7 +163,7 @@ export default function SocialScreen({ navigation, route }) {
     const row = {
       id: editingId || `social-${Date.now()}`,
       platform: plat,
-      url: url.trim(),
+      url: normalizeSocialUrl(url.trim(), plat) || url.trim(),
       title: name || `${plat} post`,
       action,
       date,
@@ -153,6 +197,41 @@ export default function SocialScreen({ navigation, route }) {
     setLabels(row.labels || []);
     setAddToTimeline(row.addToTimeline !== false);
     setPhoto(row.imageUri || '');
+  }
+
+  async function openEventView(row) {
+    let event = eventFromSocial(row);
+    try {
+      const list = await getEvents();
+      const found = (list || []).find((e) => e.id === row.id);
+      if (found) event = found;
+    } catch (_) {}
+    navigation.navigate('EventView', { event });
+  }
+
+  async function openSocialPost(row) {
+    const href = normalizeSocialUrl(row.url, row.platform);
+    if (!href) {
+      Alert.alert('No link', 'This item has no post link yet. Edit it and paste the URL.');
+      return;
+    }
+    try {
+      await Linking.openURL(href);
+    } catch {
+      Alert.alert('Could not open', href);
+    }
+  }
+
+  async function copyPostLink(row) {
+    const href = normalizeSocialUrl(row.url, row.platform);
+    if (!href) {
+      Alert.alert('No link', 'This item has no post link to copy.');
+      return;
+    }
+    const ok = await copyTextToClipboard(href);
+    Alert.alert(ok ? 'Link copied' : 'Could not copy', ok
+      ? 'Paste it into another app or chat.'
+      : href);
   }
 
   return (
@@ -289,15 +368,26 @@ export default function SocialScreen({ navigation, route }) {
               {p.imageUri ? <Image source={{ uri: p.imageUri }} style={styles.art} /> : null}
               <Text style={styles.hint}>{formatUk(p.date)}</Text>
               {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
-              <View style={styles.row}>
-                <TouchableOpacity onPress={() => startEdit(p)}>
-                  <Text style={styles.link}>Edit</Text>
+              <View style={styles.actions}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => openEventView(p)}>
+                  <Ionicons name="reader-outline" size={16} color="#7dd3fc" />
+                  <Text style={styles.link}>Open event</Text>
                 </TouchableOpacity>
                 {p.url ? (
-                  <TouchableOpacity onPress={() => Linking.openURL(p.url)}>
-                    <Text style={styles.link}>Open post</Text>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => openSocialPost(p)}>
+                    <FontAwesome6 name={platformIcon(p.platform)} size={14} color="#7dd3fc" />
+                    <Text style={styles.link}>Open {p.platform} post</Text>
                   </TouchableOpacity>
                 ) : null}
+                {p.url ? (
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => copyPostLink(p)}>
+                    <Ionicons name="copy-outline" size={16} color="#7dd3fc" />
+                    <Text style={styles.link}>Copy link</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity style={styles.actionBtn} onPress={() => startEdit(p)}>
+                  <Text style={styles.link}>Edit</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ))
@@ -355,6 +445,8 @@ const styles = StyleSheet.create({
   logTitle: { color: '#f8fafc', fontSize: 17, fontWeight: '700' },
   meta: { color: '#7dd3fc', fontSize: 12, fontWeight: '700', marginBottom: 4 },
   note: { color: '#cbd5e1', marginTop: 6 },
-  link: { color: '#7dd3fc', fontWeight: '700', marginTop: 8, marginRight: 16 },
+  link: { color: '#7dd3fc', fontWeight: '700' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
   art: { width: '100%', height: 160, borderRadius: 10, marginTop: 8, backgroundColor: '#0f1024' },
 });

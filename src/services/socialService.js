@@ -44,6 +44,25 @@ export function parseSocialLink(raw) {
   return { platform: null, titleGuess: '' };
 }
 
+export function normalizeSocialUrl(raw, platform) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  if (/^https?:\/\//i.test(text)) return text;
+  const path = text.replace(/^\/+/, '');
+  if (platform === 'X' || /(^|\/)status\/\d+/.test(path) || path.startsWith('x.com') || path.startsWith('twitter.com')) {
+    if (/^(x\.com|twitter\.com)\//i.test(path)) return `https://${path}`;
+    return `https://x.com/${path}`;
+  }
+  if (platform === 'Instagram') return `https://www.instagram.com/${path}`;
+  if (platform === 'Facebook') return `https://www.facebook.com/${path}`;
+  if (platform === 'TikTok') return `https://www.tiktok.com/${path}`;
+  if (platform === 'Threads') return `https://www.threads.net/${path}`;
+  if (platform === 'Reddit') return `https://www.reddit.com/${path}`;
+  if (platform === 'LinkedIn') return `https://www.linkedin.com/${path}`;
+  if (platform === 'Bluesky') return `https://bsky.app/${path}`;
+  return `https://${path}`;
+}
+
 export async function loadSocial() {
   try {
     const raw = (await AsyncStorage.getItem(key())) || (await AsyncStorage.getItem(LEGACY));
