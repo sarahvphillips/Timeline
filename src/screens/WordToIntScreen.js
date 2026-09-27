@@ -12,6 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '../themeContext';
 import {
   convertPhrase,
   formatBreakdown,
@@ -119,6 +120,8 @@ export default function WordToIntRoute(props) {
 }
 
 function WordToIntScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const scrollRef = useRef(null);
   const [phrase, setPhrase] = useState('');
   const [notes, setNotes] = useState('');
   const [method, setMethod] = useState('ordinal');
@@ -610,19 +613,24 @@ function WordToIntScreen({ navigation, route }) {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.heading}>Word to Int</Text>
-      <Text style={styles.intro}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <ScrollView
+      ref={scrollRef}
+      contentContainerStyle={[styles.content, { backgroundColor: colors.bg }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={[styles.heading, { color: colors.text }]}>Word to Int</Text>
+      <Text style={[styles.intro, { color: colors.faint }]}>
         Turn a word or phrase into a number for poems, songs, and other timeline items.
         Letters only are counted for Ordinal / Pythagorean / Reverse / Reduced (spaces and punctuation are ignored).
         Java hashCode uses the full phrase, including spaces and punctuation.
         Save a phrase first, then type its number below to get the word back.
       </Text>
 
-      <Text style={styles.sectionTitle}>Number to word</Text>
-      <Text style={styles.label}>Number</Text>
+      <Text style={[styles.sectionTitle, { color: colors.muted }]}>Number to word</Text>
+      <Text style={[styles.label, { color: colors.muted }]}>Number</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
         value={lookupNumber}
         onChangeText={setLookupNumber}
         placeholder="e.g. 64 or -123"
@@ -633,12 +641,12 @@ function WordToIntScreen({ navigation, route }) {
           if (matches.length === 0) askAddSearch();
         }}
       />
-      <Text style={styles.label}>Match using</Text>
+      <Text style={[styles.label, { color: colors.muted }]}>Match using</Text>
       <View style={styles.methodRow}>
         {lookupMethods.map((m) => (
           <TouchableOpacity
             key={m.id}
-            style={[styles.methodChip, lookupMethod === m.id && styles.methodChipOn]}
+            style={[styles.methodChip, { borderColor: colors.cardBorder }, lookupMethod === m.id && { backgroundColor: colors.blue, borderColor: colors.blue }]}
             onPress={() => setLookupMethod(m.id)}
           >
             <Text style={[styles.methodText, lookupMethod === m.id && styles.methodTextOn]}>
@@ -690,7 +698,7 @@ function WordToIntScreen({ navigation, route }) {
 
       {searchList.length > 0 ? (
         <View style={styles.lookupCard}>
-          <Text style={styles.sectionTitle}>Search list</Text>
+          <Text style={[styles.sectionTitle, { color: colors.muted }]}>Search list</Text>
           <Text style={styles.meta}>Numbers you looked up that had no saved word yet.</Text>
           {searchList.map((row) => (
             <View key={row.id} style={styles.searchRow}>
@@ -708,10 +716,10 @@ function WordToIntScreen({ navigation, route }) {
         </View>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Word to number</Text>
-      <Text style={styles.label}>Word or phrase</Text>
+      <Text style={[styles.sectionTitle, { color: colors.muted }]}>Word to number</Text>
+      <Text style={[styles.label, { color: colors.muted }]}>Word or phrase</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
         value={phrase}
         onChangeText={(text) => {
           setPhrase(text);
@@ -733,12 +741,12 @@ function WordToIntScreen({ navigation, route }) {
         <Text style={styles.dupMsg}>that word is already saved in the list!</Text>
       ) : null}
 
-      <Text style={styles.label}>Method</Text>
+      <Text style={[styles.label, { color: colors.muted }]}>Method</Text>
       <View style={styles.methodRow}>
         {methods.map((m) => (
           <TouchableOpacity
             key={m.id}
-            style={[styles.methodChip, method === m.id && styles.methodChipOn]}
+            style={[styles.methodChip, { borderColor: colors.cardBorder }, method === m.id && { backgroundColor: colors.blue, borderColor: colors.blue }]}
             onPress={() => setMethod(m.id)}
           >
             <Text style={[styles.methodText, method === m.id && styles.methodTextOn]}>
@@ -749,8 +757,8 @@ function WordToIntScreen({ navigation, route }) {
       </View>
 
       {!!result.phrase && (
-        <View style={styles.resultCard}>
-          <Text style={styles.resultNumber}>{currentNumber()}</Text>
+        <View style={[styles.resultCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.resultNumber, { color: colors.blueSoft }]}>{currentNumber()}</Text>
           <Text style={styles.resultHint}>
             {methods.find((m) => m.id === method)?.label}
           </Text>
@@ -780,7 +788,7 @@ function WordToIntScreen({ navigation, route }) {
         </View>
       )}
 
-      <Text style={styles.label}>Note (optional)</Text>
+      <Text style={[styles.label, { color: colors.muted }]}>Note (optional)</Text>
       <TextInput
         style={[styles.input, styles.notes]}
         value={notes}
@@ -791,7 +799,7 @@ function WordToIntScreen({ navigation, route }) {
       />
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, { backgroundColor: colors.blue }]}
         onPress={() => (showDup && duplicateHit && !editingId ? startEdit(duplicateHit) : handleSaveList())}
         disabled={saving}
       >
@@ -901,7 +909,7 @@ function WordToIntScreen({ navigation, route }) {
       ) : null}
       {listLoading ? (
         <View style={styles.listLoading}>
-          <ActivityIndicator size="small" color="#3b82f6" />
+          <ActivityIndicator size="small" color={colors.blue} />
           <Text style={styles.empty}>
             {WORD_NUMBERS_FIRESTORE_SYNC_ENABLED ? 'Syncing numbers…' : 'Loading…'}
           </Text>
@@ -910,23 +918,30 @@ function WordToIntScreen({ navigation, route }) {
         <Text style={styles.empty}>No saved numbers yet. Convert a phrase and save it here.</Text>
       ) : (
         sortedList.map((item) => (
-          <View key={item.id} style={[styles.item, pickMode && selected[item.id] && styles.itemPicked]}>
+          <View
+            key={item.id}
+            style={[
+              styles.item,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 },
+              pickMode && selected[item.id] && { borderColor: colors.blue },
+            ]}
+          >
             {pickMode ? (
               <TouchableOpacity onPress={() => toggleWord(item.id)} style={styles.pickRow}>
-                <Text style={styles.tick}>{selected[item.id] ? '☑' : '☐'}</Text>
+                <Text style={[styles.tick, { color: colors.blueSoft }]}>{selected[item.id] ? '☑' : '☐'}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.itemPhrase}>{item.phrase}</Text>
-                  <Text style={styles.itemNumber}>{preferredNumber(item)}</Text>
+                  <Text style={[styles.itemPhrase, { color: colors.text }]}>{item.phrase}</Text>
+                  <Text style={[styles.itemNumber, { color: colors.blueSoft }]}>{preferredNumber(item)}</Text>
                 </View>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={() => reuseItem(item)} style={styles.itemMain}>
-                <Text style={styles.itemPhrase}>{item.phrase}</Text>
-                <Text style={styles.itemNumber}>{preferredNumber(item)}</Text>
-                <Text style={styles.itemAdded}>
+                <Text style={[styles.itemPhrase, { color: colors.text }]}>{item.phrase}</Text>
+                <Text style={[styles.itemNumber, { color: colors.blueSoft }]}>{preferredNumber(item)}</Text>
+                <Text style={[styles.itemAdded, { color: colors.blue }]}>
                   Added {formatAddedAt(item.createdAt || item.updatedAt)}
                 </Text>
-                <Text style={styles.itemMeta}>
+                <Text style={[styles.itemMeta, { color: colors.faint }]}>
                   Ord {item.ordinal} · Pyth {item.pythagorean} · Rev {item.reverse} · Red {item.reduced} · hash {displayHash(item)}
                 </Text>
               </TouchableOpacity>
@@ -934,12 +949,12 @@ function WordToIntScreen({ navigation, route }) {
             {!pickMode ? (
               <View>
                 <TextInput
-                  style={styles.inlineNote}
+                  style={[styles.inlineNote, { backgroundColor: colors.bg, borderColor: colors.cardBorder, color: colors.text }]}
                   value={noteValue(item)}
                   onChangeText={(text) => setNoteDrafts((cur) => ({ ...cur, [item.id]: text }))}
                   onBlur={() => saveItemNotes(item)}
                   placeholder="Note"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor={colors.faint}
                   multiline
                 />
                 <View style={styles.tagRow}>
@@ -948,10 +963,14 @@ function WordToIntScreen({ navigation, route }) {
                     return (
                       <TouchableOpacity
                         key={tag}
-                        style={[styles.tagChip, on && styles.tagChipOn]}
+                        style={[
+                          styles.tagChip,
+                          { borderColor: colors.cardBorder },
+                          on && { backgroundColor: colors.blue, borderColor: colors.blue },
+                        ]}
                         onPress={() => addNoteTag(item, tag)}
                       >
-                        <Text style={[styles.tagChipText, on && styles.tagChipTextOn]}>{tag}</Text>
+                        <Text style={[styles.tagChipText, { color: on ? '#fff' : colors.faint }]}>{tag}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -975,6 +994,25 @@ function WordToIntScreen({ navigation, route }) {
         ))
       )}
     </ScrollView>
+    {list.length > 8 ? (
+      <View style={styles.jumpBar}>
+        <TouchableOpacity
+          style={[styles.jumpBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+          accessibilityLabel="Jump to top"
+        >
+          <Text style={[styles.jumpMark, { color: colors.text }]}>↑</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.jumpBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          accessibilityLabel="Jump to bottom"
+        >
+          <Text style={[styles.jumpMark, { color: colors.text }]}>↓</Text>
+        </TouchableOpacity>
+      </View>
+    ) : null}
+    </View>
   );
 }
 
@@ -1296,5 +1334,23 @@ const styles = StyleSheet.create({
   delete: {
     color: '#f87171',
     fontWeight: '600',
+  },
+  jumpBar: {
+    position: 'absolute',
+    right: 12,
+    bottom: 88,
+    gap: 8,
+  },
+  jumpBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  jumpMark: {
+    fontSize: 18,
+    fontWeight: '800',
   },
 });

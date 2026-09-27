@@ -1102,14 +1102,14 @@ const styles = StyleSheet.create({
   },
   menuRowText: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    minWidth: 0,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
   menuRowLabel: {
     fontSize: 15,
     fontWeight: '600',
-    flexShrink: 1,
+    width: '100%',
   },
   soonBadge: {
     fontSize: 12,
