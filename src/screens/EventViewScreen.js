@@ -18,6 +18,7 @@ import EventLabelChips from '../components/EventLabelChips';
 import { copyTextToClipboard } from '../services/shareService';
 import { normalizeSocialUrl } from '../services/socialService';
 import { formatFullDate, getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
+import { asImageUri } from '../services/imagePicker';
 
 export function openEventEditor(navigation, item) {
   if (!navigation || !item) return;
@@ -94,7 +95,7 @@ export default function EventViewScreen({ navigation, route }) {
 
   const kind = classifyYearBubbleKind(event);
   const poem = kind.kind === 'poem';
-  const photo = event.coverImageUri || event.imageUri || '';
+  const photo = asImageUri(event.coverImageUri || event.imageUri);
   const body = String(event.description || event.smsBody || '').trim();
   const postLink = normalizeSocialUrl(
     event.socialUrl || event.url || event.qrLink || '',

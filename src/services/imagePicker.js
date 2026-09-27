@@ -7,6 +7,18 @@ const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif', 'bmp'];
 const MAX_IMAGE_WIDTH = 1280;
 const JPEG_QUALITY = 0.7;
 
+/** Image.source.uri must be a string. Picker objects crash RCTImageView. */
+export function asImageUri(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const inner = value.uri || value.localUri || value.path;
+    if (typeof inner === 'string' && inner) return inner;
+    if (inner && typeof inner === 'object') return asImageUri(inner);
+  }
+  return '';
+}
+
 function extFromName(name) {
   const m = String(name || '').match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
   if (!m) return '';
@@ -173,7 +185,7 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
         console.warn('persistPickedImage: blob→data failed', e);
       }
     }
-    return { uri: finalUri, filename: originalName.replace(/\.[a-zA-Z0-9]+$/i, '') + '.jpg' };
+    return { uri: asImageUri(finalUri), filename: originalName.replace(/\.[a-zA-Z0-9]+$/i, '') + '.jpg' };
   }
 
   // Native: compress then copy file:// into app documents so content:// camera URIs do not expire.

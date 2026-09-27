@@ -13,6 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import LabelPicker from '../components/LabelPicker';
 import ImageAttachField from '../components/ImageAttachField';
+import { asImageUri } from '../services/imagePicker';
 import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { getPeople } from '../services/peopleService';
 import { daysUntilNext, formatUk } from '../services/dateSpanService';
@@ -55,7 +56,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
   const [personId, setPersonId] = useState(existing?.personId || route.params?.personId || '');
   const [place, setPlace] = useState(existing?.location || existing?.lifePlace || '');
   const [note, setNote] = useState(existing?.description || existing?.lifeNote || '');
-  const [imageUri, setImageUri] = useState(existing?.imageUri || '');
+  const [imageUri, setImageUri] = useState(asImageUri(existing?.imageUri));
   const [labels, setLabels] = useState(
     Array.isArray(existing?.labels) ? existing.labels.filter((l) => l !== 'Life') : [],
   );
@@ -129,7 +130,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
         lifePlace: place.trim(),
         lifeNote: note.trim(),
         personId: personId || '',
-        imageUri: imageUri || undefined,
+        imageUri: asImageUri(imageUri) || undefined,
       });
       await load();
       if (!existing) reset();
@@ -320,7 +321,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
         <ImageAttachField
           label="Photo"
           uri={imageUri}
-          onChange={(picked) => setImageUri(picked?.uri || '')}
+          onChange={(picked) => setImageUri(asImageUri(picked))}
         />
         <LabelPicker value={labels} onChange={setLabels} />
 

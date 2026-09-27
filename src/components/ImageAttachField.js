@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet, Platform } from 'react-native';
 import ImageSourceSheet, { openImageSourcePicker } from './ImageSourceSheet';
+import { asImageUri } from '../services/imagePicker';
 
 export default function ImageAttachField({
   label,
@@ -13,15 +14,17 @@ export default function ImageAttachField({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [broken, setBroken] = useState(false);
+  const src = asImageUri(uri);
 
   useEffect(() => {
     setBroken(false);
-  }, [uri]);
+  }, [src]);
 
   const handlePicked = (picked) => {
-    if (picked && picked.uri) {
+    const next = asImageUri(picked);
+    if (next) {
       setBroken(false);
-      onChange(picked);
+      onChange({ uri: next, filename: picked?.filename });
     }
   };
 
@@ -38,9 +41,9 @@ export default function ImageAttachField({
   return (
     <View style={styles.wrap}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      {uri && !broken ? (
+      {src && !broken ? (
         <Image
-          source={{ uri }}
+          source={{ uri: src }}
           style={styles.thumb}
           resizeMode="cover"
           onError={() => setBroken(true)}
@@ -51,7 +54,7 @@ export default function ImageAttachField({
         <TouchableOpacity style={styles.btn} onPress={openPicker} activeOpacity={0.8}>
           <Text style={styles.btnText}>{uri ? 'Change photo' : 'Add photo'}</Text>
         </TouchableOpacity>
-        {uri ? (
+        {src ? (
           <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={() => onChange(null)}>
             <Text style={styles.ghostText}>Remove</Text>
           </TouchableOpacity>
