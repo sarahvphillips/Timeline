@@ -190,7 +190,7 @@ export default function YearOverviewScreen({ navigation, route }) {
       <View style={styles.filterBar}>
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
+          showsHorizontalScrollIndicator
           style={styles.filterScroll}
           contentContainerStyle={styles.filters}
         >
@@ -207,6 +207,9 @@ export default function YearOverviewScreen({ navigation, route }) {
             );
           })}
         </ScrollView>
+        <View pointerEvents="none" style={styles.filterFade}>
+          <Text style={styles.filterFadeMark}>›</Text>
+        </View>
       </View>
       {itemView ? (
         <Text style={styles.filterHint}>
@@ -341,7 +344,20 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
     backgroundColor: '#0f1024',
+    position: 'relative',
   },
+  filterFade: {
+    position: 'absolute',
+    right: 0,
+    top: 8,
+    bottom: 8,
+    width: 28,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,16,36,0.72)',
+    paddingRight: 6,
+  },
+  filterFadeMark: { color: '#93c5fd', fontSize: 22, fontWeight: '700' },
   filterScroll: {
     flexGrow: 0,
   },

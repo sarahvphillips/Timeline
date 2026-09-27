@@ -1300,7 +1300,8 @@ export default function EventGraphScreen({ navigation }) {
                         </Text>
                       ) : null}
                     </View>
-                    {node.kind === 'event' ? (
+                    {node.kind === 'event' &&
+                    (on || linkedIds.has(node.id) || (!selected && shownNodes.length <= 18)) ? (
                       <Text style={[styles.nodeLabel, { color: on ? '#fbbf24' : colors.faint }]} numberOfLines={1}>
                         {node.label}
                       </Text>

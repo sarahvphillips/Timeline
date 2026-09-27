@@ -255,7 +255,7 @@ export default function SocialScreen({ navigation, route }) {
         <View style={styles.card}>
           <Text style={styles.label}>Post link (optional)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, styles.urlInput]}
             value={url}
             onChangeText={(t) => {
               setUrl(t);
@@ -266,6 +266,10 @@ export default function SocialScreen({ navigation, route }) {
             placeholder="x.com/… or instagram.com/p/…"
             placeholderTextColor="#64748b"
             autoCapitalize="none"
+            autoCorrect={false}
+            multiline
+            textAlign="left"
+            textAlignVertical="top"
           />
 
           <Text style={styles.label}>What it is</Text>
@@ -420,6 +424,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: '#f8fafc',
   },
+  urlInput: { minHeight: 64 },
   area: { minHeight: 80, textAlignVertical: 'top' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

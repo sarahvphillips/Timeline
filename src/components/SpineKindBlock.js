@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions, Alert } from 'react-native';
 
 export const BUBBLE_SIZE = 78;
 const VERT_GAP = 62;
@@ -138,10 +138,15 @@ function KindBubble({ bubble, glow, onPress, style }) {
         style,
       ]}
       onPress={onPress}
+      onLongPress={() => {
+        const title = String(bubble.label || '').trim();
+        if (title) Alert.alert(title, countText);
+      }}
+      delayLongPress={280}
       accessibilityLabel={`${bubble.label} ${countText}`}
       activeOpacity={0.85}
     >
-      <Text style={styles.kindLabel} numberOfLines={1}>
+      <Text style={styles.kindLabel} numberOfLines={isDate ? 2 : 1}>
         {bubble.label}
       </Text>
       <Text style={[styles.kindCount, styles.kindCountDate]} numberOfLines={1}>
