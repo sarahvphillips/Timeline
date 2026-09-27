@@ -569,8 +569,11 @@ export default function EventGraphScreen({ navigation }) {
       return;
     }
     const next = placeLayout(layoutId, graph.nodes, graph.edges, width, height);
+    const prev = posRef.current || {};
     Object.keys(next).forEach((id) => {
-      if (pinsRef.current[id]) next[id] = { ...next[id], userPin: true };
+      if (pinsRef.current[id] && prev[id]) {
+        next[id] = { x: prev[id].x, y: prev[id].y, userPin: true };
+      }
     });
     posRef.current = next;
     setPositions(next);
