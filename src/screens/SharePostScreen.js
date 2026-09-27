@@ -9,8 +9,9 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import { saveEvent } from '../services/eventService';
+import { copyTextToClipboard } from '../services/shareService';
 import {
   defaultShareCaption,
   eventShareImage,
@@ -24,6 +25,26 @@ export default function SharePostScreen({ navigation, route }) {
   const photo = eventShareImage(event);
   const [caption, setCaption] = useState(defaultShareCaption(event));
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyCaption = async () => {
+    const text = String(caption || '').trim();
+    if (!text) {
+      Alert.alert('Nothing to copy', 'Write the sharing text first.');
+      return false;
+    }
+    let ok = false;
+    try {
+      const Clipboard = require('expo-clipboard');
+      if (Clipboard?.setStringAsync) {
+        await Clipboard.setStringAsync(text);
+        ok = true;
+      }
+    } catch (_) {}
+    if (!ok) ok = await copyTextToClipboard(text);
+    setCopied(ok);
+    return ok;
+  };
 
   if (!event) {
     return (
@@ -51,6 +72,7 @@ export default function SharePostScreen({ navigation, route }) {
 
   const handleSheet = async () => {
     await persistCaption();
+    const copiedOk = await copyCaption();
     try {
       const result = await shareTextAndImage({
         title: event.title || 'Timeline',
@@ -59,10 +81,10 @@ export default function SharePostScreen({ navigation, route }) {
       });
       if (result === 'sheet') {
         Alert.alert(
-          'Pick an app',
-          photo
-            ? 'The picture is in the share sheet. The caption was copied, so paste it in X or Instagram if the app did not keep the text.'
-            : 'Choose X, Instagram, Facebook or Gmail.',
+          copiedOk ? 'Copied, then pick an app' : 'Pick an app',
+          copiedOk
+            ? 'The sharing text is on the clipboard. The picture is in the share sheet. Paste the text in X or Instagram if the caption box is empty.'
+            : 'Choose X, Instagram, Facebook or Gmail. Use the copy icon if you need the text.',
         );
       }
     } catch (e) {
@@ -72,6 +94,7 @@ export default function SharePostScreen({ navigation, route }) {
 
   const handleX = async () => {
     await persistCaption();
+    const copiedOk = await copyCaption();
     try {
       const sent = photo
         ? await shareTextAndImage({
@@ -81,11 +104,16 @@ export default function SharePostScreen({ navigation, route }) {
           })
         : await openXCompose(caption, '');
       if (photo && sent === 'sheet') {
-        Alert.alert('Pick X', 'The image is attached and the caption is copied. Choose X in the list.');
+        Alert.alert(
+          copiedOk ? 'Copied — pick X' : 'Pick X',
+          copiedOk
+            ? 'The sharing text is on the clipboard. Choose X, then paste if the post box is empty.'
+            : 'Choose X in the list. Use the copy icon for the text.',
+        );
       } else if (sent === 'x-text-only' || sent === 'x-web') {
         Alert.alert(
-          'Text sent to X',
-          'The caption is in the post box and also copied. Attach the image in X if it did not appear.',
+          copiedOk ? 'Copied to clipboard' : 'Opened X',
+          'Paste the sharing text into the post if it is not already there.',
         );
       }
     } catch (e) {
@@ -95,10 +123,16 @@ export default function SharePostScreen({ navigation, route }) {
 
   const handleEmail = async () => {
     await persistCaption();
+    const copiedOk = await copyCaption();
     try {
       const result = await openEmailCompose(event.title || 'Timeline', caption, photo);
-      if (result === 'sheet') {
-        Alert.alert('Pick email', 'Choose Gmail or Email. The image is attached and the caption is copied.');
+      if (result === 'sheet' || result === 'intent') {
+        Alert.alert(
+          copiedOk ? 'Copied — pick email' : 'Pick email',
+          copiedOk
+            ? 'The sharing text is on the clipboard. Choose Gmail, then paste if the message is empty.'
+            : 'Choose Gmail or Email. Use the copy icon for the text.',
+        );
       }
     } catch (e) {
       Alert.alert('Could not open email', e?.message || 'Use Share to apps instead.');
@@ -117,10 +151,26 @@ export default function SharePostScreen({ navigation, route }) {
         <Text style={styles.noPhoto}>No image on this event. The post will be text only.</Text>
       )}
 
-      <Text style={styles.label}>Sharing text</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>Sharing text</Text>
+        <TouchableOpacity
+          onPress={async () => {
+            const ok = await copyCaption();
+            Alert.alert(ok ? 'Copied to clipboard' : 'Could not copy', ok
+              ? 'Paste this text into X, Instagram, Facebook or email.'
+              : 'Try again, or select the text and copy it yourself.');
+          }}
+          accessibilityLabel="Copy sharing text"
+          style={styles.copyBtn}
+        >
+          <Ionicons name="copy-outline" size={20} color="#93c5fd" />
+          <Text style={styles.copyLabel}>Copy</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.hint}>
-        Used as the post message. Edit it here if you want a shorter X caption than the full poem.
+        Used as the post message. Copy puts it on the clipboard. Share apps often keep the picture only, so paste this text there.
       </Text>
+      {copied ? <Text style={styles.copiedNote}>Sharing text copied to clipboard.</Text> : null}
       <TextInput
         style={styles.input}
         value={caption}
@@ -173,6 +223,21 @@ const styles = StyleSheet.create({
   },
   noPhoto: { color: '#64748b', marginBottom: 16, fontSize: 14 },
   label: { color: '#94a3b8', fontSize: 14, marginBottom: 6 },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  copyLabel: { color: '#93c5fd', fontWeight: '700', fontSize: 14 },
+  copiedNote: { color: '#86efac', fontSize: 13, marginBottom: 8 },
   hint: { color: '#64748b', fontSize: 13, lineHeight: 18, marginBottom: 12 },
   input: {
     backgroundColor: '#1a1b36',
