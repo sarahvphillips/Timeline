@@ -134,11 +134,20 @@ function buildEventGraph(events, hubIds) {
   return { nodes, edges };
 }
 
-function placeNodes(nodes, edges, width, height) {
+function placeForces(nodes, edges, width, height, opts = {}) {
+  const repulsion = opts.repulsion ?? 800;
+  const rest = opts.rest ?? 96;
+  const pullK = opts.pull ?? 0.02;
+  const steps = opts.steps ?? 40;
+  const start = opts.start || {};
   const pos = {};
   const cx = width / 2;
   const cy = height / 2;
   nodes.forEach((node, i) => {
+    if (start[node.id]) {
+      pos[node.id] = { x: start[node.id].x, y: start[node.id].y };
+      return;
+    }
     const ring =
       node.kind === 'hub'
         ? node.hub === 'year'
@@ -151,7 +160,7 @@ function placeNodes(nodes, edges, width, height) {
     pos[node.id] = { x: cx + Math.cos(angle) * ring, y: cy + Math.sin(angle) * ring };
   });
   const ids = nodes.map((node) => node.id);
-  for (let step = 0; step < 40; step += 1) {
+  for (let step = 0; step < steps; step += 1) {
     const force = {};
     ids.forEach((id) => {
       force[id] = { x: 0, y: 0 };
@@ -163,7 +172,7 @@ function placeNodes(nodes, edges, width, height) {
         let dx = a.x - b.x;
         let dy = a.y - b.y;
         const dist = Math.hypot(dx, dy) || 0.1;
-        const push = 800 / (dist * dist);
+        const push = repulsion / (dist * dist);
         dx /= dist;
         dy /= dist;
         force[ids[i]].x += dx * push;
@@ -179,7 +188,7 @@ function placeNodes(nodes, edges, width, height) {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const dist = Math.hypot(dx, dy) || 1;
-      const pull = (dist - 96) * 0.02;
+      const pull = (dist - rest) * pullK;
       force[edge.a].x += (dx / dist) * pull;
       force[edge.a].y += (dy / dist) * pull;
       force[edge.b].x -= (dx / dist) * pull;
@@ -193,12 +202,20 @@ function placeNodes(nodes, edges, width, height) {
   return pos;
 }
 
+function placeNodes(nodes, edges, width, height) {
+  return placeForces(nodes, edges, width, height);
+}
+
 const LAYOUTS = [
   { id: 'force', label: 'ForceAtlas' },
+  { id: 'frucht', label: 'Fruchterman' },
+  { id: 'yifan', label: 'Yifan Hu' },
+  { id: 'kamada', label: 'Kamada-Kawai' },
   { id: 'circle', label: 'Circle' },
   { id: 'radial', label: 'Radial' },
   { id: 'arc', label: 'Arc' },
   { id: 'time', label: 'By time' },
+  { id: 'category', label: 'By category' },
   { id: 'grid', label: 'Grid' },
   { id: 'random', label: 'Random' },
 ];
@@ -328,6 +345,87 @@ function placeRandom(nodes, width, height) {
   return pos;
 }
 
+function placeYifan(nodes, edges, width, height) {
+  const hubs = nodes.filter((node) => node.kind === 'hub');
+  if (!hubs.length) return placeForces(nodes, edges, width, height, { repulsion: 1200, rest: 88 });
+  const adj = new Map();
+  edges.forEach((edge) => {
+    if (!adj.has(edge.a)) adj.set(edge.a, []);
+    if (!adj.has(edge.b)) adj.set(edge.b, []);
+    adj.get(edge.a).push(edge.b);
+    adj.get(edge.b).push(edge.a);
+  });
+  const depth = {};
+  hubs.forEach((hub) => {
+    depth[hub.id] = 0;
+  });
+  let frontier = hubs.map((hub) => hub.id);
+  let hop = 0;
+  while (frontier.length && hop < 8) {
+    hop += 1;
+    const next = [];
+    frontier.forEach((id) => {
+      (adj.get(id) || []).forEach((other) => {
+        if (depth[other] != null) return;
+        depth[other] = hop;
+        next.push(other);
+      });
+    });
+    frontier = next;
+  }
+  const groups = {};
+  nodes.forEach((node) => {
+    const key = depth[node.id] == null ? hop + 1 : depth[node.id];
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(node);
+  });
+  const pos = {};
+  const cx = width / 2;
+  const cy = height / 2;
+  const keys = Object.keys(groups)
+    .map(Number)
+    .sort((a, b) => a - b);
+  const maxD = Math.max(keys[keys.length - 1] || 1, 1);
+  keys.forEach((key) => {
+    const list = groups[key];
+    const ring = maxD === 0 ? 0 : (key / maxD) * Math.min(width, height) * 0.42;
+    list.forEach((node, i) => {
+      const ang = (i / Math.max(list.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      pos[node.id] = {
+        x: cx + Math.cos(ang) * Math.max(18, ring),
+        y: cy + Math.sin(ang) * Math.max(18, ring),
+      };
+    });
+  });
+  return pos;
+}
+
+function placeByCategory(nodes, width, height) {
+  const groups = {};
+  nodes.forEach((node) => {
+    const key = node.kind === 'hub' ? `hub:${node.hub || node.label}` : node.event?.category || 'other';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(node);
+  });
+  const keys = Object.keys(groups).sort();
+  const pos = {};
+  const cx = width / 2;
+  const cy = height / 2;
+  const R = Math.min(width, height) * 0.3;
+  keys.forEach((key, gi) => {
+    const ang = (gi / Math.max(keys.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    const gx = cx + Math.cos(ang) * R;
+    const gy = cy + Math.sin(ang) * R;
+    groups[key].forEach((node, i) => {
+      const t = groups[key].length === 1 ? 0 : i / (groups[key].length - 1);
+      const a = ang + (t - 0.5) * 0.9;
+      const r = 16 + i * 10;
+      pos[node.id] = { x: gx + Math.cos(a) * r, y: gy + Math.sin(a) * r };
+    });
+  });
+  return pos;
+}
+
 function placeLayout(id, nodes, edges, width, height) {
   if (id === 'circle') return placeCircle(nodes, width, height);
   if (id === 'radial') return placeRadial(nodes, edges, width, height);
@@ -335,6 +433,14 @@ function placeLayout(id, nodes, edges, width, height) {
   if (id === 'time') return placeByTime(nodes, edges, width, height);
   if (id === 'grid') return placeGrid(nodes, width, height);
   if (id === 'random') return placeRandom(nodes, width, height);
+  if (id === 'frucht') return placeForces(nodes, edges, width, height, { repulsion: 1700, rest: 118, pull: 0.014, steps: 55 });
+  if (id === 'yifan') return placeYifan(nodes, edges, width, height);
+  if (id === 'kamada') {
+    const start = placeCircle(nodes, width, height);
+    const rest = Math.max(56, Math.min(width, height) / Math.max(2, Math.sqrt(nodes.length)));
+    return placeForces(nodes, edges, width, height, { start, repulsion: 900, rest, pull: 0.04, steps: 45 });
+  }
+  if (id === 'category') return placeByCategory(nodes, width, height);
   return placeNodes(nodes, edges, width, height);
 }
 
@@ -553,36 +659,6 @@ export default function EventGraphScreen({ navigation }) {
   const built = useMemo(() => buildEventGraph(filtered, hubs), [filtered, hubs]);
   const tooBig = built.nodes.length > NODE_CAP;
   const graph = tooBig ? EMPTY_GRAPH : built;
-  useEffect(() => {
-    if (!graph.nodes.length) {
-      posRef.current = {};
-      setPositions({});
-      return;
-    }
-    if (restoreRef.current?.positions) {
-      const saved = restoreRef.current.positions;
-      restoreRef.current = null;
-      const base = placeLayout(layoutId, graph.nodes, graph.edges, width, height);
-      const next = { ...base };
-      Object.keys(saved).forEach((id) => {
-        if (saved[id]) next[id] = { ...saved[id] };
-      });
-      posRef.current = next;
-      setPositions(next);
-      return;
-    }
-    const next = placeLayout(layoutId, graph.nodes, graph.edges, width, height);
-    const prev = posRef.current || {};
-    Object.keys(next).forEach((id) => {
-      if (pinsRef.current[id] && prev[id]) {
-        next[id] = { x: prev[id].x, y: prev[id].y, userPin: true };
-      }
-    });
-    posRef.current = next;
-    setPositions(next);
-  }, [graph, width, height, layoutId, layoutKey]);
-
-  const pos = positions;
 
   const keep = useMemo(() => {
     if (pinnedDepth == null) return null;
@@ -593,6 +669,38 @@ export default function EventGraphScreen({ navigation }) {
   const shownEdges = keep
     ? graph.edges.filter((edge) => keep.has(edge.a) && keep.has(edge.b))
     : graph.edges;
+  const shownKey = shownNodes.map((node) => node.id).sort().join('|');
+
+  useEffect(() => {
+    if (!shownNodes.length) {
+      posRef.current = {};
+      setPositions({});
+      return;
+    }
+    if (restoreRef.current?.positions) {
+      const saved = restoreRef.current.positions;
+      restoreRef.current = null;
+      const base = placeLayout(layoutId, shownNodes, shownEdges, width, height);
+      const next = { ...base };
+      Object.keys(saved).forEach((id) => {
+        if (saved[id] && next[id]) next[id] = { ...saved[id] };
+      });
+      posRef.current = next;
+      setPositions(next);
+      return;
+    }
+    const next = placeLayout(layoutId, shownNodes, shownEdges, width, height);
+    const prev = posRef.current || {};
+    Object.keys(next).forEach((id) => {
+      if (pinsRef.current[id] && prev[id]) {
+        next[id] = { x: prev[id].x, y: prev[id].y, userPin: true };
+      }
+    });
+    posRef.current = next;
+    setPositions(next);
+  }, [shownKey, width, height, layoutId, layoutKey]);
+
+  const pos = positions;
 
   useEffect(() => {
     if (selected && !shownNodes.some((node) => node.id === selected)) setSelected(null);
@@ -694,7 +802,7 @@ export default function EventGraphScreen({ navigation }) {
         mode === 'contract'
           ? scaleFromCenter(marked, width, height, 0.82)
           : mode === 'noverlap'
-            ? nudgeApart(marked, graph.nodes, width, height)
+            ? nudgeApart(marked, shownNodes, width, height)
             : scaleFromCenter(marked, width, height, 1.18);
       posRef.current = next;
       return next;
