@@ -16,6 +16,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents } from '../services/eventService';
 import { poemsToGraphEntries } from '../services/poemAnalysis';
+import { saveWordNumber, getWordNumbers, findSavedPhrase } from '../services/wordToIntService';
 import { claimFirstGraphSave, GRAPH_SHARE_DATA_COST, spendCredits, CREDITS_PAUSED } from '../services/rewardsService';
 
 function preferredNumber(entry) {
@@ -1013,6 +1014,69 @@ function PoemGraphScreen({ onClose, navigation }) {
   const leavingRef = useRef(false);
   const pendingLeave = useRef(null);
   const [exitAsk, setExitAsk] = useState(false);
+  const [savedWords, setSavedWords] = useState([]);
+  const [addingWords, setAddingWords] = useState(false);
+
+  const phraseSaved = (phrase) => !!findSavedPhrase(savedWords, phrase);
+
+  const addPhrasesToWordList = async (items) => {
+    const rows = (items || [])
+      .map((item) => ({
+        phrase: String(item?.phrase || item?.label || '').trim(),
+        notes: String(item?.notes || item?.entry?.notes || '#poem').trim() || '#poem',
+      }))
+      .filter((row) => row.phrase);
+    if (!rows.length) {
+      Alert.alert('Nothing to add', 'Pick a title or a word first.');
+      return;
+    }
+    if (addingWords) return;
+    setAddingWords(true);
+    try {
+      const added = [];
+      const skipped = [];
+      for (const row of rows) {
+        if (findSavedPhrase(savedWords, row.phrase) || findSavedPhrase(added, row.phrase)) {
+          skipped.push(row.phrase);
+          continue;
+        }
+        try {
+          await saveWordNumber({ phrase: row.phrase, notes: row.notes });
+          added.push(row);
+        } catch (e) {
+          if (e?.code === 'DUPLICATE_PHRASE') skipped.push(row.phrase);
+          else throw e;
+        }
+      }
+      const next = await getWordNumbers().catch(() => savedWords);
+      setSavedWords(next || []);
+      if (added.length && !skipped.length) {
+        Alert.alert(
+          added.length === 1 ? 'Saved to Word to int' : `${added.length} words saved`,
+          'They will show on Word graph the next time you open it.',
+          [
+            { text: 'Stay here', style: 'cancel' },
+            { text: 'Open Word graph', onPress: () => navigation?.navigate?.('WordGraph') },
+          ]
+        );
+      } else if (added.length) {
+        Alert.alert(
+          'Added some',
+          `${added.map((r) => r.phrase).join(', ')} saved. Already in the list: ${skipped.join(', ')}.`,
+          [
+            { text: 'Stay here', style: 'cancel' },
+            { text: 'Open Word graph', onPress: () => navigation?.navigate?.('WordGraph') },
+          ]
+        );
+      } else {
+        Alert.alert('Already in Word to int', skipped.join(', ') || 'That word is already saved in the list!');
+      }
+    } catch (e) {
+      Alert.alert('Could not save', e?.message || 'Try again.');
+    } finally {
+      setAddingWords(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -1025,6 +1089,11 @@ function PoemGraphScreen({ onClose, navigation }) {
         .finally(() => {
           if (on) setLoading(false);
         });
+      getWordNumbers()
+        .then((rows) => {
+          if (on) setSavedWords(rows || []);
+        })
+        .catch(() => {});
       listSavedGraphs()
         .then((rows) => {
           if (on) setSavedRows(rows);
@@ -2322,6 +2391,23 @@ function PoemGraphScreen({ onClose, navigation }) {
               {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.chip, phraseSaved(selectedNode.label) && styles.chipOn]}
+            onPress={() =>
+              addPhrasesToWordList([
+                { phrase: selectedNode.label, notes: selectedNode.entry?.notes || '#poem' },
+              ])
+            }
+            disabled={addingWords}
+          >
+            <Text style={[styles.chipText, phraseSaved(selectedNode.label) && styles.chipTextOn]}>
+              {addingWords
+                ? 'Saving…'
+                : phraseSaved(selectedNode.label)
+                  ? 'Already in Word to int'
+                  : 'Add to Word to int'}
+            </Text>
+          </TouchableOpacity>
           <Text style={styles.meta}>Gold outline means pinned. Long-press on a phone. Right-click in the browser.</Text>
         </View>
       ) : selectedNode?.kind === 'number' ? (
@@ -2337,6 +2423,23 @@ function PoemGraphScreen({ onClose, navigation }) {
               {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
             </Text>
           </TouchableOpacity>
+          {neighbours.filter((n) => n.kind === 'word').length ? (
+            <TouchableOpacity
+              style={styles.chip}
+              onPress={() =>
+                addPhrasesToWordList(
+                  neighbours
+                    .filter((n) => n.kind === 'word')
+                    .map((n) => ({ phrase: n.label, notes: n.entry?.notes || '#poem' }))
+                )
+              }
+              disabled={addingWords}
+            >
+              <Text style={styles.chipText}>
+                {addingWords ? 'Saving…' : 'Add these words to Word to int'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           <Text style={styles.meta}>Gold outline means pinned. Long-press on a phone. Right-click in the browser.</Text>
         </View>
       ) : null}
