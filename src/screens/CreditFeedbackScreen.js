@@ -68,7 +68,7 @@ export default function CreditFeedbackScreen({ navigation }) {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.kicker, { color: colors.blueSoft }]}>Testing</Text>
-        <Text style={[styles.heading, { color: colors.text }]}>Credits later</Text>
+        <Text style={[styles.heading, { color: colors.text }]}>Credits (coming after testing)</Text>
         <Text style={[styles.body, { color: colors.muted }]}>
           Nothing on this test costs money or credits. Logging your timeline stays free. Later, a few extras may use credits. This page is only to explain that, and to ask what you think.
         </Text>

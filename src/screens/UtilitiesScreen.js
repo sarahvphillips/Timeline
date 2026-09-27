@@ -119,7 +119,7 @@ export default function UtilitiesScreen({ navigation }) {
           }
         >
           <Text style={[styles.ghostText, { color: colors.faint }]}>
-            {CREDITS_PAUSED ? 'Credits later' : 'Credits shop'}
+            {CREDITS_PAUSED ? 'Credits (coming after testing)' : 'Credits shop'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity

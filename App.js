@@ -491,7 +491,7 @@ function AppShell() {
               <Stack.Screen
                 name="CreditFeedback"
                 component={CreditFeedbackScreen}
-                options={{ title: 'Credits later' }}
+                options={{ title: 'Credits (coming after testing)' }}
               />
 
               <Stack.Screen
