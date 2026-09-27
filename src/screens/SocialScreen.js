@@ -229,9 +229,14 @@ export default function SocialScreen({ navigation, route }) {
       return;
     }
     const ok = await copyTextToClipboard(href);
-    Alert.alert(ok ? 'Link copied' : 'Could not copy', ok
-      ? 'Paste it into another app or chat.'
-      : href);
+    Alert.alert(
+      ok === 'share' ? 'Share sheet opened' : ok ? 'Link copied' : 'Could not copy',
+      ok === 'share'
+        ? 'Choose Copy or an app. The post link is in that sheet.'
+        : ok
+          ? 'Paste it into another app or chat.'
+          : href,
+    );
   }
 
   return (

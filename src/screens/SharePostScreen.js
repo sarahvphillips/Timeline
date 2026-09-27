@@ -41,14 +41,18 @@ export default function SharePostScreen({ navigation, route }) {
     }
     let ok = false;
     try {
-      const Clipboard = require('expo-clipboard');
-      if (Clipboard?.setStringAsync) {
+      const mod = require('expo-clipboard');
+      const Clipboard = mod?.default && (mod.default.setStringAsync || mod.default.setString) ? mod.default : mod;
+      if (typeof Clipboard.setStringAsync === 'function') {
         await Clipboard.setStringAsync(text);
+        ok = true;
+      } else if (typeof Clipboard.setString === 'function') {
+        Clipboard.setString(text);
         ok = true;
       }
     } catch (_) {}
     if (!ok) ok = await copyTextToClipboard(text);
-    setCopied(ok);
+    setCopied(!!ok);
     return ok;
   };
 
@@ -162,9 +166,14 @@ export default function SharePostScreen({ navigation, route }) {
         <TouchableOpacity
           onPress={async () => {
             const ok = await copyCaption();
-            Alert.alert(ok ? 'Copied to clipboard' : 'Could not copy', ok
-              ? 'Paste this text into X, Instagram, Facebook or email.'
-              : 'Try again, or select the text and copy it yourself.');
+            Alert.alert(
+              ok === 'share' ? 'Share sheet opened' : ok ? 'Copied to clipboard' : 'Could not copy',
+              ok === 'share'
+                ? 'Choose Copy or an app. The sharing text is in that sheet.'
+                : ok
+                  ? 'Paste this text into X, Instagram, Facebook or email.'
+                  : 'Long-press the sharing text box and choose Copy.',
+            );
           }}
           accessibilityLabel="Copy sharing text"
           style={styles.copyBtn}

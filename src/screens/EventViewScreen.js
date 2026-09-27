@@ -9,10 +9,14 @@ import {
   Modal,
   Pressable,
   useWindowDimensions,
+  Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { classifyYearBubbleKind, washStatusLabel } from '../services/eventService';
 import EventLabelChips from '../components/EventLabelChips';
+import { copyTextToClipboard } from '../services/shareService';
+import { normalizeSocialUrl } from '../services/socialService';
 
 export function openEventEditor(navigation, item) {
   if (!navigation || !item) return;
@@ -88,6 +92,27 @@ export default function EventViewScreen({ navigation, route }) {
   const poem = kind.kind === 'poem';
   const photo = event.coverImageUri || event.imageUri || '';
   const body = String(event.description || event.smsBody || '').trim();
+  const postLink = normalizeSocialUrl(
+    event.socialUrl || event.url || event.qrLink || '',
+    event.socialPlatform,
+  );
+
+  const copyValue = async (value, emptyMsg) => {
+    const text = String(value || '').trim();
+    if (!text) {
+      Alert.alert('Nothing to copy', emptyMsg || 'There is no text here yet.');
+      return;
+    }
+    const ok = await copyTextToClipboard(text);
+    Alert.alert(
+      ok === 'share' ? 'Share sheet opened' : ok ? 'Copied' : 'Could not copy',
+      ok === 'share'
+        ? 'Choose Copy or an app.'
+        : ok
+          ? 'Paste it where you need it.'
+          : 'Long-press the text and choose Copy.',
+    );
+  };
   const callLength =
     Number(event.callMinutes) || Number(event.callSeconds)
       ? `${Number(event.callMinutes) || 0}m ${Number(event.callSeconds) || 0}s`
@@ -126,7 +151,33 @@ export default function EventViewScreen({ navigation, route }) {
       <Meta label="Place" value={event.location || event.placeName || event.smsLocation} />
       <Meta label="Book" value={event.collectionName} />
       <Meta label="Wash" value={event.source === 'laundry' ? washStatusLabel(event.washStatus) : ''} />
-      <Meta label="Link" value={event.qrLink || event.url} />
+      <Meta label="Link" value={event.qrLink || event.url || event.socialUrl} />
+
+      {postLink ? (
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(postLink)}>
+            <Ionicons name="open-outline" size={16} color="#7dd3fc" />
+            <Text style={styles.actionText}>Open post</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => copyValue(postLink)}>
+            <Ionicons name="copy-outline" size={16} color="#7dd3fc" />
+            <Text style={styles.actionText}>Copy link</Text>
+          </TouchableOpacity>
+          {body ? (
+            <TouchableOpacity style={styles.actionBtn} onPress={() => copyValue(body)}>
+              <Ionicons name="copy-outline" size={16} color="#7dd3fc" />
+              <Text style={styles.actionText}>Copy text</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : body ? (
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => copyValue(body)}>
+            <Ionicons name="copy-outline" size={16} color="#7dd3fc" />
+            <Text style={styles.actionText}>Copy text</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {body ? (
         <View style={[styles.body, poem && styles.bodyPoem, { borderLeftColor: kind.color || '#3b82f6' }]}>
@@ -224,6 +275,9 @@ const styles = StyleSheet.create({
   bodyText: { color: '#e2e8f0', fontSize: 16, lineHeight: 24 },
   poemText: { fontSize: 17, lineHeight: 28 },
   noBody: { color: '#64748b', marginTop: 18, fontSize: 15 },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 14 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  actionText: { color: '#7dd3fc', fontWeight: '700' },
   edit: {
     marginTop: 28,
     borderWidth: 1,

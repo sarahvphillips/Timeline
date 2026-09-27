@@ -739,17 +739,29 @@ export function hasActiveOtherParticipants(shared, myUid) {
 
 export async function copyTextToClipboard(text) {
   const value = String(text || '');
+  if (!value) return false;
   if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value);
-    return true;
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (_) {}
   }
   try {
-    // Optional dependency; may be absent in Expo Go web.
-    const Clipboard = require('expo-clipboard');
-    if (Clipboard?.setStringAsync) {
+    const mod = require('expo-clipboard');
+    const Clipboard = mod?.default && (mod.default.setStringAsync || mod.default.setString) ? mod.default : mod;
+    if (typeof Clipboard.setStringAsync === 'function') {
       await Clipboard.setStringAsync(value);
       return true;
     }
+    if (typeof Clipboard.setString === 'function') {
+      Clipboard.setString(value);
+      return true;
+    }
+  } catch (_) {}
+  try {
+    const result = await Share.share({ message: value, title: 'Copy text' });
+    if (result?.action === Share.dismissedAction) return false;
+    return 'share';
   } catch (_) {}
   return false;
 }
