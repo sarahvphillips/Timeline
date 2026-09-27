@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from './firebase';
+import { formatFullDate, DATE_FORMAT_DMY } from './dateFormat';
 
 const LEGACY_STORAGE_KEY = '@date_span_list';
 const GUEST_STORAGE_KEY = '@date_span_list_guest';
@@ -257,8 +258,14 @@ export function toIsoDate(date) {
 }
 
 export function parseIsoDay(iso) {
-  const [y, m, d] = String(iso || '').split('-').map(Number);
-  return new Date(y, (m || 1) - 1, d || 1);
+  const text = iso instanceof Date ? '' : String(iso || '').trim();
+  const match = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  const d = iso instanceof Date ? iso : new Date(text);
+  if (Number.isNaN(d.getTime())) return new Date(NaN);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 /** Whole days from focus until next birthday. excludeEndDate skips counting the birthday itself. */
@@ -334,14 +341,8 @@ export function concatNumbers(a, b) {
   return Number(`${a}${b}`);
 }
 
-export function formatUk(isoOrDate) {
-  if (!isoOrDate) return '';
-  if (isoOrDate instanceof Date) {
-    return `${isoOrDate.getDate()}/${isoOrDate.getMonth() + 1}/${isoOrDate.getFullYear()}`;
-  }
-  const d = parseIsoDay(isoOrDate);
-  if (Number.isNaN(d.getTime())) return String(isoOrDate);
-  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+export function formatUk(isoOrDate, format = DATE_FORMAT_DMY) {
+  return formatFullDate(isoOrDate, format) || (isoOrDate ? String(isoOrDate) : '');
 }
 
 export function formatSpan(s) {

@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useState, useLayoutEffect, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { classifyYearBubbleKind, washStatusLabel } from '../services/eventServic
 import EventLabelChips from '../components/EventLabelChips';
 import { copyTextToClipboard } from '../services/shareService';
 import { normalizeSocialUrl } from '../services/socialService';
+import { formatFullDate, getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
 
 export function openEventEditor(navigation, item) {
   if (!navigation || !item) return;
@@ -37,13 +38,11 @@ export function openEventEditor(navigation, item) {
   else navigation.navigate('AddEvent', { event: item });
 }
 
-function formatWhen(iso) {
+function formatWhen(iso, dateFormat = DATE_FORMAT_DMY) {
+  const date = formatFullDate(iso, dateFormat);
+  if (!date) return '';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const date = `${dd}/${mm}/${d.getFullYear()}`;
-  if (d.getHours() === 0 && d.getMinutes() === 0) return date;
+  if (Number.isNaN(d.getTime()) || (d.getHours() === 0 && d.getMinutes() === 0)) return date;
   const hh = String(d.getHours()).padStart(2, '0');
   const min = String(d.getMinutes()).padStart(2, '0');
   return `${date}  ${hh}:${min}`;
@@ -64,6 +63,11 @@ export default function EventViewScreen({ navigation, route }) {
   const event = route.params?.event;
   const { width: screenW, height: screenH } = useWindowDimensions();
   const [fullOpen, setFullOpen] = useState(false);
+  const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
+
+  useEffect(() => {
+    getDateFormat().then(setDateFormat).catch(() => setDateFormat(DATE_FORMAT_DMY));
+  }, []);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -125,7 +129,7 @@ export default function EventViewScreen({ navigation, route }) {
         <Text style={[styles.kindText, { color: kind.color || '#c4b5fd' }]}>{kind.label || 'Event'}</Text>
       </View>
       <Text style={styles.title}>{event.title || 'Untitled'}</Text>
-      <Text style={styles.when}>{formatWhen(event.date)}</Text>
+      <Text style={styles.when}>{formatWhen(event.date, dateFormat)}</Text>
 
       {photo ? (
         <TouchableOpacity

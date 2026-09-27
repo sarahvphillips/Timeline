@@ -475,14 +475,14 @@ export default function SettingsScreen({ navigation }) {
           );
         })}
 
-        <Text style={[styles.section, { color: colors.muted }]}>Short date on bubbles</Text>
+        <Text style={[styles.section, { color: colors.muted }]}>Date format</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Used on year view when each bubble is one item, for example Poems. Default is day first (25/09).
+          Used on year bubbles and on full dates such as life events and Event view. Default is day first (28/06/1971).
         </Text>
         <View style={styles.row}>
           {[
-            { id: DATE_FORMAT_DMY, label: '25/09  day first' },
-            { id: DATE_FORMAT_MDY, label: '09/25  month first' },
+            { id: DATE_FORMAT_DMY, label: '28/06/1971  day first' },
+            { id: DATE_FORMAT_MDY, label: '06/28/1971  month first' },
           ].map((item) => {
             const on = dateFormat === item.id;
             return (

@@ -16,6 +16,7 @@ import ImageAttachField from '../components/ImageAttachField';
 import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { getPeople } from '../services/peopleService';
 import { daysUntilNext, formatUk } from '../services/dateSpanService';
+import { getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
 import { PLACE_PRESETS } from '../services/placesService';
 
 export const LIFE_KINDS = [
@@ -61,10 +62,12 @@ export default function AddLifeEventScreen({ navigation, route }) {
   const [people, setPeople] = useState([]);
   const [logged, setLogged] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
 
   const load = useCallback(async () => {
-    const [list, events] = await Promise.all([getPeople(), getEvents()]);
+    const [list, events, format] = await Promise.all([getPeople(), getEvents(), getDateFormat()]);
     setPeople(list);
+    setDateFormat(format);
     setLogged(
       (events || [])
         .filter((e) => e.source === 'life')
@@ -106,7 +109,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
     const meta = kindMeta(kind);
     const label = title.trim() || (who.trim() ? `${meta.label}: ${who.trim()}` : meta.label);
     if (!date) {
-      Alert.alert('Need a date', 'Use YYYY-MM-DD.');
+      Alert.alert('Need a date', dateFormat === 'mdy' ? 'Use YYYY-MM-DD (month is the middle number).' : 'Use YYYY-MM-DD.');
       return;
     }
     setSaving(true);
@@ -210,7 +213,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
                   {kindMeta(ev.kind).label}
                   {ev.until != null
                     ? ` · ${ev.until === 0 ? 'today' : `${ev.until}d until birthday`}`
-                    : ` · ${formatUk(ev.date)}`}
+                    : ` · ${formatUk(ev.date, dateFormat)}`}
                   {ev.source === 'person' ? ' · from People' : ''}
                 </Text>
               </TouchableOpacity>
@@ -241,7 +244,9 @@ export default function AddLifeEventScreen({ navigation, route }) {
           placeholderTextColor="#64748b"
         />
 
-        <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
+        <Text style={styles.label}>
+          Date ({dateFormat === 'mdy' ? 'shows as MM/DD/YYYY' : 'shows as DD/MM/YYYY'})
+        </Text>
         <TextInput
           style={styles.input}
           value={date}
@@ -250,7 +255,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
           placeholderTextColor="#64748b"
           autoCapitalize="none"
         />
-        <Text style={styles.hint}>{date ? formatUk(date) : '—'}</Text>
+        <Text style={styles.hint}>{date ? formatUk(date, dateFormat) : '—'}</Text>
 
         <Text style={styles.label}>Who</Text>
         <View style={styles.row}>
@@ -332,7 +337,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
               <TouchableOpacity onPress={() => navigation.push('AddLifeEvent', { event: item })}>
                 <Text style={styles.logTitle}>{item.title}</Text>
                 <Text style={styles.hint}>
-                  {kindMeta(item.lifeKind).label} · {formatUk(item.date)}
+                  {kindMeta(item.lifeKind).label} · {formatUk(item.date, dateFormat)}
                   {item.lifeWho ? ` · ${item.lifeWho}` : ''}
                 </Text>
               </TouchableOpacity>
