@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet, Platform } from 'react-native';
 import ImageSourceSheet, { openImageSourcePicker } from './ImageSourceSheet';
 
@@ -12,9 +12,17 @@ export default function ImageAttachField({
   hint,
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [uri]);
 
   const handlePicked = (picked) => {
-    if (picked && picked.uri) onChange(picked);
+    if (picked && picked.uri) {
+      setBroken(false);
+      onChange(picked);
+    }
   };
 
   const openPicker = () => {
@@ -30,9 +38,15 @@ export default function ImageAttachField({
   return (
     <View style={styles.wrap}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      {uri ? (
-        <Image source={{ uri }} style={styles.thumb} resizeMode="cover" />
+      {uri && !broken ? (
+        <Image
+          source={{ uri }}
+          style={styles.thumb}
+          resizeMode="cover"
+          onError={() => setBroken(true)}
+        />
       ) : null}
+      {broken ? <Text style={styles.hint}>That photo could not be shown. Try taking it again or pick from the gallery.</Text> : null}
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={openPicker} activeOpacity={0.8}>
           <Text style={styles.btnText}>{uri ? 'Change photo' : 'Add photo'}</Text>

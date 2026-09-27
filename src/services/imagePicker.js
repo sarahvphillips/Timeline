@@ -176,11 +176,10 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
     return { uri: finalUri, filename: originalName.replace(/\.[a-zA-Z0-9]+$/i, '') + '.jpg' };
   }
 
-  // Native: compress (file:// / content://) then persist under documents when needed.
+  // Native: compress then copy file:// into app documents so content:// camera URIs do not expire.
   try {
     const compressed = await compressImageUri(workingUri);
     if (compressed && compressed !== workingUri) {
-      // Manipulator wrote a JPEG cache file — durable enough for Expo Go.
       if (String(compressed).indexOf('data:') === 0) {
         const m = String(compressed).match(/^data:[^;]+;base64,(.+)$/);
         if (m) {
@@ -190,11 +189,28 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
           return { uri: compressed, filename: storedName };
         }
       } else {
-        return { uri: compressed, filename: storedName };
+        workingUri = compressed;
       }
     }
   } catch (e) {
     console.warn('persistPickedImage: compress skipped', e);
+  }
+
+  if (Platform.OS !== 'web' && String(workingUri).indexOf('file:') === 0) {
+    try {
+      const FileSystem = require('expo-file-system/legacy');
+      const dirUri = FileSystem.documentDirectory + 'timeline-images/';
+      const info = await FileSystem.getInfoAsync(dirUri);
+      if (!info.exists) {
+        await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
+      }
+      const dest = dirUri + storedName;
+      await FileSystem.copyAsync({ from: workingUri, to: dest });
+      return { uri: dest, filename: storedName };
+    } catch (e) {
+      console.warn('persistPickedImage: file copy failed', e);
+      return { uri: workingUri, filename: storedName };
+    }
   }
 
   if (workingBase64) {
@@ -273,15 +289,44 @@ export async function pickFromCamera() {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
-      quality: JPEG_QUALITY,
-      base64: true,
+      quality: 0.5,
+      base64: Platform.OS === 'web',
+      exif: false,
     });
     if (result.canceled || !result.assets || !result.assets[0]) return null;
-    return persistAsset(result.assets[0]);
+    const asset = result.assets[0];
+    try {
+      const compressed = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: MAX_IMAGE_WIDTH } }],
+        {
+          compress: JPEG_QUALITY,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: Platform.OS === 'web',
+        }
+      );
+      if (Platform.OS === 'web' && compressed?.base64) {
+        return persistPickedImage(
+          `data:image/jpeg;base64,${compressed.base64}`,
+          asset.fileName || 'camera.jpg',
+          compressed.base64,
+          'image/jpeg'
+        );
+      }
+      return persistPickedImage(
+        compressed?.uri || asset.uri,
+        asset.fileName || 'camera.jpg',
+        null,
+        'image/jpeg'
+      );
+    } catch (e) {
+      console.warn('pickFromCamera: compress failed', e);
+      return persistPickedImage(asset.uri, asset.fileName || 'camera.jpg', asset.base64, asset.mimeType);
+    }
   } catch (e) {
     Alert.alert(
       'Could not open camera',
-      e && e.message ? e.message : 'Camera is not available here. Try gallery or files.'
+      e && e.message ? e.message : 'Please try again, or choose a photo from the gallery.'
     );
     return null;
   }
