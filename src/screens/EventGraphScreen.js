@@ -488,7 +488,10 @@ export default function EventGraphScreen({ navigation }) {
   const [savedRows, setSavedRows] = useState([]);
   const [savedOpen, setSavedOpen] = useState(false);
   const [loadedSave, setLoadedSave] = useState(null);
+  const [exitAsk, setExitAsk] = useState(false);
   const restoreRef = useRef(null);
+  const leavingRef = useRef(false);
+  const pendingLeave = useRef(null);
   const posRef = useRef({});
   const pinsRef = useRef({});
   const dragRef = useRef(null);
@@ -743,6 +746,43 @@ export default function EventGraphScreen({ navigation }) {
     setLayoutKey((n) => n + 1);
   };
 
+  const finishLeave = async (save) => {
+    if (save) {
+      try {
+        await writeSavedGraph();
+      } catch (_) {}
+    }
+    const action = pendingLeave.current;
+    pendingLeave.current = null;
+    setExitAsk(false);
+    leavingRef.current = true;
+    if (action && navigation?.dispatch) {
+      navigation.dispatch(action);
+      return;
+    }
+    if (navigation?.goBack) navigation.goBack();
+  };
+
+  useEffect(() => {
+    if (!navigation?.addListener) return undefined;
+    let ready = false;
+    const timer = setTimeout(() => {
+      ready = true;
+    }, 500);
+    const unsub = navigation.addListener('beforeRemove', (event) => {
+      if (!ready || leavingRef.current) return;
+      const type = event?.data?.action?.type;
+      if (type && type !== 'GO_BACK' && type !== 'POP' && type !== 'POP_TO_TOP') return;
+      event.preventDefault();
+      pendingLeave.current = event.data.action;
+      setExitAsk(true);
+    });
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
+  }, [navigation]);
+
   const bindNode = (id) => ({
     onPointerDown: (event) => {
       const native = event.nativeEvent || event;
@@ -990,6 +1030,34 @@ export default function EventGraphScreen({ navigation }) {
       contentContainerStyle={styles.content}
     >
       <Text style={[styles.kicker, { color: colors.blueSoft }]}>Utilities</Text>
+      {exitAsk ? (
+        <View style={[styles.detail, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <Text style={[styles.detailTitle, { color: colors.text }]}>Save before exiting?</Text>
+          <Text style={[styles.meta, { color: colors.faint }]}>
+            Save stores this layout, pins and filters in Saved graphs. Don't save leaves without storing this visit.
+          </Text>
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={[styles.chip, { backgroundColor: colors.blue, borderColor: colors.blue }]}
+              onPress={() => finishLeave(true)}
+            >
+              <Text style={[styles.chipText, styles.chipTextOn]}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.chip, { borderColor: colors.cardBorder }]} onPress={() => finishLeave(false)}>
+              <Text style={[styles.chipText, { color: colors.text }]}>Don't save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.chip, { borderColor: colors.cardBorder }]}
+              onPress={() => {
+                pendingLeave.current = null;
+                setExitAsk(false);
+              }}
+            >
+              <Text style={[styles.chipText, { color: colors.text }]}>Stay</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
       <Text style={[styles.heading, { color: colors.text }]}>Event graph</Text>
       <Text style={[styles.intro, { color: colors.faint }]}>
         An event links to its day, month and year. Tap a node to highlight what it joins. Open event
