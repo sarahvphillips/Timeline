@@ -17,7 +17,7 @@ import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import HomeFab from '../components/HomeFab';
 import LabelPicker from '../components/LabelPicker';
 import { saveEvent, deleteEvent, getEvents } from '../services/eventService';
-import { pickFromGallery } from '../services/imagePicker';
+import { pickFromGallery, asImageUri } from '../services/imagePicker';
 import { copyTextToClipboard } from '../services/shareService';
 import {
   loadSocial,
@@ -76,7 +76,7 @@ function eventFromSocial(p) {
     socialPlatform: p.platform,
     socialAction: p.action,
     socialNote: p.note,
-    imageUri: p.imageUri,
+    imageUri: asImageUri(p.imageUri) || undefined,
   };
 }
 
@@ -99,7 +99,7 @@ export default function SocialScreen({ navigation, route }) {
   const [addToTimeline, setAddToTimeline] = useState(true);
   const [editingId, setEditingId] = useState(existing?.id || null);
   const [saving, setSaving] = useState(false);
-  const [photo, setPhoto] = useState(existing?.imageUri || '');
+  const [photo, setPhoto] = useState(asImageUri(existing?.imageUri));
 
   const parsed = useMemo(() => parseSocialLink(url), [url]);
 
@@ -148,7 +148,7 @@ export default function SocialScreen({ navigation, route }) {
       socialPlatform: row.platform,
       socialAction: row.action,
       socialNote: row.note,
-      imageUri: row.imageUri || undefined,
+      imageUri: asImageUri(row.imageUri) || undefined,
     });
   }
 
@@ -170,7 +170,7 @@ export default function SocialScreen({ navigation, route }) {
       note: note.trim(),
       labels,
       addToTimeline,
-      imageUri: photo || undefined,
+      imageUri: asImageUri(photo) || undefined,
     };
     setSaving(true);
     try {
@@ -196,7 +196,7 @@ export default function SocialScreen({ navigation, route }) {
     setNote(row.note || '');
     setLabels(row.labels || []);
     setAddToTimeline(row.addToTimeline !== false);
-    setPhoto(row.imageUri || '');
+    setPhoto(asImageUri(row.imageUri));
   }
 
   async function openEventView(row) {
@@ -330,12 +330,13 @@ export default function SocialScreen({ navigation, route }) {
           <LabelPicker value={labels} onChange={setLabels} />
 
           <Text style={styles.label}>Screenshot or photo</Text>
-          {photo ? <Image source={{ uri: photo }} style={styles.art} /> : null}
+          {asImageUri(photo) ? <Image source={{ uri: asImageUri(photo) }} style={styles.art} /> : null}
           <View style={styles.row}>
             <TouchableOpacity
               style={styles.chip}
               onPress={async () => {
-                const uri = await pickFromGallery();
+                const picked = await pickFromGallery();
+                const uri = asImageUri(picked);
                 if (uri) setPhoto(uri);
               }}
             >
@@ -374,7 +375,7 @@ export default function SocialScreen({ navigation, route }) {
                 {p.platform} · {p.action}
               </Text>
               <Text style={styles.logTitle}>{p.title}</Text>
-              {p.imageUri ? <Image source={{ uri: p.imageUri }} style={styles.art} /> : null}
+              {asImageUri(p.imageUri) ? <Image source={{ uri: asImageUri(p.imageUri) }} style={styles.art} /> : null}
               <Text style={styles.hint}>{formatUk(p.date)}</Text>
               {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
               <View style={styles.actions}>

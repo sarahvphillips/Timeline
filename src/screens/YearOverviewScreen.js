@@ -23,7 +23,7 @@ import {
 } from '../services/eventService';
 import { getEventCategories } from '../services/profileService';
 import { getDateFormat, formatDayMonth } from '../services/dateFormat';
-import { pickFromGallery } from '../services/imagePicker';
+import { pickFromGallery, asImageUri } from '../services/imagePicker';
 import HomeFab from '../components/HomeFab';
 import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
@@ -124,7 +124,7 @@ export default function YearOverviewScreen({ navigation, route }) {
   const closePreview = () => setPreview(null);
 
   const addPhotoToPreview = async (blurb) => {
-    const uri = await pickFromGallery();
+    const uri = asImageUri(await pickFromGallery());
     if (!uri) return;
     const ev =
       (blurb?.id && events.find((e) => e.id === blurb.id)) || preview?.item || null;
@@ -309,8 +309,8 @@ export default function YearOverviewScreen({ navigation, route }) {
                       <Text style={styles.blurbOpen}>Open</Text>
                     </View>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
-                    {b.imageUri ? (
-                      <Image source={{ uri: b.imageUri }} style={styles.blurbImage} />
+                    {asImageUri(b.imageUri) ? (
+                      <Image source={{ uri: asImageUri(b.imageUri) }} style={styles.blurbImage} />
                     ) : null}
                     <EventLabelChips labels={b.labels} />
                     <TouchableOpacity onPress={() => addPhotoToPreview(b)}>

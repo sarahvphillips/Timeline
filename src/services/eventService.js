@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { isGuestUid } from './guestSession';
+import { asImageUri } from './imagePicker';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
 const GUEST_EVENTS_KEY = '@timeline_events_guest';
@@ -26,6 +27,18 @@ function imageStorageKey(eventId, field) {
   if (field === 'videoUri') return `@timeline_img_${eventId}_video`;
   if (field === 'audioUri') return `@timeline_img_${eventId}_audio`;
   return `@timeline_img_${eventId}`;
+}
+
+function stringifyMediaUris(event) {
+  if (!event || typeof event !== 'object') return event;
+  const next = { ...event };
+  ['imageUri', 'coverImageUri', 'videoUri', 'audioUri'].forEach((key) => {
+    if (next[key] == null || next[key] === '') return;
+    const text = asImageUri(next[key]);
+    if (text) next[key] = text;
+    else delete next[key];
+  });
+  return next;
 }
 
 function isQuotaError(e) {
@@ -359,7 +372,7 @@ function toIso(value) {
 }
 
 function normalizeEvent(data, fallbackId) {
-  const event = { ...data, id: data.id || fallbackId };
+  const event = stringifyMediaUris({ ...data, id: data.id || fallbackId });
   if (event.date) event.date = toIso(event.date);
   if (event.createdAt) event.createdAt = toIso(event.createdAt);
   if (event.updatedAt) event.updatedAt = toIso(event.updatedAt);
@@ -579,6 +592,7 @@ export async function syncEventsFromCloud(uid) {
 
 export async function saveEvent(event) {
   const uid = getUid();
+  event = stringifyMediaUris(event);
   // Local-first: never block/fail a save on cloud sync.
   let events = [];
   try {
