@@ -13,8 +13,11 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { CATEGORIES, getCategoryColor, getEvents } from '../services/eventService';
 import { useTheme } from '../themeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../services/firebase';
 
 const NODE_CAP = 200;
+const SAVED_LIMIT = 30;
 const EMPTY_GRAPH = { nodes: [], edges: [] };
 const HUBS = [
   { id: 'day', label: 'Day' },
@@ -25,6 +28,51 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 function pad(n) {
   return String(n).padStart(2, '0');
+}
+
+function savedEventGraphKey() {
+  const uid = auth?.currentUser?.uid || 'guest';
+  return `@timeline_saved_event_graphs_${uid}`;
+}
+
+async function listSavedEventGraphs() {
+  try {
+    const raw = await AsyncStorage.getItem(savedEventGraphKey());
+    const rows = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .filter((row) => row && row.id && row.savedAt)
+      .sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+  } catch {
+    return [];
+  }
+}
+
+async function saveEventGraphSnapshot(snapshot) {
+  const rows = await listSavedEventGraphs();
+  const entry = {
+    id: `eg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    savedAt: new Date().toISOString(),
+    nodeCount: snapshot.nodeCount || 0,
+    eventIds: Array.isArray(snapshot.eventIds) ? snapshot.eventIds : [],
+    hubs: Array.isArray(snapshot.hubs) ? snapshot.hubs : ['year'],
+    allOn: !!snapshot.allOn,
+    picked: Array.isArray(snapshot.picked) ? snapshot.picked : [],
+    layoutId: snapshot.layoutId || 'force',
+    zoom: snapshot.zoom || 1,
+    positions: snapshot.positions || {},
+    pins: snapshot.pins || {},
+    pinnedDepth: snapshot.pinnedDepth == null ? null : snapshot.pinnedDepth,
+  };
+  const next = [entry, ...rows].slice(0, SAVED_LIMIT);
+  await AsyncStorage.setItem(savedEventGraphKey(), JSON.stringify(next));
+  return entry;
+}
+
+async function deleteSavedEventGraph(id) {
+  const next = (await listSavedEventGraphs()).filter((row) => row.id !== id);
+  await AsyncStorage.setItem(savedEventGraphKey(), JSON.stringify(next));
+  return next;
 }
 
 function eventWhen(event) {
@@ -443,6 +491,10 @@ export default function EventGraphScreen({ navigation }) {
   const [layoutKey, setLayoutKey] = useState(0);
   const [positions, setPositions] = useState({});
   const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [savedRows, setSavedRows] = useState([]);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [loadedSave, setLoadedSave] = useState(null);
+  const restoreRef = useRef(null);
   const posRef = useRef({});
   const pinsRef = useRef({});
   const dragRef = useRef(null);
@@ -469,6 +521,11 @@ export default function EventGraphScreen({ navigation }) {
         .finally(() => {
           if (on) setLoading(false);
         });
+      listSavedEventGraphs()
+        .then((rows) => {
+          if (on) setSavedRows(rows);
+        })
+        .catch(() => {});
       return () => {
         on = false;
       };
@@ -501,6 +558,18 @@ export default function EventGraphScreen({ navigation }) {
     if (!graph.nodes.length) {
       posRef.current = {};
       setPositions({});
+      return;
+    }
+    if (restoreRef.current?.positions) {
+      const saved = restoreRef.current.positions;
+      restoreRef.current = null;
+      const base = placeLayout(layoutId, graph.nodes, graph.edges, width, height);
+      const next = { ...base };
+      Object.keys(saved).forEach((id) => {
+        if (saved[id]) next[id] = { ...saved[id] };
+      });
+      posRef.current = next;
+      setPositions(next);
       return;
     }
     const next = placeLayout(layoutId, graph.nodes, graph.edges, width, height);
@@ -627,6 +696,51 @@ export default function EventGraphScreen({ navigation }) {
       posRef.current = next;
       return next;
     });
+  };
+
+  const writeSavedGraph = async () => {
+    try {
+      const entry = await saveEventGraphSnapshot({
+        nodeCount: graph.nodes.length,
+        eventIds: graph.nodes.filter((n) => n.kind === 'event').map((n) => n.event?.id).filter(Boolean),
+        hubs,
+        allOn,
+        picked,
+        layoutId,
+        zoom,
+        positions: posRef.current,
+        pins: pinsRef.current,
+        pinnedDepth,
+      });
+      setSavedRows(await listSavedEventGraphs());
+      setLoadedSave(entry);
+      const when = new Date(entry.savedAt).toLocaleString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      Alert.alert('Graph saved', `${when}. ${entry.nodeCount} nodes and this layout are in Saved graphs.`);
+    } catch (e) {
+      Alert.alert('Could not save', e?.message || 'Try again.');
+    }
+  };
+
+  const openSaved = (entry) => {
+    restoreRef.current = { positions: entry.positions || {} };
+    setAllOn(!!entry.allOn);
+    setPicked(Array.isArray(entry.picked) ? entry.picked : []);
+    setHubs(entry.hubs?.length ? [...entry.hubs] : ['year']);
+    setLayoutId(entry.layoutId || 'force');
+    setZoom(entry.zoom || 1);
+    setPins(entry.pins || {});
+    pinsRef.current = entry.pins || {};
+    setPinnedDepth(entry.pinnedDepth == null ? null : entry.pinnedDepth);
+    setLoadedSave(entry);
+    setSavedOpen(false);
+    setSelected(null);
+    setLayoutKey((n) => n + 1);
   };
 
   const bindNode = (id) => ({
@@ -902,7 +1016,57 @@ export default function EventGraphScreen({ navigation }) {
         <TouchableOpacity style={[styles.chip, { borderColor: colors.cardBorder }]} onPress={() => setPins({})}>
           <Text style={[styles.chipText, { color: colors.text }]}>Unpin all</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.chip, { borderColor: colors.cardBorder }]} onPress={writeSavedGraph}>
+          <Text style={[styles.chipText, { color: colors.text }]}>Save graph</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.chip, { borderColor: colors.cardBorder }, savedOpen && { backgroundColor: colors.blue, borderColor: colors.blue }]}
+          onPress={() => setSavedOpen((v) => !v)}
+        >
+          <Text style={[styles.chipText, { color: colors.text }, savedOpen && styles.chipTextOn]}>Saved graphs</Text>
+        </TouchableOpacity>
       </View>
+      {loadedSave ? (
+        <Text style={[styles.meta, { color: colors.faint }]}>
+          Showing save from {new Date(loadedSave.savedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.
+        </Text>
+      ) : null}
+      {savedOpen ? (
+        <View style={{ marginTop: 8, marginBottom: 8 }}>
+          <Text style={[styles.label, { color: colors.muted }]}>Saved graphs</Text>
+          {savedRows.length === 0 ? (
+            <Text style={[styles.meta, { color: colors.faint }]}>None yet. Save graph stores this layout and these nodes.</Text>
+          ) : (
+            savedRows.map((row) => (
+              <View key={row.id} style={styles.savedRow}>
+                <TouchableOpacity style={{ flex: 1 }} onPress={() => openSaved(row)}>
+                  <Text style={[styles.chipText, { color: colors.text }]}>
+                    {new Date(row.savedAt).toLocaleString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                  <Text style={[styles.meta, { color: colors.faint }]}>
+                    {row.nodeCount} nodes · {row.layoutId || 'force'} · {(row.hubs || []).join(', ') || 'hubs'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={async () => {
+                    const next = await deleteSavedEventGraph(row.id);
+                    setSavedRows(next);
+                    if (loadedSave?.id === row.id) setLoadedSave(null);
+                  }}
+                >
+                  <Text style={[styles.chipText, { color: '#fda4af' }]}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
+      ) : null}
       {pinnedDepth != null ? (
         <Text style={[styles.meta, { color: colors.faint }]}>
           {keep && keep.size
@@ -1121,4 +1285,5 @@ const styles = StyleSheet.create({
   detailTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   eventRow: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 },
   eventTitle: { fontSize: 15, fontWeight: '700' },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
 });
