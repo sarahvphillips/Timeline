@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   Alert,
   Platform,
+  PanResponder,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CATEGORIES, getCategoryColor, getEvents } from '../services/eventService';
@@ -445,13 +446,20 @@ function nearestNode(x, y, nodes, pos, zoom, width, height) {
     const sx = cx + (p.x - cx) * z;
     const sy = cy + (p.y - cy) * z;
     const d = Math.hypot(sx - x, sy - y);
-    const limit = node.kind === 'hub' ? 42 : 34;
+    const limit = node.kind === 'hub' ? 52 : 44;
     if (d <= limit && d < bestD) {
       best = node;
       bestD = d;
     }
   });
   return best;
+}
+
+function unscalePoint(x, y, width, height, zoom) {
+  const z = zoom || 1;
+  const cx = width / 2;
+  const cy = height / 2;
+  return { x: cx + (x - cx) / z, y: cy + (y - cy) / z };
 }
 
 function openEvent(navigation, event) {
@@ -484,6 +492,8 @@ export default function EventGraphScreen({ navigation }) {
   const posRef = useRef({});
   const pinsRef = useRef({});
   const dragRef = useRef(null);
+  const holdRef = useRef(null);
+  const togglePinRef = useRef(() => {});
   const zoomRef = useRef(1);
   zoomRef.current = zoom;
   posRef.current = positions;
@@ -642,6 +652,7 @@ export default function EventGraphScreen({ navigation }) {
       return next;
     });
   };
+  togglePinRef.current = togglePin;
 
   const moveNode = (id, dx, dy) => {
     setPositions((cur) => {
@@ -789,6 +800,81 @@ export default function EventGraphScreen({ navigation }) {
   shownRef.current = shownNodes;
   const sizeRef = useRef({ width, height });
   sizeRef.current = { width, height };
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => Platform.OS !== 'web',
+      onMoveShouldSetPanResponder: () => Platform.OS !== 'web',
+      onPanResponderGrant: (e) => {
+        const rawX = e.nativeEvent.locationX;
+        const rawY = e.nativeEvent.locationY;
+        const { width: w, height: h } = sizeRef.current;
+        const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
+        const best = nearestNode(rawX, rawY, shownRef.current, posRef.current, zoomRef.current, w, h);
+        if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
+        const id = best?.id || null;
+        const grabbed = id ? posRef.current[id] : null;
+        holdRef.current = {
+          id,
+          x: rawX,
+          y: rawY,
+          ox: grabbed ? grabbed.x - point.x : 0,
+          oy: grabbed ? grabbed.y - point.y : 0,
+          moved: false,
+          timer: setTimeout(() => {
+            const hold = holdRef.current;
+            if (!hold || hold.moved || !hold.id) return;
+            togglePinRef.current(hold.id);
+          }, 480),
+        };
+        dragRef.current = id;
+        setScrollEnabled(false);
+        setSelected(id);
+      },
+      onPanResponderMove: (e) => {
+        const rawX = e.nativeEvent.locationX;
+        const rawY = e.nativeEvent.locationY;
+        const hold = holdRef.current;
+        if (hold && !hold.moved) {
+          if (Math.hypot(rawX - hold.x, rawY - hold.y) > 6) {
+            hold.moved = true;
+            clearTimeout(hold.timer);
+          }
+        }
+        if (hold && !hold.moved) return;
+        const id = dragRef.current;
+        if (!id || !posRef.current[id]) return;
+        const { width: w, height: h } = sizeRef.current;
+        const point = unscalePoint(rawX, rawY, w, h, zoomRef.current);
+        const nextX = Math.max(16, Math.min(w - 16, point.x + (hold?.ox || 0)));
+        const nextY = Math.max(16, Math.min(h - 16, point.y + (hold?.oy || 0)));
+        setPositions((cur) => {
+          const prev = cur[id];
+          if (!prev) return cur;
+          const next = { ...cur, [id]: { ...prev, x: nextX, y: nextY, userPin: true } };
+          posRef.current = next;
+          return next;
+        });
+        if (!pinsRef.current[id]) {
+          const nextPins = { ...pinsRef.current, [id]: true };
+          pinsRef.current = nextPins;
+          setPins(nextPins);
+        }
+      },
+      onPanResponderRelease: () => {
+        if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
+        holdRef.current = null;
+        dragRef.current = null;
+        setScrollEnabled(true);
+      },
+      onPanResponderTerminate: () => {
+        if (holdRef.current?.timer) clearTimeout(holdRef.current.timer);
+        holdRef.current = null;
+        dragRef.current = null;
+        setScrollEnabled(true);
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
@@ -1079,6 +1165,7 @@ export default function EventGraphScreen({ navigation }) {
         <View style={{ width, alignSelf: 'center' }}>
           <View
             nativeID="event-graph-canvas"
+            {...(Platform.OS === 'web' ? {} : pan.panHandlers)}
             style={[styles.canvas, { width, height, backgroundColor: colors.card, borderColor: colors.cardBorder }]}
           >
             <View pointerEvents="none" style={{ width, height, transform: [{ scale: zoom }] }}>
@@ -1111,7 +1198,7 @@ export default function EventGraphScreen({ navigation }) {
                 const on = selected === node.id;
                 const dim = selected && !linkedIds.has(node.id);
                 const pinned = !!pins[node.id];
-                const size = node.kind === 'hub' ? 36 : 12;
+                const size = node.kind === 'hub' ? 36 : 16;
                 return (
                   <View
                     key={node.id}
@@ -1151,29 +1238,6 @@ export default function EventGraphScreen({ navigation }) {
                 );
               })}
             </View>
-            {Platform.OS === 'web'
-              ? null
-              : shownNodes.map((node) => {
-                  const p = pos[node.id];
-                  if (!p) return null;
-                  const sx = width / 2 + (p.x - width / 2) * zoom;
-                  const sy = height / 2 + (p.y - height / 2) * zoom;
-                  const hit = node.kind === 'hub' ? 48 : 40;
-                  return (
-                    <View
-                      key={`hit-${node.id}`}
-                      {...bindNode(node.id)}
-                      style={{
-                        position: 'absolute',
-                        left: sx - hit / 2,
-                        top: sy - hit / 2,
-                        width: hit,
-                        height: node.kind === 'event' ? hit + 16 : hit,
-                        zIndex: selected === node.id ? 4 : 2,
-                      }}
-                    />
-                  );
-                })}
           </View>
           <View style={styles.zoomBar}>
             <TouchableOpacity style={[styles.zoomBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]} onPress={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.25) * 100) / 100))}>
