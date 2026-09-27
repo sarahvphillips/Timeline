@@ -51,8 +51,7 @@ export default function StampsRow({ stamps, credits = 0, colors, onShop, onStamp
 const styles = StyleSheet.create({
   card: {
     width: '100%',
-    maxWidth: 320,
-    marginBottom: 20,
+    marginBottom: 8,
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,

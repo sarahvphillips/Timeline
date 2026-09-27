@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import HomeFab from '../components/HomeFab';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useTheme } from '../themeContext';
 import { auth } from '../services/firebase';
 import { CREDITS_PAUSED } from '../services/rewardsService';
+import { MenuCard, MenuRow, MenuSection } from '../components/MenuGroup';
+import DeviceSessionsCard from '../components/DeviceSessionsCard';
 
 export default function UtilitiesScreen({ navigation }) {
   const { colors } = useTheme();
@@ -16,120 +17,90 @@ export default function UtilitiesScreen({ navigation }) {
     );
   };
 
+  const go = (screen, label) => {
+    if (!signedIn && (screen === 'EventsWithFriends' || screen === 'AcceptInvite' || screen === 'CreditFeedback' || screen === 'CreditsShop')) {
+      needAccount(label);
+      return;
+    }
+    navigation.navigate(screen);
+  };
+
   return (
     <View style={[styles.wrap, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={[styles.kicker, { color: colors.blueSoft }]}>Home</Text>
-        <Text style={[styles.title, { color: colors.text }]}>Utilities</Text>
-        <Text style={[styles.intro, { color: colors.faint }]}>
-          Connection checks and tools that are not events.
+        <MenuSection title="DATES AND NUMBERS">
+          <MenuCard colors={colors}>
+            <MenuRow colors={colors} icon="ellipse-outline" label="Date circle" onPress={() => go('DateCircle')} />
+            <MenuRow
+              colors={colors}
+              icon="calendar-outline"
+              label="Days between dates"
+              last
+              onPress={() => go('DateSpan')}
+            />
+          </MenuCard>
+        </MenuSection>
+
+        <MenuSection title="GRAPHS">
+          <MenuCard colors={colors}>
+            <MenuRow
+              colors={colors}
+              icon="git-network-outline"
+              label="People and dates graph"
+              onPress={() => go('PeopleDateGraph')}
+            />
+            <MenuRow colors={colors} icon="text-outline" label="Word to int" onPress={() => go('WordToInt')} />
+            <MenuRow colors={colors} icon="git-branch-outline" label="Word graph" onPress={() => go('WordGraph')} />
+            <MenuRow colors={colors} icon="analytics-outline" label="Event graph" onPress={() => go('EventGraph')} />
+            <MenuRow colors={colors} icon="albums-outline" label="Motifs" last onPress={() => go('Motifs')} />
+          </MenuCard>
+        </MenuSection>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          People and dates graph: turn both on to see where a day-count matches two birthdays. Motifs: Norse and Binary so far, based on saved word tags.
         </Text>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('DateCircle')}
-        >
-          <Text style={styles.buttonText}>Date circle</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('DateSpan')}
-        >
-          <Text style={styles.buttonText}>Days between dates</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('PeopleDateGraph')}
-        >
-          <Text style={styles.buttonText}>People and dates graph</Text>
-        </TouchableOpacity>
-        <Text style={[styles.hint, { color: colors.muted }]}>
-          People and saved day-counts on one graph. Turn both on to see where a day-count matches two birthdays.
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('WordToInt')}
-        >
-          <Text style={styles.buttonText}>Word to int</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('WordGraph')}
-        >
-          <Text style={styles.buttonText}>Word graph</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('EventGraph')}
-        >
-          <Text style={styles.buttonText}>Event graph</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('Motifs')}
-        >
-          <Text style={styles.buttonText}>Motifs</Text>
-        </TouchableOpacity>
-        <Text style={[styles.hint, { color: colors.muted }]}>
-          Norse and Binary, so far. A saved word is listed only when its note has that #tag.
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() => navigation.navigate('YearOverview')}
-        >
-          <Text style={styles.buttonText}>Checksums</Text>
-        </TouchableOpacity>
-        <Text style={[styles.hint, { color: colors.muted }]}>
-          Event SHA-256 lives on each item. Timeline is the shortcut until a dedicated checksums list is added.
+        <MenuSection title="SYSTEM CHECKS">
+          <MenuCard colors={colors}>
+            <MenuRow colors={colors} icon="finger-print-outline" label="Checksums" onPress={() => go('YearOverview')} />
+            <MenuRow colors={colors} icon="wifi-outline" label="Starlink check" last onPress={() => go('StarlinkCheck')} />
+          </MenuCard>
+        </MenuSection>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Checksums: SHA-256 lives on each item, shown via Timeline for now. Starlink check: public IP ASN, plus optional dish at 192.168.100.1.
         </Text>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue, marginTop: 16 }]}
-          onPress={() => navigation.navigate('StarlinkCheck')}
-        >
-          <Text style={styles.buttonText}>Starlink check</Text>
-        </TouchableOpacity>
-        <Text style={[styles.hint, { color: colors.muted }]}>
-          Whether this device is on Starlink (public IP ASN) and optional dish at 192.168.100.1.
-        </Text>
+        {signedIn ? <DeviceSessionsCard uid={auth.currentUser.uid} colors={colors} /> : null}
 
-        <Text style={[styles.section, { color: colors.muted }]}>More</Text>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.blue }]}
-          onPress={() =>
-            signedIn ? navigation.navigate('EventsWithFriends') : needAccount('Events with friends')
-          }
-        >
-          <Text style={styles.buttonText}>Events with friends</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.ghost, { borderColor: colors.cardBorder }]}
-          onPress={() =>
-            signedIn ? navigation.navigate('AcceptInvite') : needAccount('Invite codes')
-          }
-        >
-          <Text style={[styles.ghostText, { color: colors.faint }]}>Enter invite code</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.ghost, { borderColor: colors.cardBorder }]}
-          onPress={() =>
-            signedIn
-              ? navigation.navigate(CREDITS_PAUSED ? 'CreditFeedback' : 'CreditsShop')
-              : needAccount('Credits')
-          }
-        >
-          <Text style={[styles.ghostText, { color: colors.faint }]}>
-            {CREDITS_PAUSED ? 'Credits (coming after testing)' : 'Credits shop'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.ghost, { borderColor: colors.cardBorder }]}
-          onPress={() => navigation.navigate('AddWashLoad')}
-        >
-          <Text style={[styles.ghostText, { color: colors.faint }]}>Wash loads</Text>
-        </TouchableOpacity>
+        <MenuSection title="MORE">
+          <MenuCard colors={colors}>
+            <MenuRow
+              colors={colors}
+              icon="people-outline"
+              label="Events with friends"
+              onPress={() => go('EventsWithFriends', 'Events with friends')}
+            />
+            <MenuRow
+              colors={colors}
+              icon="ticket-outline"
+              label="Enter invite code"
+              onPress={() => go('AcceptInvite', 'Invite codes')}
+            />
+            <MenuRow colors={colors} icon="water-outline" label="Wash loads" last onPress={() => go('AddWashLoad')} />
+          </MenuCard>
+        </MenuSection>
+
+        <MenuSection title="TESTING">
+          <MenuCard colors={colors}>
+            <MenuRow
+              colors={colors}
+              icon="cash-outline"
+              label={CREDITS_PAUSED ? 'Credits (coming after testing)' : 'Credits shop'}
+              last
+              onPress={() => go(CREDITS_PAUSED ? 'CreditFeedback' : 'CreditsShop', 'Credits')}
+            />
+          </MenuCard>
+        </MenuSection>
       </ScrollView>
-      <HomeFab navigation={navigation} besidePlus={false} />
     </View>
   );
 }
@@ -137,71 +108,13 @@ export default function UtilitiesScreen({ navigation }) {
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
   container: {
-    padding: 24,
-    paddingBottom: 100,
-    alignItems: 'center',
-  },
-  kicker: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  intro: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    marginBottom: 24,
-    maxWidth: 320,
-  },
-  button: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    marginBottom: 8,
-    width: '100%',
-    maxWidth: 320,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    padding: 20,
+    paddingBottom: 40,
   },
   hint: {
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'center',
-    maxWidth: 320,
-    marginBottom: 8,
-  },
-  section: {
-    alignSelf: 'stretch',
-    maxWidth: 320,
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  ghost: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    marginBottom: 8,
-    width: '100%',
-    maxWidth: 320,
-    alignItems: 'center',
-    borderWidth: 1,
-    backgroundColor: 'transparent',
-  },
-  ghostText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 8,
+    paddingHorizontal: 4,
   },
 });

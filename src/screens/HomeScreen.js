@@ -1,17 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, Platform } from 'react-native';
-import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSourceSheet';
-import {
-  getOrCreateDeviceId,
-  listSessions,
-  removeSession,
-  removeOtherSessions,
-} from '../services/deviceSession';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSourceSheet';
+import { MenuCard, MenuRow, MenuSection } from '../components/MenuGroup';
+import StampsRow from '../components/StampsRow';
 import { useTheme } from '../themeContext';
 import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileService';
-import { getEvents, getLatestWash, washStatusLabel } from '../services/eventService';
-import { getShowWashInMenu } from '../services/profileService';
+import { getEvents } from '../services/eventService';
 import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
 import { syncAcceptedJoins } from '../services/peopleService';
 import { getWordNumbers } from '../services/wordToIntService';
@@ -23,55 +19,51 @@ import {
   STAMPS,
   CREDITS_PAUSED,
 } from '../services/rewardsService';
-import StampsRow from '../components/StampsRow';
 
-function platformLabel(platform) {
-  if (platform === 'ios') return 'iOS';
-  if (platform === 'android') return 'Android';
-  if (platform === 'web') return 'Web';
-  return platform || 'Unknown';
+function isHobby(event) {
+  const source = String(event?.source || '').toLowerCase();
+  const category = String(event?.category || '').toLowerCase();
+  return !!(event?.hobbyType || source === 'hobby' || category === 'hobby');
 }
 
-function formatLastSeen(iso) {
-  if (!iso) return 'unknown';
-  try {
-    return new Date(iso).toLocaleString();
-  } catch (_) {
-    return String(iso);
-  }
+function isCardSpend(event) {
+  const source = String(event?.source || '').toLowerCase();
+  const category = String(event?.category || '').toLowerCase();
+  return source === 'bank' || source === 'purchase' || /credit|bank|purchase/.test(category);
 }
 
 export default function HomeScreen({ navigation, user, onLogout }) {
-  const { colors } = useTheme();
+  const { colors, scheme, setMode } = useTheme();
   const guest = !!(user?.isGuest || user?.uid === 'guest-local');
   const initial = (user?.email || (guest ? 'G' : 'S')).charAt(0).toUpperCase();
   const [photoUri, setPhotoUri] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [thisDeviceId, setThisDeviceId] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [showWash, setShowWash] = useState(true);
-  const [latestWash, setLatestWash] = useState(null);
   const [showAddEvent, setShowAddEvent] = useState(true);
   const [staff, setStaff] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [stamps, setStamps] = useState(() => STAMPS.map((s) => ({ ...s, earned: false })));
   const [credits, setCredits] = useState(0);
+  const [hobbyCount, setHobbyCount] = useState(0);
+  const [cardCount, setCardCount] = useState(0);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: 'Home',
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => setMode(scheme === 'dark' ? 'light' : 'dark')}
+          accessibilityLabel="Toggle light or dark"
+          style={{ paddingHorizontal: 12 }}
+        >
+          <Ionicons name={scheme === 'dark' ? 'sunny-outline' : 'moon-outline'} size={22} color={colors.text} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, scheme, colors.text, setMode]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      getShowWashInMenu()
-        .then((on) => {
-          if (!cancelled) setShowWash(on !== false);
-        })
-        .catch(() => {
-          if (!cancelled) setShowWash(true);
-        });
-      getEvents()
-        .then((list) => {
-          if (!cancelled) setLatestWash(getLatestWash(list));
-        })
-        .catch(() => {});
       (async () => {
         let events = [];
         let people = [];
@@ -92,10 +84,12 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           words = [];
         }
         if (cancelled) return;
+        setHobbyCount(events.filter(isHobby).length);
+        setCardCount(events.filter(isCardSpend).length);
         try {
           await applyJoinRewards(people);
         } catch {
-          /* join rewards optional */
+          /* optional */
         }
         const nextStamps = evaluateStamps({ events, people, words });
         if (!cancelled) setStamps(nextStamps);
@@ -105,16 +99,17 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           if (cancelled) return;
           setCredits(rewards.credits || 0);
           if (stampResult.newlyClaimed?.length) {
-            Alert.alert('Stamps', CREDITS_PAUSED
-              ? stampResult.newlyClaimed[0].label
-              : `${stampResult.newlyClaimed[0].label}. Open Credits shop to spend them.`);
+            Alert.alert(
+              'Stamps',
+              CREDITS_PAUSED
+                ? stampResult.newlyClaimed[0].label
+                : `${stampResult.newlyClaimed[0].label}. Open Credits shop to spend them.`
+            );
           }
         } catch {
           try {
             const rewards = await getRewards();
-            if (!cancelled) {
-              setCredits(rewards.credits || 0);
-            }
+            if (!cancelled) setCredits(rewards.credits || 0);
           } catch {
             /* keep defaults */
           }
@@ -153,31 +148,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     };
   }, [user?.uid]);
 
-  useEffect(() => {
-    if (!user?.uid || guest) return undefined;
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const id = await getOrCreateDeviceId();
-        if (cancelled) return;
-        setThisDeviceId(id);
-        const listed = await listSessions(user.uid);
-        if (cancelled) return;
-        setSessions(listed);
-      } catch (e) {
-        console.warn('Could not load signed-in devices', e);
-      }
-    };
-
-    load();
-    const retry = setTimeout(load, 1200);
-    return () => {
-      cancelled = true;
-      clearTimeout(retry);
-    };
-  }, [user?.uid]);
-
   const savePhoto = async (picked) => {
     if (!picked || !picked.uri) return;
     try {
@@ -205,83 +175,17 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     if (!usedNative) setSheetOpen(true);
   };
 
-  const handleAddAccount = () => {
-    Alert.alert(
-      'Add another account',
-      'Multi-account sign-in will be added later. For now you can log out and sign in with a different email.'
-    );
-  };
-
-  const handleSettings = () => {
-    navigation.navigate('Settings');
-  };
-
-  const forgetSession = async (session) => {
-    const uid = user?.uid;
-    if (!uid || !session?.id) return;
-    try {
-      await removeSession(uid, session.id);
-      setSessions((cur) => cur.filter((s) => s.id !== session.id));
-    } catch (e) {
-      Alert.alert('Could not remove', e?.message || 'Try again.');
-    }
-  };
-
-  const forgetOtherSessions = async () => {
-    const uid = user?.uid;
-    if (!uid) return;
-    try {
-      await removeOtherSessions(uid);
-      setSessions((cur) => cur.filter((s) => s.id === thisDeviceId));
-    } catch (e) {
-      Alert.alert('Could not clear', e?.message || 'Try again.');
-    }
-  };
-
-  const confirmForget = (session) => {
-    const label = platformLabel(session.platform);
-    const run = () => forgetSession(session);
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm(`Remove ${label} from this list?`)) run();
-      return;
-    }
-    Alert.alert('Remove device', `Take ${label} off this list?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: run },
-    ]);
-  };
-
-  const confirmForgetOthers = () => {
-    const run = () => forgetOtherSessions();
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
-      if (window.confirm('Remove every other device from this list? This device stays.')) run();
-      return;
-    }
-    Alert.alert('Clear other devices', 'Remove every other device from this list? This device stays.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: run },
-    ]);
-  };
-
-  const thisSession = sessions.find((s) => s.id === thisDeviceId);
-  const otherSessions = sessions.filter((s) => s.id !== thisDeviceId);
-  const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
-  const newlyCreatedOther =
-    sessions.length >= 2 &&
-    otherSessions.some((s) => {
-      const created = new Date(s.createdAt || 0).getTime();
-      return Number.isFinite(created) && created >= fifteenMinAgo;
-    });
+  const stampEarned = stamps.filter((s) => s.earned).length;
 
   if (blocked) {
     return (
       <View style={[styles.container, { flex: 1, backgroundColor: colors.bg, justifyContent: 'center' }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Timeline</Text>
-        <Text style={[styles.email, { color: colors.faint, marginTop: 12 }]}>
+        <Text style={[styles.brand, { color: colors.text }]}>Timeline</Text>
+        <Text style={{ color: colors.faint, marginTop: 12, textAlign: 'center' }}>
           This email is blocked. Only the owner can unblock it from Admin.
         </Text>
-        <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder, marginTop: 24 }]} onPress={onLogout}>
-          <Text style={[styles.ghostText, { color: colors.faint }]}>Log out</Text>
+        <TouchableOpacity style={{ marginTop: 24 }} onPress={onLogout}>
+          <Text style={{ color: colors.faint }}>Log out</Text>
         </TouchableOpacity>
       </View>
     );
@@ -290,123 +194,162 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.bg }]}>
-      <View style={styles.profile}>
-        <TouchableOpacity style={[styles.avatar, { backgroundColor: colors.card, borderColor: colors.blue }]} onPress={handlePhoto} activeOpacity={0.8}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-          ) : (
-            <Text style={[styles.avatarText, { color: colors.blueSoft }]}>{initial}</Text>
-          )}
-        </TouchableOpacity>
-        <Text style={[styles.photoHint, { color: colors.muted }]}>{photoUri ? 'Tap to change photo' : 'Tap to add a profile photo'}</Text>
-        <Text style={[styles.title, { color: colors.text }]}>Timeline</Text>
-        <Text style={[styles.email, { color: colors.faint }]}>
-          {guest ? 'Guest · this device only' : user?.email || 'Signed in'}
-        </Text>
-      </View>
-
-      {guest ? (
-        <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-          <Text style={[styles.devicesTitle, { color: colors.muted }]}>Guest mode</Text>
-          <Text style={[styles.devicesNote, { color: colors.muted }]}>
-            Events stay on this phone or laptop. Create an account when you want a backup and friends features.
-          </Text>
-        </View>
-      ) : null}
-
-      {!guest ? (
-      <View style={[styles.devicesSection, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-        <Text style={[styles.devicesTitle, { color: colors.muted }]}>Signed-in devices</Text>
-        <View style={styles.deviceRow}>
-          <Text style={[styles.deviceName, { color: colors.text }]}>
-            {platformLabel(thisSession?.platform || Platform.OS)}
-            <Text style={[styles.thisDevice, { color: colors.blueSoft }]}>  This device</Text>
-          </Text>
-          <Text style={[styles.deviceMeta, { color: colors.faint }]}>
-            Last seen {formatLastSeen(thisSession?.lastSeen || new Date().toISOString())}
-          </Text>
-        </View>
-        {otherSessions.map((s) => (
-          <View key={s.id} style={styles.deviceRow}>
-            <View style={styles.deviceMain}>
-              <Text style={[styles.deviceName, { color: colors.text }]}>{platformLabel(s.platform)}</Text>
-              <Text style={[styles.deviceMeta, { color: colors.faint }]}>Last seen {formatLastSeen(s.lastSeen)}</Text>
-            </View>
-            <TouchableOpacity onPress={() => confirmForget(s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.deviceRemove}>Remove</Text>
-            </TouchableOpacity>
+        <View style={styles.profileRow}>
+          <TouchableOpacity
+            style={[styles.avatar, { backgroundColor: colors.card, borderColor: colors.blue }]}
+            onPress={handlePhoto}
+            activeOpacity={0.8}
+          >
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+            ) : (
+              <Text style={[styles.avatarText, { color: colors.blueSoft }]}>{initial}</Text>
+            )}
+          </TouchableOpacity>
+          <View style={styles.profileCopy}>
+            <Text style={[styles.brand, { color: colors.text }]}>Timeline</Text>
+            <Text style={[styles.email, { color: colors.faint }]} numberOfLines={1}>
+              {guest ? 'Guest · this device only' : user?.email || 'Signed in'}
+            </Text>
           </View>
-        ))}
-        {otherSessions.length > 0 ? (
-          <TouchableOpacity onPress={confirmForgetOthers}>
-            <Text style={styles.deviceClear}>Clear other devices</Text>
+        </View>
+
+        {showAddEvent ? (
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.blue }]}
+            onPress={() => navigation.navigate('AddEvent')}
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+            <Text style={styles.addText}>Add event</Text>
           </TouchableOpacity>
         ) : null}
-        {otherSessions.length > 0 ? (
-          <Text style={[styles.devicesNote, { color: colors.muted }]}>
-            These are past opens of Timeline, not a live lock. Removing one takes it off the list. It can show up again if that browser is still signed in and is opened later.
+
+        <View style={styles.stats}>
+          <View style={[styles.stat, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.statNum, { color: colors.text }]}>{hobbyCount}</Text>
+            <Text style={[styles.statLabel, { color: colors.faint }]}>Hobby</Text>
+          </View>
+          <View style={[styles.stat, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.statNum, { color: colors.text }]}>{cardCount}</Text>
+            <Text style={[styles.statLabel, { color: colors.faint }]}>Purchases</Text>
+          </View>
+          <View style={[styles.stat, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.statNum, { color: colors.text }]}>{stampEarned}</Text>
+            <Text style={[styles.statLabel, { color: colors.faint }]}>Stamps</Text>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>STAMPS</Text>
+        <StampsRow
+          stamps={stamps}
+          credits={credits}
+          colors={colors}
+          onShop={() => navigation.navigate(CREDITS_PAUSED ? 'CreditFeedback' : 'CreditsShop')}
+          onStamp={(s) => s?.screen && navigation.navigate(s.screen)}
+        />
+
+        {guest ? (
+          <Text style={[styles.guestNote, { color: colors.muted }]}>
+            Guest mode keeps events on this device. Create an account when you want a backup and friends features.
           </Text>
         ) : null}
-        {newlyCreatedOther ? (
-          <Text style={styles.devicesNew}>A new sign-in was recorded on another device in the last 15 minutes.</Text>
+
+        <MenuSection title="BROWSE">
+          <MenuCard colors={colors}>
+            <MenuRow
+              colors={colors}
+              icon="time-outline"
+              label="Timeline"
+              onPress={() => navigation.navigate('YearOverview')}
+            />
+            <MenuRow
+              colors={colors}
+              icon="people-outline"
+              label="Events with friends"
+              last
+              onPress={() =>
+                guest
+                  ? Alert.alert('Create an account for this', 'Friends needs a signed-in Timeline account.')
+                  : navigation.navigate('EventsWithFriends')
+              }
+            />
+          </MenuCard>
+        </MenuSection>
+
+        <MenuSection title="ACCOUNT">
+          <MenuCard colors={colors}>
+            {staff ? (
+              <MenuRow colors={colors} icon="shield-outline" label="Admin" onPress={() => navigation.navigate('Admin')} />
+            ) : null}
+            <MenuRow
+              colors={colors}
+              icon="ticket-outline"
+              label="Enter invite code"
+              onPress={() =>
+                guest
+                  ? Alert.alert('Create an account for this', 'Invite codes need a signed-in Timeline account.')
+                  : navigation.navigate('AcceptInvite')
+              }
+            />
+            <MenuRow
+              colors={colors}
+              icon="construct-outline"
+              label="Utilities"
+              onPress={() => navigation.navigate('Utilities')}
+            />
+            <MenuRow
+              colors={colors}
+              icon="settings-outline"
+              label="Settings"
+              last
+              onPress={() => navigation.navigate('Settings')}
+            />
+          </MenuCard>
+        </MenuSection>
+
+        <MenuSection title="MORE">
+          <MenuCard colors={colors}>
+            {guest ? (
+              <MenuRow
+                colors={colors}
+                icon="person-add-outline"
+                label="Create an account"
+                onPress={onLogout}
+              />
+            ) : (
+              <MenuRow
+                colors={colors}
+                icon="person-add-outline"
+                label="Add another account"
+                onPress={() =>
+                  Alert.alert(
+                    'Add another account',
+                    'Multi-account sign-in will be added later. For now you can log out and sign in with a different email.'
+                  )
+                }
+              />
+            )}
+            <MenuRow
+              colors={colors}
+              icon="log-out-outline"
+              label={guest ? 'Leave guest mode' : 'Log out'}
+              last
+              danger
+              onPress={onLogout}
+            />
+          </MenuCard>
+        </MenuSection>
+
+        {Platform.OS === 'web' ? (
+          <ImageSourceSheet
+            visible={sheetOpen}
+            onClose={() => setSheetOpen(false)}
+            onPicked={savePhoto}
+            showRemove={!!photoUri}
+            onRemove={removePhoto}
+            title="Profile photo"
+          />
         ) : null}
-      </View>
-      ) : null}
-
-      <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('YearOverview')}>
-        <Text style={styles.buttonText}>Timeline</Text>
-      </TouchableOpacity>
-
-      {showAddEvent ? (
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={() => navigation.navigate('AddEvent')}>
-          <Text style={styles.buttonText}>Add event</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.blue }]}
-        onPress={() => navigation.navigate('Utilities')}
-      >
-        <Text style={styles.buttonText}>Utilities</Text>
-      </TouchableOpacity>
-
-      {staff ? (
-        <TouchableOpacity
-          style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]}
-          onPress={() => navigation.navigate('Admin')}
-        >
-          <Text style={[styles.ghostText, { color: colors.faint }]}>Admin</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleSettings}>
-        <Text style={[styles.ghostText, { color: colors.faint }]}>Settings</Text>
-      </TouchableOpacity>
-
-      {guest ? (
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.blue }]} onPress={onLogout}>
-          <Text style={styles.buttonText}>Create an account</Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={handleAddAccount}>
-          <Text style={[styles.ghostText, { color: colors.faint }]}>Add another account</Text>
-        </TouchableOpacity>
-      )}
-
-      <TouchableOpacity style={[styles.button, styles.ghost, { backgroundColor: 'transparent', borderColor: colors.cardBorder }]} onPress={onLogout}>
-        <Text style={[styles.ghostText, { color: colors.faint }]}>{guest ? 'Leave guest mode' : 'Log out'}</Text>
-      </TouchableOpacity>
-
-      {Platform.OS === 'web' ? (
-        <ImageSourceSheet
-          visible={sheetOpen}
-          onClose={() => setSheetOpen(false)}
-          onPicked={savePhoto}
-          showRemove={!!photoUri}
-          onRemove={removePhoto}
-          title="Profile photo"
-        />
-      ) : null}
       </ScrollView>
     </View>
   );
@@ -415,138 +358,57 @@ export default function HomeScreen({ navigation, user, onLogout }) {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#0f1024',
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 20,
+    paddingBottom: 40,
   },
-  profile: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#312e81',
-    borderWidth: 2,
-    borderColor: '#3b82f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-  },
-  avatarText: {
-    color: '#60a5fa',
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  photoHint: {
-    color: '#a5b4fc',
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#f8fafc',
-  },
-  email: {
-    color: '#94a3b8',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  devicesSection: {
-    width: '100%',
-    maxWidth: 320,
-    marginBottom: 20,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#16182e',
-  },
-  devicesTitle: {
-    color: '#cbd5e1',
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-  deviceRow: {
+  profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 12,
+    marginBottom: 18,
   },
-  deviceMain: { flex: 1, paddingRight: 8 },
-  deviceName: {
-    color: '#e2e8f0',
-    fontSize: 14,
-    fontWeight: '600',
+  profileCopy: { flex: 1 },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  thisDevice: {
-    color: '#60a5fa',
-    fontSize: 12,
-    fontWeight: '600',
+  avatarImage: { width: 52, height: 52, borderRadius: 26 },
+  avatarText: { fontSize: 20, fontWeight: '700' },
+  brand: { fontSize: 22, fontWeight: '800' },
+  email: { fontSize: 13, marginTop: 2 },
+  addBtn: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
   },
-  deviceMeta: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  devicesNote: {
-    color: '#a5b4fc',
-    fontSize: 12,
-    marginTop: 8,
-    lineHeight: 17,
-  },
-  deviceRemove: { color: '#fca5a5', fontSize: 13, fontWeight: '700' },
-  deviceClear: { color: '#fca5a5', fontSize: 13, fontWeight: '700', marginTop: 6 },
-  devicesNew: {
-    color: '#fbbf24',
-    fontSize: 12,
-    marginTop: 6,
-    lineHeight: 17,
-  },
-  button: {
-    backgroundColor: '#3b82f6',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    marginBottom: 12,
-    width: '100%',
-    maxWidth: 320,
+  addText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  stats: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  stat: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
     alignItems: 'center',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '600',
+  statNum: { fontSize: 20, fontWeight: '800' },
+  statLabel: { fontSize: 11, marginTop: 2, fontWeight: '600' },
+  sectionTitle: {
+    color: '#7c6ee6',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginTop: 10,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
-  ghost: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#475569',
-  },
-  ghostText: {
-    color: '#94a3b8',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  latestWash: {
-    width: '100%',
-    maxWidth: 320,
-    marginTop: -4,
-    marginBottom: 12,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  latestLabel: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  latestTitle: { fontSize: 15, fontWeight: '600' },
-  latestMeta: { fontSize: 12, marginTop: 4 },
+  guestNote: { fontSize: 13, lineHeight: 18, marginTop: 8 },
 });
