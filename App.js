@@ -40,6 +40,7 @@ import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
 import WordGraphScreen from './src/screens/WordGraphScreen';
 import EventGraphScreen from './src/screens/EventGraphScreen';
+import PoemInsightsScreen from './src/screens/PoemInsightsScreen';
 import MotifsScreen from './src/screens/MotifsScreen';
 import PeopleDateGraphScreen from './src/screens/PeopleDateGraphScreen';
 import DateSpanScreen from './src/screens/DateSpanScreen';
@@ -450,6 +451,12 @@ function AppShell() {
                 name="EventGraph"
                 component={EventGraphScreen}
                 options={{ title: 'Event graph' }}
+              />
+
+              <Stack.Screen
+                name="PoemInsights"
+                component={PoemInsightsScreen}
+                options={{ title: 'Poem patterns' }}
               />
 
               <Stack.Screen

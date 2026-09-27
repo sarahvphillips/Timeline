@@ -136,6 +136,13 @@ export const SHOP_ITEMS = [
     cost: 6,
     perk: 'openBanking',
   },
+  {
+    id: 'poemInsights',
+    title: 'Poem patterns',
+    blurb: 'Word counts, line length, title numbers and a pattern graph from your poem events.',
+    cost: 4,
+    perk: 'poemInsights',
+  },
 ];
 
 function storeKey(uid) {
@@ -627,5 +634,6 @@ export function perkLabel(key) {
   if (key === 'checksumHome') return 'Checksums on Home';
   if (key === 'openBanking') return 'Open Banking';
   if (key === 'shareWords') return 'Share word list';
+  if (key === 'poemInsights') return 'Poem patterns';
   return key;
 }

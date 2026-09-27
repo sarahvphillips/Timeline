@@ -28,9 +28,11 @@ Friends even if they do not use the app. Invite code / QR. Share is per event.
 
 Stamps can grant credits. Shop spends them on extras. Everyday logging is free. Play Store packs later. Transfers between Timeline emails. Admin can set a test balance.
 
-## Word to int / date circle
+## Word to int / date circle / poem patterns
 
 A=1…Z=26 (sarah = 47). No duplicate words. Sort alpha / number / date. Date circle: days between birthdays; optional Wheel of dates event. Dates as DD/MM/YYYY.
+
+Poem patterns (Utilities): counts words, lines and title numbers on poem events. Credit perk later; free in this test.
 
 ## Household and money
 
