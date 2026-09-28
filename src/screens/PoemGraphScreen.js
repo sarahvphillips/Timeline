@@ -28,13 +28,19 @@ import { createGraphShare, copyTextToClipboard, takeSharedGraph } from '../servi
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
+import { formatFullDate } from '../services/dateFormat';
 
 const METHODS = [
-  { id: 'ordinal', label: 'Ordinal', color: '#93c5fd' },
+  { id: 'ordinal', label: 'Title Ord', color: '#93c5fd' },
   { id: 'pythagorean', label: 'Pythagorean', color: '#c4b5fd' },
   { id: 'reverse', label: 'Reverse', color: '#f9a8d4' },
   { id: 'reduced', label: 'Reduced', color: '#86efac' },
   { id: 'notes', label: '#note', color: '#fcd34d' },
+  { id: 'album', label: 'Album', color: '#67e8f9' },
+  { id: 'month', label: 'Month', color: '#fda4af' },
+  { id: 'echo', label: 'Shared words', color: '#a5b4fc' },
+  { id: 'words', label: 'Length', color: '#fdba74' },
+  { id: 'lines', label: 'Lines', color: '#bef264' },
 ];
 
 const OVERLAP_COLOR = '#fbbf24';
@@ -146,7 +152,7 @@ function buildGraph(list, methods) {
       id: hid,
       kind: 'number',
       label: String(label),
-      n: method === 'notes' ? null : Number(groupId),
+      n: Number.isFinite(Number(groupId)) ? Number(groupId) : null,
       count: members.length,
       method,
       color,
@@ -182,6 +188,66 @@ function buildGraph(list, methods) {
         });
       });
       groups.forEach((members, tag) => addGroup(method, color, tag, `#${tag}`, members));
+      return;
+    }
+    if (method === 'album') {
+      const groups = new Map();
+      words.forEach((w) => {
+        if (w.kind !== 'poem') return;
+        const key = String(w.collection || '').trim() || 'no album';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(w);
+      });
+      groups.forEach((members, key) => addGroup(method, color, key, key, members));
+      return;
+    }
+    if (method === 'month') {
+      const groups = new Map();
+      words.forEach((w) => {
+        if (w.kind !== 'poem') return;
+        const key = String(w.month || '').trim() || 'no date';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(w);
+      });
+      groups.forEach((members, key) => addGroup(method, color, key, key, members));
+      return;
+    }
+    if (method === 'echo') {
+      const groups = new Map();
+      words.forEach((w) => {
+        if (w.kind === 'word' && w.echoWord) {
+          const key = w.echoWord;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(w);
+        }
+        (w.echoWords || []).forEach((word) => {
+          if (!groups.has(word)) groups.set(word, []);
+          groups.get(word).push(w);
+        });
+      });
+      groups.forEach((members, key) => addGroup(method, color, key, key, members));
+      return;
+    }
+    if (method === 'words') {
+      const groups = new Map();
+      words.forEach((w) => {
+        if (w.kind !== 'poem') return;
+        const key = w.wordBucket || 'length';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(w);
+      });
+      groups.forEach((members, key) => addGroup(method, color, key, key, members));
+      return;
+    }
+    if (method === 'lines') {
+      const groups = new Map();
+      words.forEach((w) => {
+        if (w.kind !== 'poem') return;
+        const key = w.lineBucket || 'lines';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(w);
+      });
+      groups.forEach((members, key) => addGroup(method, color, key, key, members));
       return;
     }
     const groups = new Map();
@@ -936,7 +1002,7 @@ function PoemGraphScreen({ onClose, navigation }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [methods, setMethods] = useState(() =>
-    poemSessionLayout?.methods?.length ? [...poemSessionLayout.methods] : ['ordinal']
+    poemSessionLayout?.methods?.length ? [...poemSessionLayout.methods] : ['ordinal', 'echo']
   );
   const [layoutId, setLayoutId] = useState(() => poemSessionLayout?.layoutId || 'force');
   const [selected, setSelected] = useState(null);
@@ -971,10 +1037,13 @@ function PoemGraphScreen({ onClose, navigation }) {
   snipModeRef.current = snipMode;
   snipSquareRef.current = snipSquare;
   setSnipRectRef.current = setSnipRect;
+  const [kindFilter, setKindFilter] = useState('all');
   const graph = useMemo(() => {
-    const source = shownWordIds ? list.filter((row) => shownWordIds.includes(row.id)) : list;
+    let source = shownWordIds ? list.filter((row) => shownWordIds.includes(row.id)) : list;
+    if (kindFilter === 'poems') source = source.filter((row) => row.kind === 'poem');
+    if (kindFilter === 'words') source = source.filter((row) => row.kind === 'word');
     return buildGraph(source, methods);
-  }, [list, methods, shownWordIds]);
+  }, [list, methods, shownWordIds, kindFilter]);
   const posRef = useRef({});
   const dragRef = useRef(null);
   const pinnedRef = useRef({});
@@ -2001,11 +2070,27 @@ function PoemGraphScreen({ onClose, navigation }) {
       ) : null}
       <Text style={styles.heading}>Poem graph</Text>
       <Text style={styles.intro}>
-        Poem titles and words that appear in more than one poem. Each title stays joined to its
-        letter-sum, even when nothing else shares it. Turn on more than one number set to compare
-        edges. #note uses album names and poem labels. Drag a circle to move it.
+        Poem titles plus words that appear in more than one poem. Title Ord joins titles by letter-sum.
+        Shared words join a poem to every repeated word it uses. Album, Month, Length and Lines only
+        group titles. #note uses album, labels, year and shared-word tags. Drag a circle to move it.
       </Text>
-      <Text style={styles.layoutLabel}>Number sets — tap to combine</Text>
+      <Text style={styles.layoutLabel}>Show</Text>
+      <View style={styles.row}>
+        {[
+          ['all', 'Titles + words'],
+          ['poems', 'Titles only'],
+          ['words', 'Shared words only'],
+        ].map(([id, label]) => (
+          <TouchableOpacity
+            key={id}
+            style={[styles.chip, kindFilter === id && styles.chipOn]}
+            onPress={() => setKindFilter(id)}
+          >
+            <Text style={[styles.chipText, kindFilter === id && styles.chipTextOn]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={styles.layoutLabel}>Sets — tap to combine</Text>
       <View style={styles.row}>
         {METHODS.map((m) => {
           const on = methods.includes(m.id);
@@ -2374,40 +2459,71 @@ function PoemGraphScreen({ onClose, navigation }) {
         <View style={styles.detail}>
           <Text style={styles.detailTitle}>{selectedNode.label}</Text>
           <Text style={styles.meta}>
+            {selectedNode.entry?.kind === 'poem' ? 'Poem title' : 'Shared word'}
+            {selectedNode.entry?.kind === 'poem'
+              ? ` · ${selectedNode.entry.wordCount || 0} words · ${selectedNode.entry.lineCount || 0} lines`
+              : selectedNode.entry?.count
+                ? ` · in ${selectedNode.entry.count} poems`
+                : ''}
+          </Text>
+          {selectedNode.entry?.kind === 'poem' ? (
+            <Text style={styles.meta}>
+              {selectedNode.entry.date ? formatFullDate(selectedNode.entry.date) : 'No date'}
+              {selectedNode.entry.collection ? ` · ${selectedNode.entry.collection}` : ''}
+              {selectedNode.entry.echoWords?.length
+                ? ` · shared: ${selectedNode.entry.echoWords.slice(0, 8).join(', ')}`
+                : ''}
+            </Text>
+          ) : selectedNode.entry?.usedIn?.length ? (
+            <Text style={styles.meta}>Used in: {selectedNode.entry.usedIn.join(' · ')}</Text>
+          ) : null}
+          {selectedNode.entry?.excerpt ? (
+            <Text style={styles.meta}>{selectedNode.entry.excerpt}</Text>
+          ) : null}
+          <Text style={styles.meta}>
             Ordinal {selectedNode.entry.ordinal} · Pythagorean {selectedNode.entry.pythagorean} · Reverse{' '}
-            {selectedNode.entry.reverse} · Reduced {selectedNode.entry.reduced} · preferred{' '}
-            {preferredNumber(selectedNode.entry)}
+            {selectedNode.entry.reverse} · Reduced {selectedNode.entry.reduced}
           </Text>
           <Text style={styles.meta}>
             {neighbours.length
-              ? `Same numbers: ${neighbours
-                  .filter((n) => n.kind === 'word')
+              ? `Joined to: ${neighbours
                   .map((n) => n.label)
-                  .join(', ') || 'only this word on the hub'}`
-              : 'No other saved word shares this number.'}
+                  .slice(0, 12)
+                  .join(', ')}`
+              : 'No other node shares this set yet.'}
           </Text>
-          <TouchableOpacity style={styles.chip} onPress={() => togglePinRef.current(selectedNode.id)}>
-            <Text style={styles.chipText}>
-              {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chip, phraseSaved(selectedNode.label) && styles.chipOn]}
-            onPress={() =>
-              addPhrasesToWordList([
-                { phrase: selectedNode.label, notes: selectedNode.entry?.notes || '#poem' },
-              ])
-            }
-            disabled={addingWords}
-          >
-            <Text style={[styles.chipText, phraseSaved(selectedNode.label) && styles.chipTextOn]}>
-              {addingWords
-                ? 'Saving…'
-                : phraseSaved(selectedNode.label)
-                  ? 'Already in Word to int'
-                  : 'Add to Word to int'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.chip} onPress={() => togglePinRef.current(selectedNode.id)}>
+              <Text style={styles.chipText}>
+                {posRef.current[selectedNode.id]?.userPin ? 'Unpin' : 'Pin in place'}
+              </Text>
+            </TouchableOpacity>
+            {selectedNode.entry?.event ? (
+              <TouchableOpacity
+                style={styles.chip}
+                onPress={() => navigation?.navigate?.('EventView', { event: selectedNode.entry.event })}
+              >
+                <Text style={styles.chipText}>Open poem</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.chip, phraseSaved(selectedNode.label) && styles.chipOn]}
+              onPress={() =>
+                addPhrasesToWordList([
+                  { phrase: selectedNode.label, notes: selectedNode.entry?.notes || '#poem' },
+                ])
+              }
+              disabled={addingWords}
+            >
+              <Text style={[styles.chipText, phraseSaved(selectedNode.label) && styles.chipTextOn]}>
+                {addingWords
+                  ? 'Saving…'
+                  : phraseSaved(selectedNode.label)
+                    ? 'Already in Word to int'
+                    : 'Add to Word to int'}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.meta}>Gold outline means pinned. Long-press on a phone. Right-click in the browser.</Text>
         </View>
       ) : selectedNode?.kind === 'number' ? (

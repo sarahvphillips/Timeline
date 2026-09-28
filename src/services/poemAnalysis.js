@@ -139,58 +139,105 @@ export function analysePoems(events, wordList = []) {
   };
 }
 
+export function wordCountBucket(n) {
+  const count = Number(n) || 0;
+  if (count <= 20) return '1–20 words';
+  if (count <= 50) return '21–50 words';
+  if (count <= 100) return '51–100 words';
+  return '100+ words';
+}
+
+export function lineCountBucket(n) {
+  const count = Number(n) || 0;
+  if (count <= 4) return '1–4 lines';
+  if (count <= 8) return '5–8 lines';
+  if (count <= 16) return '9–16 lines';
+  return '17+ lines';
+}
+
+function tagSafe(value) {
+  return String(value || '')
+    .replace(/^#/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 export function poemsToGraphEntries(events) {
-  const poems = (events || []).filter(isPoemEvent);
-  const entries = [];
+  const analysed = (events || []).filter(isPoemEvent).map(analysePoem);
   const freq = new Map();
-  poems.forEach((event) => {
-    tokenize(poemBody(event)).forEach((word) => {
-      freq.set(word, (freq.get(word) || 0) + 1);
-    });
+  analysed.forEach((poem) => {
+    poem.tokens.forEach((word) => freq.set(word, (freq.get(word) || 0) + 1));
   });
-  poems.forEach((event) => {
-    const title = String(event?.title || '').trim() || 'Untitled';
-    const nums = convertPhrase(title);
+  const echoed = [...freq.entries()]
+    .filter((row) => row[1] >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 40);
+  const echoSet = new Set(echoed.map((row) => row[0]));
+
+  const entries = analysed.map((poem) => {
     const tags = [];
-    if (event.collectionName) tags.push(String(event.collectionName).replace(/\s+/g, '_').toLowerCase());
-    (Array.isArray(event.labels) ? event.labels : []).forEach((label) => {
-      const t = String(label || '')
-        .replace(/^#/, '')
-        .trim()
-        .toLowerCase();
+    const collectionTag = tagSafe(poem.collection);
+    if (collectionTag) tags.push(collectionTag);
+    poem.labels.forEach((label) => {
+      const t = tagSafe(label);
       if (t) tags.push(t);
     });
+    if (poem.year) tags.push(`y${poem.year}`);
+    if (poem.month) tags.push(`m${poem.month.replace('-', '_')}`);
+    poem.tokens.forEach((word) => {
+      if (echoSet.has(word)) tags.push(`echo_${word}`);
+    });
+    const excerpt = String(poem.body || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' / ');
+    return {
+      id: `poem:${poem.id}`,
+      phrase: poem.title,
+      ordinal: poem.titleOrdinal,
+      pythagorean: poem.titlePyth,
+      reverse: poem.titleReverse,
+      reduced: poem.titleReduced,
+      notes: tags.map((t) => `#${t}`).join(' '),
+      poemId: poem.id,
+      event: poem.event,
+      kind: 'poem',
+      month: poem.month,
+      year: poem.year,
+      date: poem.date,
+      collection: poem.collection,
+      lineCount: poem.lineCount,
+      wordCount: poem.wordCount,
+      lineBucket: lineCountBucket(poem.lineCount),
+      wordBucket: wordCountBucket(poem.wordCount),
+      excerpt,
+      tokens: poem.tokens,
+      echoWords: poem.tokens.filter((word) => echoSet.has(word)),
+    };
+  });
+
+  echoed.forEach(([word, count]) => {
+    const nums = convertPhrase(word);
+    const used = analysed.filter((poem) => poem.tokens.includes(word));
     entries.push({
-      id: `poem:${event.id}`,
-      phrase: title,
+      id: `word:${word}`,
+      phrase: word,
       ordinal: nums.ordinal,
       pythagorean: nums.pythagorean,
       reverse: nums.reverse,
       reduced: nums.reducedOrdinal?.value,
-      notes: tags.map((t) => `#${t}`).join(' '),
-      poemId: event.id,
-      event,
-      kind: 'poem',
+      notes: '#echo #word',
+      count,
+      kind: 'word',
+      echoWord: word,
+      usedIn: used.map((poem) => poem.title),
+      usedIds: used.map((poem) => poem.id),
     });
   });
-  [...freq.entries()]
-    .filter((row) => row[1] >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 40)
-    .forEach(([word, count]) => {
-      const nums = convertPhrase(word);
-      entries.push({
-        id: `word:${word}`,
-        phrase: word,
-        ordinal: nums.ordinal,
-        pythagorean: nums.pythagorean,
-        reverse: nums.reverse,
-        reduced: nums.reducedOrdinal?.value,
-        notes: '',
-        count,
-        kind: 'word',
-      });
-    });
   return entries;
 }
 

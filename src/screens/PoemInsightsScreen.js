@@ -232,6 +232,10 @@ export default function PoemInsightsScreen({ navigation }) {
             >
               <Text style={styles.btnText}>Open poem graph</Text>
             </TouchableOpacity>
+            <Text style={[styles.body, { color: colors.faint }]}>
+              Graph sets: title numbers, shared words, album, month written, length and line count.
+              Tap a title to open the poem or add it to Word to int.
+            </Text>
           </>
         )}
       </ScrollView>
