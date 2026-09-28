@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Linking } from 'react-native';
 import HomeFab from '../components/HomeFab';
+import { useTheme } from '../themeContext';
 import {
   PRIVACY_META,
   PRIVACY_SECTIONS,
@@ -10,6 +11,8 @@ import {
 } from '../legal/docs';
 
 export default function LegalScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const which = route?.params?.doc === 'manual' ? 'manual' : 'privacy';
   const meta = which === 'manual' ? MANUAL_META : PRIVACY_META;
   const sections = which === 'manual' ? MANUAL_SECTIONS : PRIVACY_SECTIONS;
@@ -39,20 +42,23 @@ export default function LegalScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  meta: { color: '#64748b', fontSize: 13, marginTop: 6, marginBottom: 8 },
-  link: { color: '#93c5fd', fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  meta: { color: c.faint, fontSize: 13, marginTop: 6, marginBottom: 8 },
+  link: { color: c.blueSoft, fontSize: 14, lineHeight: 20, marginBottom: 16 },
   block: { marginBottom: 18 },
   h: { color: '#e2e8f0', fontSize: 17, fontWeight: '700', marginBottom: 6 },
   body: { color: '#cbd5e1', fontSize: 15, lineHeight: 22 },
 });
+}
+

@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -13,8 +14,11 @@ import HomeFab from '../components/HomeFab';
 import { getRewards, SHOP_ITEMS, spendShopItem, hasPerk, perkLabel, claimPendingTransfers } from '../services/rewardsService';
 import { auth } from '../services/firebase';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
+import { useTheme } from '../themeContext';
 
 export default function CreditsShopScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [rewards, setRewards] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [staff, setStaff] = useState(false);
@@ -166,50 +170,51 @@ export default function CreditsShopScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
   adminBanner: {
     backgroundColor: '#1e1b4b',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     padding: 14,
     marginBottom: 14,
   },
   adminBannerTitle: { color: '#ddd6fe', fontWeight: '800', fontSize: 13, textTransform: 'uppercase' },
-  adminBannerText: { color: '#c4b5fd', fontSize: 13, lineHeight: 18, marginTop: 6 },
+  adminBannerText: { color: c.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
   adminBtn: {
     marginTop: 10,
-    backgroundColor: '#6d28d9',
+    backgroundColor: c.spine,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
   },
   adminBtnText: { color: '#fff', fontWeight: '800' },
   balance: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     padding: 16,
     alignItems: 'center',
     marginBottom: 10,
   },
-  balanceNum: { color: '#c4b5fd', fontSize: 36, fontWeight: '800' },
-  balanceLabel: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
+  balanceNum: { color: c.muted, fontSize: 36, fontWeight: '800' },
+  balanceLabel: { color: c.faint, fontSize: 13, marginTop: 4 },
   needBtn: {
     marginTop: 12,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -217,25 +222,25 @@ const styles = StyleSheet.create({
   needBtnGhost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
   },
   needBtnText: { color: '#fff', fontWeight: '700' },
-  needBtnGhostText: { color: '#c4b5fd', fontWeight: '700' },
+  needBtnGhostText: { color: c.muted, fontWeight: '700' },
   balanceActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
-  ownedLine: { color: '#a5b4fc', fontSize: 13, marginBottom: 16, lineHeight: 18 },
+  ownedLine: { color: c.muted, fontSize: 13, marginBottom: 16, lineHeight: 18 },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     marginBottom: 10,
   },
-  itemTitle: { color: '#f8fafc', fontSize: 17, fontWeight: '700' },
-  itemBlurb: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginTop: 4 },
-  itemCost: { color: '#c4b5fd', fontSize: 13, fontWeight: '700', marginTop: 8, marginBottom: 10 },
+  itemTitle: { color: c.text, fontSize: 17, fontWeight: '700' },
+  itemBlurb: { color: c.faint, fontSize: 13, lineHeight: 18, marginTop: 4 },
+  itemCost: { color: c.muted, fontSize: 13, fontWeight: '700', marginTop: 8, marginBottom: 10 },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -244,3 +249,5 @@ const styles = StyleSheet.create({
   buttonOff: { backgroundColor: '#334155' },
   buttonText: { color: '#fff', fontWeight: '700' },
 });
+}
+

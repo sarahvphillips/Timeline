@@ -19,6 +19,7 @@ import LabelPicker from '../components/LabelPicker';
 import { saveEvent, deleteEvent, getEvents } from '../services/eventService';
 import { pickFromGallery, asImageUri } from '../services/imagePicker';
 import { copyTextToClipboard } from '../services/shareService';
+import { useTheme } from '../themeContext';
 import {
   loadSocial,
   saveSocial,
@@ -81,6 +82,8 @@ function eventFromSocial(p) {
 }
 
 export default function SocialScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [items, setItems] = useState([]);
   const [url, setUrl] = useState(existing?.socialUrl || '');
@@ -408,40 +411,41 @@ export default function SocialScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 120 },
-  kicker: { color: '#a5b4fc', fontSize: 12, fontWeight: '700' },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, marginTop: 8, marginBottom: 16, lineHeight: 20 },
-  card: { backgroundColor: '#1a1b36', borderRadius: 16, padding: 16 },
-  label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginTop: 12, marginBottom: 6 },
+  kicker: { color: c.muted, fontSize: 12, fontWeight: '700' },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, marginTop: 8, marginBottom: 16, lineHeight: 20 },
+  card: { backgroundColor: c.card, borderRadius: 16, padding: 16 },
+  label: { color: c.muted, fontSize: 12, fontWeight: '700', marginTop: 12, marginBottom: 6 },
   input: {
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     borderWidth: 1,
     borderColor: '#334155',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    color: '#f8fafc',
+    color: c.text,
   },
   urlInput: { minHeight: 64 },
   area: { minHeight: 80, textAlignVertical: 'top' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   chipOn: { backgroundColor: '#38bdf8', borderColor: '#38bdf8' },
-  chipText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
-  chipTextOn: { color: '#0f1024' },
-  hint: { color: '#64748b', fontSize: 12, marginTop: 6 },
+  chipText: { color: c.faint, fontWeight: '700', fontSize: 13 },
+  chipTextOn: { color: c.bg },
+  hint: { color: c.faint, fontSize: 12, marginTop: 6 },
   shareRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1, borderColor: '#64748b' },
-  boxOn: { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' },
+  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1, borderColor: c.faint },
+  boxOn: { backgroundColor: c.spine, borderColor: c.spine },
   shareLabel: { color: '#e2e8f0', fontSize: 14 },
   button: {
     backgroundColor: '#38bdf8',
@@ -450,14 +454,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
   },
-  buttonText: { color: '#0f1024', fontWeight: '700' },
-  listTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginTop: 24, marginBottom: 8 },
-  log: { backgroundColor: '#1a1b36', borderRadius: 16, padding: 16, marginBottom: 12 },
-  logTitle: { color: '#f8fafc', fontSize: 17, fontWeight: '700' },
+  buttonText: { color: c.bg, fontWeight: '700' },
+  listTitle: { color: c.text, fontSize: 18, fontWeight: '700', marginTop: 24, marginBottom: 8 },
+  log: { backgroundColor: c.card, borderRadius: 16, padding: 16, marginBottom: 12 },
+  logTitle: { color: c.text, fontSize: 17, fontWeight: '700' },
   meta: { color: '#7dd3fc', fontSize: 12, fontWeight: '700', marginBottom: 4 },
   note: { color: '#cbd5e1', marginTop: 6 },
   link: { color: '#7dd3fc', fontWeight: '700' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
-  art: { width: '100%', height: 160, borderRadius: 10, marginTop: 8, backgroundColor: '#0f1024' },
+  art: { width: '100%', height: 160, borderRadius: 10, marginTop: 8, backgroundColor: c.bg },
 });
+}
+

@@ -10,6 +10,7 @@ import {
   Share,
 } from 'react-native';
 import { saveEvent, buildGrokReplyPrompt } from '../services/eventService';
+import { useTheme } from '../themeContext';
 
 const CATEGORIES = ['personal', 'work', 'family', 'health', 'other'];
 const NEXT_ACTIONS = [
@@ -78,6 +79,8 @@ function guessCategory(mail) {
 }
 
 export default function PickFromGmailScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [picked, setPicked] = useState(null);
   const [category, setCategory] = useState('other');
   const [nextAction, setNextAction] = useState('ask_grok_reply');
@@ -207,11 +210,12 @@ export default function PickFromGmailScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 48 },
-  heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700' },
-  intro: { color: '#64748b', fontSize: 13, lineHeight: 18, marginTop: 8, marginBottom: 16 },
+  heading: { color: c.text, fontSize: 22, fontWeight: '700' },
+  intro: { color: c.faint, fontSize: 13, lineHeight: 18, marginTop: 8, marginBottom: 16 },
   card: {
     backgroundColor: '#16182e',
     borderWidth: 1,
@@ -220,42 +224,42 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
-  subject: { color: '#f8fafc', fontSize: 16, fontWeight: '700' },
-  meta: { color: '#94a3b8', fontSize: 12, marginTop: 4 },
-  snippet: { color: '#94a3b8', fontSize: 13, marginTop: 6 },
+  subject: { color: c.text, fontSize: 16, fontWeight: '700' },
+  meta: { color: c.faint, fontSize: 12, marginTop: 4 },
+  snippet: { color: c.faint, fontSize: 13, marginTop: 6 },
   sheet: {
     marginTop: 12,
     backgroundColor: '#16182e',
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     borderRadius: 12,
     padding: 14,
   },
-  sheetTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700' },
+  sheetTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
   body: { color: '#cbd5e1', fontSize: 14, marginTop: 10 },
-  label: { color: '#94a3b8', fontSize: 14, marginTop: 16, marginBottom: 8 },
+  label: { color: c.faint, fontSize: 14, marginTop: 16, marginBottom: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 18,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1,
     borderColor: '#334155',
   },
-  chipOn: { borderColor: '#3b82f6', backgroundColor: '#1e3a8a' },
-  chipText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
+  chipOn: { borderColor: c.blue, backgroundColor: '#1e3a8a' },
+  chipText: { color: c.faint, fontSize: 13, fontWeight: '600' },
   chipOnText: { color: '#bfdbfe' },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#f8fafc',
+    color: c.text,
   },
   note: { minHeight: 72, textAlignVertical: 'top' },
   save: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -264,5 +268,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.6 },
   saveText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   cancel: { alignItems: 'center', paddingVertical: 14 },
-  cancelText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  cancelText: { color: c.faint, fontSize: 15, fontWeight: '600' },
 });
+}
+

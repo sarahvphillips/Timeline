@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import { saveEvent, deleteEvent } from '../services/eventService';
+import { useTheme } from '../themeContext';
 import {
   loadSpotify,
   saveSpotify,
@@ -37,6 +38,8 @@ function formatUk(iso) {
 }
 
 export default function SpotifyScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [items, setItems] = useState([]);
   const [url, setUrl] = useState(existing?.spotifyUrl || '');
@@ -283,8 +286,9 @@ export default function SpotifyScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
   kicker: {
     color: '#1db954',
@@ -293,15 +297,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 12 },
-  label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 12 },
+  label: { color: c.muted, fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
   input: {
-    backgroundColor: '#1a1b36',
-    borderColor: '#2e2f55',
+    backgroundColor: c.card,
+    borderColor: c.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
-    color: '#f8fafc',
+    color: c.text,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
@@ -310,17 +314,17 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   chipOn: { backgroundColor: '#1db954', borderColor: '#1db954' },
-  chipText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  chipText: { color: c.faint, fontWeight: '700', fontSize: 13 },
   chipTextOn: { color: '#052e16' },
-  hint: { color: '#64748b', fontSize: 12, marginTop: 4 },
+  hint: { color: c.faint, fontSize: 12, marginTop: 4 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  box: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#64748b' },
+  box: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: c.faint },
   boxOn: { backgroundColor: '#1db954', borderColor: '#1db954' },
   checkLabel: { color: '#e2e8f0', fontWeight: '700' },
   button: {
@@ -331,16 +335,18 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   buttonText: { color: '#052e16', fontWeight: '800', fontSize: 16 },
-  listTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '800', marginTop: 24, marginBottom: 8 },
+  listTitle: { color: c.text, fontSize: 18, fontWeight: '800', marginTop: 24, marginBottom: 8 },
   log: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
-  title: { color: '#f8fafc', fontSize: 16, fontWeight: '700' },
+  title: { color: c.text, fontSize: 16, fontWeight: '700' },
   note: { color: '#e2e8f0', fontSize: 14, marginTop: 6 },
   link: { color: '#1db954', fontWeight: '700', marginTop: 8 },
 });
+}
+

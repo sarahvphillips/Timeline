@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
+import { useTheme } from '../themeContext';
 import {
   SANDBOX_TRANSACTIONS,
   getOpenBanking,
@@ -36,6 +38,8 @@ function notify(title, message) {
 }
 
 export default function OpenBankingScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [conn, setConn] = useState(null);
   const [rewards, setRewards] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -220,25 +224,26 @@ export default function OpenBankingScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
-  kicker: { color: '#93c5fd', fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
-  section: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginTop: 20, marginBottom: 6 },
+  kicker: { color: c.blueSoft, fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  section: { color: c.text, fontSize: 18, fontWeight: '700', marginTop: 20, marginBottom: 6 },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     marginBottom: 12,
   },
-  title: { color: '#f8fafc', fontSize: 17, fontWeight: '700' },
-  muted: { color: '#94a3b8', fontSize: 13, marginTop: 4, lineHeight: 18 },
+  title: { color: c.text, fontSize: 17, fontWeight: '700' },
+  muted: { color: c.faint, fontSize: 13, marginTop: 4, lineHeight: 18 },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -247,7 +252,7 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontWeight: '700' },
   ghost: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -264,9 +269,11 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 8,
   },
-  rowOn: { borderColor: '#3b82f6' },
+  rowOn: { borderColor: c.blue },
   rowTitle: { color: '#e2e8f0', fontWeight: '700' },
-  tick: { color: '#60a5fa', fontSize: 18, marginLeft: 8 },
+  tick: { color: c.blueSoft, fontSize: 18, marginLeft: 8 },
   status: { color: '#7dd3fc', marginTop: 14 },
   link: { color: '#7dd3fc', fontWeight: '700', marginTop: 16, textAlign: 'center' },
 });
+}
+

@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
@@ -18,6 +19,7 @@ import {
 } from '../services/playBilling';
 import { auth } from '../services/firebase';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
+import { useTheme } from '../themeContext';
 
 function notify(title, message, buttons) {
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
@@ -28,6 +30,8 @@ function notify(title, message, buttons) {
 }
 
 export default function BuyCreditsScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [credits, setCredits] = useState(0);
   const [staff, setStaff] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -201,37 +205,38 @@ export default function BuyCreditsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
-  kicker: { color: '#93c5fd', fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  kicker: { color: c.blueSoft, fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
   balance: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     padding: 16,
     alignItems: 'center',
     marginBottom: 12,
   },
-  balanceNum: { color: '#c4b5fd', fontSize: 36, fontWeight: '800' },
-  balanceLabel: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
+  balanceNum: { color: c.muted, fontSize: 36, fontWeight: '800' },
+  balanceLabel: { color: c.faint, fontSize: 13, marginTop: 4 },
   status: { color: '#7dd3fc', marginBottom: 12 },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     marginBottom: 10,
   },
-  title: { color: '#f8fafc', fontSize: 18, fontWeight: '700' },
-  sku: { color: '#64748b', fontSize: 12, marginTop: 4 },
-  price: { color: '#c4b5fd', fontSize: 16, fontWeight: '800', marginTop: 6, marginBottom: 10 },
+  title: { color: c.text, fontSize: 18, fontWeight: '700' },
+  sku: { color: c.faint, fontSize: 12, marginTop: 4 },
+  price: { color: c.muted, fontSize: 16, fontWeight: '800', marginTop: 6, marginBottom: 10 },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -240,7 +245,7 @@ const styles = StyleSheet.create({
   buttonOff: { backgroundColor: '#334155' },
   ghost: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -249,3 +254,5 @@ const styles = StyleSheet.create({
   ghostText: { color: '#e2e8f0', fontWeight: '700' },
   link: { color: '#7dd3fc', fontWeight: '700', marginTop: 16, textAlign: 'center' },
 });
+}
+

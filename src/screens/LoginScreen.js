@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React,  useEffect, useState, useMemo from 'react';
 import {
   View,
   Text,
@@ -24,8 +24,12 @@ import {
 } from '../services/firebase';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 import { PRIVACY_URL, DELETE_ACCOUNT_URL, DELETE_DATA_URL } from '../legal/docs';
+import { useTheme } from '../themeContext';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen({ onEnterGuest }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -211,7 +215,11 @@ export default function LoginScreen({ onEnterGuest }) {
             accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             disabled={loading || resetLoading}
           >
-            <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={22}
+              color={colors.faint}
+            />
           </TouchableOpacity>
         </View>
 
@@ -304,28 +312,29 @@ export default function LoginScreen({ onEnterGuest }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     justifyContent: 'center',
     padding: 24,
   },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 16,
     padding: 28,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: c.text,
     textAlign: 'center',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: c.faint,
     textAlign: 'center',
     marginBottom: 28,
   },
@@ -335,7 +344,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
     marginBottom: 14,
   },
   passwordRow: {
@@ -350,7 +359,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   eyeButton: {
     paddingHorizontal: 14,
@@ -369,14 +378,14 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: '#64748b',
+    borderColor: c.faint,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
   rememberBoxOn: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: c.blue,
+    borderColor: c.blue,
   },
   rememberTick: {
     color: '#fff',
@@ -389,12 +398,12 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   rememberText: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 15,
     fontWeight: '600',
   },
   rememberHint: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 13,
     marginTop: 2,
   },
@@ -405,11 +414,11 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   forgotText: {
-    color: '#60a5fa',
+    color: c.blueSoft,
     fontSize: 14,
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 10,
     paddingVertical: 16,
     alignItems: 'center',
@@ -428,7 +437,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchText: {
-    color: '#60a5fa',
+    color: c.blueSoft,
     fontSize: 14,
   },
   guestButton: {
@@ -436,15 +445,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#2a2b4a',
+    borderTopColor: c.cardBorder,
   },
   guestText: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 15,
     fontWeight: '700',
   },
   guestHint: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
@@ -452,12 +461,14 @@ const styles = StyleSheet.create({
   legalLine: {
     marginTop: 18,
     textAlign: 'center',
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
     lineHeight: 18,
   },
   legalLink: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
   },
 });
+}
+

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React,  useState, useEffect,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -27,8 +28,11 @@ import {
   declineEditSuggestion,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
+import { useTheme } from '../themeContext';
 
 export default function ShareEventScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const event = route.params?.event || null;
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -362,43 +366,44 @@ export default function ShareEventScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 48,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     flexGrow: 1,
   },
   center: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
-  loadingText: { color: '#94a3b8', marginTop: 12 },
-  errorText: { color: '#f87171', textAlign: 'center', marginBottom: 16 },
-  heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  hint: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  eventTitle: { color: '#c4b5fd', fontSize: 16, fontWeight: '600', marginBottom: 16 },
+  loadingText: { color: c.faint, marginTop: 12 },
+  errorText: { color: c.danger, textAlign: 'center', marginBottom: 16 },
+  heading: { color: c.text, fontSize: 22, fontWeight: '700', marginBottom: 8 },
+  hint: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  eventTitle: { color: c.muted, fontSize: 16, fontWeight: '600', marginBottom: 16 },
   codeBox: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     padding: 20,
     alignItems: 'center',
     marginBottom: 16,
   },
-  codeLabel: { color: '#a5b4fc', fontSize: 13, marginBottom: 8 },
-  code: { color: '#f8fafc', fontSize: 32, fontWeight: '800', letterSpacing: 4 },
-  linkLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 6 },
-  link: { color: '#60a5fa', fontSize: 14, marginBottom: 20 },
+  codeLabel: { color: c.muted, fontSize: 13, marginBottom: 8 },
+  code: { color: c.text, fontSize: 32, fontWeight: '800', letterSpacing: 4 },
+  linkLabel: { color: c.faint, fontSize: 13, marginBottom: 6 },
+  link: { color: c.blueSoft, fontSize: 14, marginBottom: 20 },
   qrWrap: { alignItems: 'center', marginBottom: 20 },
   qr: { width: 300, height: 300, backgroundColor: '#fff', borderRadius: 12 },
-  qrHint: { color: '#64748b', fontSize: 12, marginTop: 8 },
+  qrHint: { color: c.faint, fontSize: 12, marginTop: 8 },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -408,11 +413,11 @@ const styles = StyleSheet.create({
   ghost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
   },
-  ghostText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  ghostText: { color: c.faint, fontSize: 15, fontWeight: '600' },
   testPath: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
     lineHeight: 18,
     marginTop: 16,
@@ -426,28 +431,28 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   leftBannerText: { color: '#fde68a', fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  leftDismiss: { color: '#93c5fd', fontSize: 13, fontWeight: '600' },
+  leftDismiss: { color: c.blueSoft, fontSize: 13, fontWeight: '600' },
   sugBanner: {
     backgroundColor: '#1e3a5f',
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
   },
   sugBannerText: { color: '#bfdbfe', fontSize: 14, fontWeight: '600', marginBottom: 8 },
   sugList: { marginBottom: 16 },
-  sugListTitle: { color: '#c4b5fd', fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  sugListTitle: { color: c.muted, fontSize: 15, fontWeight: '700', marginBottom: 10 },
   sugCard: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#334155',
     padding: 12,
     marginBottom: 10,
   },
-  sugFrom: { color: '#94a3b8', fontSize: 12, marginBottom: 6 },
-  sugNote: { color: '#f8fafc', fontSize: 14, lineHeight: 20, marginBottom: 12 },
+  sugFrom: { color: c.faint, fontSize: 12, marginBottom: 6 },
+  sugNote: { color: c.text, fontSize: 14, lineHeight: 20, marginBottom: 12 },
   sugActions: { flexDirection: 'row', gap: 10 },
   sugApprove: {
     flex: 1,
@@ -469,3 +474,5 @@ const styles = StyleSheet.create({
   sugDeclineText: { color: '#fca5a5', fontWeight: '700' },
   sugDisabled: { opacity: 0.6 },
 });
+}
+

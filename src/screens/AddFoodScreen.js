@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React,  useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -13,6 +14,7 @@ import {
 import { saveEvent, deleteEvent } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
 import { auth } from '../services/firebase';
+import { useTheme } from '../themeContext';
 
 const FOOD_STATUSES = [
   { id: 'planned', label: 'Planned' },
@@ -28,6 +30,8 @@ function buildFoodTitle(foodStatus, foodItems) {
 }
 
 export default function AddFoodScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const isEditing = !!existing;
   const paramDate = route.params?.date
@@ -223,19 +227,20 @@ export default function AddFoodScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 40 },
-  heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 6 },
-  intro: { color: '#64748b', fontSize: 13, lineHeight: 18, marginBottom: 8 },
-  label: { color: '#94a3b8', fontSize: 14, marginTop: 16, marginBottom: 8 },
+  heading: { color: c.text, fontSize: 22, fontWeight: '700', marginBottom: 6 },
+  intro: { color: c.faint, fontSize: 13, lineHeight: 18, marginBottom: 8 },
+  label: { color: c.faint, fontSize: 14, marginTop: 16, marginBottom: 8 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   items: { minHeight: 100 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -243,16 +248,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1,
     borderColor: '#334155',
   },
-  chipText: { color: '#94a3b8', fontSize: 14, fontWeight: '600' },
+  chipText: { color: c.faint, fontSize: 14, fontWeight: '600' },
   chipOn: { borderColor: '#22c55e', backgroundColor: '#14532d' },
   chipOnText: { color: '#86efac' },
-  notice: { color: '#94a3b8', marginTop: 16, fontSize: 14 },
+  notice: { color: c.faint, marginTop: 16, fontSize: 14 },
   save: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -271,3 +276,5 @@ const styles = StyleSheet.create({
   },
   deleteText: { color: '#fca5a5', fontSize: 16, fontWeight: '600' },
 });
+}
+

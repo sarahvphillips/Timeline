@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React,  useState, useCallback,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -10,8 +11,11 @@ import {
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { checkStarlinkConnection } from '../services/starlinkService';
+import { useTheme } from '../themeContext';
 
 export default function StarlinkCheckScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -133,17 +137,18 @@ function DetailRow({ label, value }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
   },
   content: {
     padding: 20,
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 16,
     padding: 24,
     marginBottom: 16,
@@ -151,7 +156,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: c.text,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -161,7 +166,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 15,
   },
   statusBadge: {
@@ -194,19 +199,19 @@ const styles = StyleSheet.create({
     borderBottomColor: '#334155',
   },
   rowLabel: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
     flex: 1,
   },
   rowValue: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 14,
     fontWeight: '500',
     flex: 1.4,
     textAlign: 'right',
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
@@ -217,15 +222,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorText: {
-    color: '#f87171',
+    color: c.danger,
     textAlign: 'center',
     marginBottom: 16,
   },
   note: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: 8,
   },
 });
+}
+

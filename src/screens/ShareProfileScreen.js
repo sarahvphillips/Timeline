@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -16,6 +17,7 @@ import HomeFab from '../components/HomeFab';
 import { getProfile, profileShareText, normalizeHandle } from '../services/profileService';
 import { buildProfileLink } from '../utils/inviteCode';
 import { copyTextToClipboard, qrImageUrl } from '../services/shareService';
+import { useTheme } from '../themeContext';
 
 function smsHref(body) {
   const text = encodeURIComponent(body);
@@ -23,6 +25,8 @@ function smsHref(body) {
 }
 
 export default function ShareProfileScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [profile, setProfile] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -127,25 +131,28 @@ export default function ShareProfileScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
-  heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800', marginBottom: 8 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  handle: { color: '#c4b5fd', fontSize: 22, fontWeight: '800', textAlign: 'center' },
-  link: { color: '#93c5fd', fontSize: 13, textAlign: 'center', marginTop: 6, marginBottom: 12 },
+  heading: { color: c.text, fontSize: 26, fontWeight: '800', marginBottom: 8 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  handle: { color: c.muted, fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  link: { color: c.blueSoft, fontSize: 13, textAlign: 'center', marginTop: 6, marginBottom: 12 },
   qr: { width: 200, height: 200, alignSelf: 'center', backgroundColor: '#fff', marginBottom: 16 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  chipOn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  chipText: { color: '#93c5fd', fontWeight: '700' },
+  chipOn: { backgroundColor: c.blue, borderColor: c.blue },
+  chipText: { color: c.blueSoft, fontWeight: '700' },
   chipTextOn: { color: '#fff', fontWeight: '700' },
   ghost: { marginTop: 20, alignItems: 'center', paddingVertical: 12 },
-  ghostText: { color: '#94a3b8', fontWeight: '700' },
+  ghostText: { color: c.faint, fontWeight: '700' },
 });
+}
+

@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -15,6 +16,7 @@ import LabelPicker from '../components/LabelPicker';
 import CallAudioField from '../components/CallAudioField';
 import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { formatUk } from '../services/dateSpanService';
+import { useTheme } from '../themeContext';
 
 const KINDS = [
   { id: 'singing', label: 'Singing' },
@@ -34,6 +36,8 @@ function isTake(e) {
 }
 
 export default function AddSingingScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [kind, setKind] = useState(existing?.hobbyType === 'music' ? 'music' : 'singing');
   const [title, setTitle] = useState(existing?.title || '');
@@ -268,26 +272,27 @@ export default function AddSingingScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
   kicker: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  heading: { color: c.text, fontSize: 26, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
   label: { color: '#ddd6fe', fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
-  hint: { color: '#94a3b8', fontSize: 13, marginBottom: 8 },
+  hint: { color: c.faint, fontSize: 13, marginBottom: 8 },
   input: {
     backgroundColor: '#0a0a12',
-    borderColor: '#2e2f55',
+    borderColor: c.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
-    color: '#f8fafc',
+    color: c.text,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
@@ -297,17 +302,17 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     maxWidth: '100%',
   },
-  chipOn: { backgroundColor: '#5b21b6', borderColor: '#c4b5fd' },
-  chipText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  chipOn: { backgroundColor: '#5b21b6', borderColor: c.muted },
+  chipText: { color: c.faint, fontWeight: '700', fontSize: 13 },
   chipTextOn: { color: '#fff' },
   button: {
-    backgroundColor: '#6d28d9',
+    backgroundColor: c.spine,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -315,15 +320,17 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  listTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  listTitle: { color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 },
   log: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
-  logTitle: { color: '#f8fafc', fontWeight: '700', fontSize: 16 },
-  delete: { color: '#f87171', fontWeight: '700', fontSize: 13, marginTop: 6 },
+  logTitle: { color: c.text, fontWeight: '700', fontSize: 16 },
+  delete: { color: c.danger, fontWeight: '700', fontSize: 13, marginTop: 6 },
 });
+}
+

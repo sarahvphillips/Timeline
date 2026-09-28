@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React,  useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -19,6 +20,7 @@ import {
 } from '../services/eventService';
 import WashMediaField from '../components/WashMediaField';
 import { auth } from '../services/firebase';
+import { useTheme } from '../themeContext';
 
 function ChipRow({ options, value, onChange }) {
   return (
@@ -40,6 +42,8 @@ function ChipRow({ options, value, onChange }) {
 }
 
 export default function AddWashLoadScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const isEditing = !!existing;
   const paramDate = route.params?.date ? String(route.params.date).slice(0, 10) : null;
@@ -342,19 +346,20 @@ export default function AddWashLoadScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 48 },
-  heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 6 },
-  intro: { color: '#64748b', fontSize: 13, lineHeight: 18, marginBottom: 8 },
-  label: { color: '#94a3b8', fontSize: 14, marginTop: 16, marginBottom: 8 },
+  heading: { color: c.text, fontSize: 22, fontWeight: '700', marginBottom: 6 },
+  intro: { color: c.faint, fontSize: 13, lineHeight: 18, marginBottom: 8 },
+  label: { color: c.faint, fontSize: 14, marginTop: 16, marginBottom: 8 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   tall: { minHeight: 80 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -362,11 +367,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1,
     borderColor: '#334155',
   },
-  chipText: { color: '#94a3b8', fontSize: 14, fontWeight: '600' },
+  chipText: { color: c.faint, fontSize: 14, fontWeight: '600' },
   chipOn: { borderColor: '#38bdf8', backgroundColor: '#0c4a6e' },
   chipOnText: { color: '#7dd3fc' },
   codeCard: {
@@ -381,16 +386,16 @@ const styles = StyleSheet.create({
   removeCodeText: { color: '#fca5a5', fontWeight: '600' },
   addCode: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 4,
   },
-  addCodeText: { color: '#94a3b8', fontWeight: '600' },
-  notice: { color: '#94a3b8', marginTop: 16, fontSize: 14 },
+  addCodeText: { color: c.faint, fontWeight: '600' },
+  notice: { color: c.faint, marginTop: 16, fontSize: 14 },
   save: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -409,3 +414,5 @@ const styles = StyleSheet.create({
   },
   deleteText: { color: '#fca5a5', fontSize: 16, fontWeight: '600' },
 });
+}
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React,  useState, useEffect, useRef, useMemo from 'react';
 import {
   View,
   Text,
@@ -42,8 +42,11 @@ import { auth } from '../services/firebase';
 import { ADD_KINDS } from '../constants/addKinds';
 import { getShowFoodInMenu, getShowWashInMenu, getEventCategories } from '../services/profileService';
 import { PLACE_PRESETS } from '../services/placesService';
+import { useTheme } from '../themeContext';
 
 export default function AddEventScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const isEditing = !!existing;
   const fromEmail = route.params?.fromEmail || route.params?.source === 'email' || route.params?.kind === 'email' || false;
@@ -1039,35 +1042,36 @@ export default function AddEventScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
   },
   content: {
     padding: 20,
     paddingBottom: 160,
   },
   sectionTitle: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 6,
   },
   changeType: {
-    color: '#a5b4fc',
+    color: c.muted,
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 10,
   },
   kindRow: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
   },
-  kindLabel: { color: '#f8fafc', fontSize: 17, fontWeight: '700' },
-  kindBlurb: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
+  kindLabel: { color: c.text, fontSize: 17, fontWeight: '700' },
+  kindBlurb: { color: c.faint, fontSize: 13, marginTop: 4 },
   friendSource: {
     color: '#34d399',
     fontSize: 13,
@@ -1092,13 +1096,13 @@ const styles = StyleSheet.create({
   },
   deleteText: { color: '#fca5a5', fontSize: 16, fontWeight: '600' },
   intro: {
-    color: '#a5b4fc',
+    color: c.muted,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 8,
   },
   label: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 8,
@@ -1106,19 +1110,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   fieldHint: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
     marginTop: 6,
   },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#3b0764',
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   textArea: {
     minHeight: 100,
@@ -1136,20 +1140,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1,
     borderColor: '#334155',
   },
   sourceSelected: {
     backgroundColor: '#3b0764',
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
   },
   sourceText: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
   },
   sourceTextSelected: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontWeight: '600',
   },
   categories: {
@@ -1161,38 +1165,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1,
     borderColor: '#334155',
   },
   catText: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
   },
   hobbySelected: {
     backgroundColor: '#3b0764',
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
   },
   hobbyTextSelected: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontWeight: '600',
   },
   actionSelected: {
     backgroundColor: '#312e81',
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
   },
   actionTextSelected: {
-    color: '#60a5fa',
+    color: c.blueSoft,
     fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 32,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
   },
   saveDisabled: {
     opacity: 0.6,
@@ -1209,15 +1213,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
   },
   shareText: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 16,
     fontWeight: '600',
   },
   shareHint: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
     lineHeight: 18,
     marginTop: 14,
@@ -1236,25 +1240,25 @@ const styles = StyleSheet.create({
   sugBanner: {
     backgroundColor: '#1e3a5f',
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
   },
   sugBannerText: { color: '#bfdbfe', fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  noticeDismiss: { color: '#93c5fd', fontSize: 13, fontWeight: '600' },
+  noticeDismiss: { color: c.blueSoft, fontSize: 13, fontWeight: '600' },
   sugList: { marginBottom: 8 },
-  sugListTitle: { color: '#c4b5fd', fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  sugListTitle: { color: c.muted, fontSize: 15, fontWeight: '700', marginBottom: 10 },
   sugCard: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#334155',
     padding: 12,
     marginBottom: 10,
   },
-  sugFrom: { color: '#94a3b8', fontSize: 12, marginBottom: 6 },
-  sugNote: { color: '#f8fafc', fontSize: 14, lineHeight: 20, marginBottom: 12 },
+  sugFrom: { color: c.faint, fontSize: 12, marginBottom: 6 },
+  sugNote: { color: c.text, fontSize: 14, lineHeight: 20, marginBottom: 12 },
   sugActions: { flexDirection: 'row', gap: 10 },
   sugApprove: {
     flex: 1,
@@ -1276,7 +1280,7 @@ const styles = StyleSheet.create({
   sugDeclineText: { color: '#fca5a5', fontWeight: '700' },
   sugDisabled: { opacity: 0.6 },
   inviteeHint: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 13,
     lineHeight: 19,
     marginTop: 12,
@@ -1286,3 +1290,5 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
 });
+}
+

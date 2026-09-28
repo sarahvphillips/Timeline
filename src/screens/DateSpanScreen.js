@@ -33,11 +33,14 @@ import {
   preferredNumber,
 } from '../services/wordToIntService';
 import { saveEvent } from '../services/eventService';
+import { useTheme } from '../themeContext';
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
 export default function DateSpanScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [fromDate, setFromDate] = useState('1972-06-28');
   const [fromTime, setFromTime] = useState('00:00:00');
   const [toDate, setToDate] = useState(todayIso());
@@ -438,36 +441,37 @@ export default function DateSpanScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   content: {
     padding: 20,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     flexGrow: 1,
   },
   heading: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 8,
   },
   intro: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 16,
   },
   label: {
-    color: '#a5b4fc',
+    color: c.muted,
     fontSize: 13,
     marginBottom: 6,
     marginTop: 8,
   },
   input: {
-    backgroundColor: '#1a1b36',
-    borderColor: '#2e2f55',
+    backgroundColor: c.card,
+    borderColor: c.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
-    color: '#f8fafc',
+    color: c.text,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
@@ -487,28 +491,28 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     marginRight: 10,
   },
   boxOn: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
   },
   toggleText: {
     color: '#e2e8f0',
     fontSize: 15,
   },
   error: {
-    color: '#f87171',
+    color: c.danger,
     marginTop: 12,
   },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginTop: 8,
   },
   meta: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
     marginBottom: 4,
   },
@@ -518,20 +522,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   resultLabel: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 13,
     fontWeight: '700',
     marginTop: 14,
     marginBottom: 4,
   },
   result: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 20,
     fontWeight: '700',
     lineHeight: 28,
   },
   ymd: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 32,
     fontWeight: '800',
     lineHeight: 38,
@@ -544,7 +548,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   altTitle: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 16,
     fontWeight: '700',
     marginTop: 18,
@@ -561,10 +565,10 @@ const styles = StyleSheet.create({
   lookupRow: {
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#2e2f55',
+    borderBottomColor: c.cardBorder,
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -578,25 +582,25 @@ const styles = StyleSheet.create({
   ghost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
   },
   ghostText: {
-    color: '#94a3b8',
+    color: c.faint,
     fontWeight: '600',
     fontSize: 16,
   },
   listTitle: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 18,
     fontWeight: '700',
     marginTop: 28,
     marginBottom: 10,
   },
   empty: {
-    color: '#94a3b8',
+    color: c.faint,
   },
   item: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
@@ -605,22 +609,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   itemPhrase: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 16,
     fontWeight: '600',
   },
   itemNumber: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 28,
     fontWeight: '700',
     marginVertical: 4,
   },
   itemMeta: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
   },
   itemNotes: {
-    color: '#94a3b8',
+    color: c.faint,
     marginTop: 6,
   },
   itemActions: {
@@ -629,11 +633,13 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   link: {
-    color: '#60a5fa',
+    color: c.blueSoft,
     fontWeight: '600',
   },
   delete: {
-    color: '#f87171',
+    color: c.danger,
     fontWeight: '600',
   },
 });
+}
+

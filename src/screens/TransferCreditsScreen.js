@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
+import { useTheme } from '../themeContext';
 import {
   MAX_CREDIT_TRANSFER,
   getRewards,
@@ -27,6 +29,8 @@ function notify(title, message, buttons) {
 }
 
 export default function TransferCreditsScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [credits, setCredits] = useState(0);
   const [email, setEmail] = useState('');
   const [amount, setAmount] = useState('');
@@ -133,25 +137,26 @@ export default function TransferCreditsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
-  kicker: { color: '#93c5fd', fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
-  have: { color: '#c4b5fd', fontWeight: '700', marginBottom: 12 },
+  kicker: { color: c.blueSoft, fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  have: { color: c.muted, fontWeight: '700', marginBottom: 12 },
   done: { color: '#86efac', marginBottom: 12 },
-  label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 6 },
+  label: { color: c.muted, fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 6 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -160,3 +165,5 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   link: { color: '#7dd3fc', fontWeight: '700', marginTop: 16, textAlign: 'center' },
 });
+}
+

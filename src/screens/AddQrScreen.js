@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React,  useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -11,12 +12,15 @@ import {
   Linking,
 } from 'react-native';
 import { saveEvent } from '../services/eventService';
+import { useTheme } from '../themeContext';
 
 function qrImageUrl(data) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(data)}`;
 }
 
 export default function AddQrScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [title, setTitle] = useState(existing?.title || '');
   const [qrLink, setQrLink] = useState(existing?.qrLink || '');
@@ -103,23 +107,24 @@ export default function AddQrScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 40,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     flexGrow: 1,
   },
-  heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  hint: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 8 },
-  label: { color: '#94a3b8', fontSize: 14, marginTop: 16, marginBottom: 8 },
+  heading: { color: c.text, fontSize: 22, fontWeight: '700', marginBottom: 8 },
+  hint: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 8 },
+  label: { color: c.faint, fontSize: 14, marginTop: 16, marginBottom: 8 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   note: { minHeight: 80, textAlignVertical: 'top' },
   preview: { alignItems: 'center', marginTop: 24 },
@@ -129,9 +134,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
   },
-  openLink: { color: '#60a5fa', marginTop: 12, fontSize: 15 },
+  openLink: { color: c.blueSoft, marginTop: 12, fontSize: 15 },
   save: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -139,3 +144,5 @@ const styles = StyleSheet.create({
   },
   saveText: { color: '#fff', fontSize: 17, fontWeight: '600' },
 });
+}
+

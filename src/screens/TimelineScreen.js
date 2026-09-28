@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React,  useState, useCallback, useRef, useMemo from 'react';
 import {
   View,
   Text,
@@ -50,10 +50,13 @@ import {
 } from '../services/shareService';
 import { auth } from '../services/firebase';
 import { getShowFoodInMenu, getShowWashInMenu, getEventCategories } from '../services/profileService';
+import { useTheme } from '../themeContext';
 
 const GROK_URL = 'https://grok.x.ai';
 
 export default function TimelineScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const year = route.params?.year;
   const month = route.params?.month;
@@ -497,16 +500,17 @@ export default function TimelineScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
-  center: { flex: 1, backgroundColor: '#0f1024', justifyContent: 'center', alignItems: 'center' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
+  center: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' },
   syncHint: {
-    color: '#94a3b8',
+    color: c.faint,
     marginTop: 12,
     fontSize: 14,
   },
   heading: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
     fontWeight: '600',
     paddingHorizontal: 20,
@@ -521,16 +525,16 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  filterChipOn: { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' },
-  filterText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  filterChipOn: { backgroundColor: c.spine, borderColor: c.spine },
+  filterText: { color: c.faint, fontWeight: '700', fontSize: 13 },
   filterTextOn: { color: '#fff' },
   yearMark: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 16,
     fontWeight: '800',
     textAlign: 'center',
@@ -546,7 +550,7 @@ const styles = StyleSheet.create({
     left: '50%',
     width: 4,
     marginLeft: -2,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: c.spine,
   },
   spineRow: {
     flexDirection: 'row',
@@ -564,16 +568,16 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: c.spine,
   },
   dayMark: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 11,
     fontWeight: '700',
     marginTop: 2,
   },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -584,34 +588,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  date: { color: '#94a3b8', fontSize: 13 },
+  date: { color: c.faint, fontSize: 13 },
   categoryBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   categoryText: { fontSize: 12, fontWeight: '600' },
-  title: { color: '#f8fafc', fontSize: 17, fontWeight: '600' },
+  title: { color: c.text, fontSize: 17, fontWeight: '600' },
   expanded: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#334155' },
-  hobbyMeta: { color: '#c4b5fd', fontSize: 13, marginBottom: 6 },
+  hobbyMeta: { color: c.muted, fontSize: 13, marginBottom: 6 },
   labelRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  chipText: { color: '#c4b5fd', fontSize: 12 },
-  meta: { color: '#64748b', fontSize: 13, marginBottom: 4 },
-  description: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 8 },
+  chipText: { color: c.muted, fontSize: 12 },
+  meta: { color: c.faint, fontSize: 13, marginBottom: 4 },
+  description: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 8 },
   nextRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  nextLabel: { color: '#60a5fa', fontSize: 13, flex: 1 },
+  nextLabel: { color: c.blueSoft, fontSize: 13, flex: 1 },
   grokRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  grokButton: { alignSelf: 'flex-start', marginTop: 8, backgroundColor: '#3b82f6', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  grokButton: { alignSelf: 'flex-start', marginTop: 8, backgroundColor: c.blue, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
   grokButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  grokButtonAlt: { alignSelf: 'flex-start', marginTop: 8, borderWidth: 1, borderColor: '#3b82f6', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
-  grokButtonAltText: { color: '#93c5fd', fontWeight: '600', fontSize: 13 },
+  grokButtonAlt: { alignSelf: 'flex-start', marginTop: 8, borderWidth: 1, borderColor: c.blue, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  grokButtonAltText: { color: c.blueSoft, fontWeight: '600', fontSize: 13 },
   qrBlock: { alignItems: 'flex-start', marginBottom: 8 },
   qrImage: { width: 140, height: 140, maxWidth: '100%', backgroundColor: '#fff', borderRadius: 8, marginBottom: 6 },
-  eventImage: { width: '100%', height: 180, maxWidth: '100%', backgroundColor: '#0f1024', borderRadius: 10, marginBottom: 8 },
-  shareLink: { color: '#c4b5fd', fontSize: 14, fontWeight: '600', marginTop: 8 },
+  eventImage: { width: '100%', height: 180, maxWidth: '100%', backgroundColor: c.bg, borderRadius: 10, marginBottom: 8 },
+  shareLink: { color: c.muted, fontSize: 14, fontWeight: '600', marginTop: 8 },
   sharedBadge: { color: '#34d399', fontSize: 12, marginTop: 8, fontWeight: '600' },
   noticeFlagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   noticeFlag: {
@@ -629,13 +633,13 @@ const styles = StyleSheet.create({
   noticeFlagSug: {
     color: '#bfdbfe',
     backgroundColor: '#1e3a5f',
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
   },
-  editLink: { color: '#60a5fa', marginTop: 8, fontSize: 13 },
-  deleteLink: { color: '#f87171', marginTop: 8, fontSize: 13, fontWeight: '600' },
+  editLink: { color: c.blueSoft, marginTop: 8, fontSize: 13 },
+  deleteLink: { color: c.danger, marginTop: 8, fontSize: 13, fontWeight: '600' },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyTitle: { color: '#f8fafc', fontSize: 20, fontWeight: '600', marginBottom: 8 },
-  emptyText: { color: '#94a3b8', textAlign: 'center' },
+  emptyTitle: { color: c.text, fontSize: 20, fontWeight: '600', marginBottom: 8 },
+  emptyText: { color: c.faint, textAlign: 'center' },
   fab: {
     position: 'absolute',
     right: 20,
@@ -643,7 +647,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -654,12 +658,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   menu: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     padding: 20,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
-  menuTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  menuTitle: { color: c.text, fontSize: 18, fontWeight: '700', marginBottom: 12 },
   menuItem: {
     paddingVertical: 14,
     borderBottomWidth: 1,
@@ -667,17 +671,19 @@ const styles = StyleSheet.create({
   },
   menuItemText: { color: '#e2e8f0', fontSize: 16 },
   menuCancel: { paddingVertical: 14, alignItems: 'center' },
-  menuCancelText: { color: '#94a3b8', fontSize: 15 },
+  menuCancelText: { color: c.faint, fontSize: 15 },
   toast: {
     position: 'absolute',
     bottom: 110,
     left: 20,
     right: 20,
-    backgroundColor: '#1a1b36',
-    borderColor: '#3b82f6',
+    backgroundColor: c.card,
+    borderColor: c.blue,
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
   },
-  toastText: { color: '#f8fafc' },
+  toastText: { color: c.text },
 });
+}
+

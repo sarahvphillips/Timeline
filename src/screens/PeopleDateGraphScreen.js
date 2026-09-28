@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPeople } from '../services/peopleService';
+import { useTheme } from '../themeContext';
 import {
   getSpans,
   daysBetweenAnniversaries,
@@ -154,6 +155,8 @@ function placeCircle(nodes, width, height) {
 }
 
 export default function PeopleDateGraphScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const { width: winW, height: winH } = useWindowDimensions();
   const width = Math.max(280, winW - 24);
   const height = Math.max(320, Math.min(winH - 220, 560));
@@ -397,17 +400,18 @@ export default function PeopleDateGraphScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   wrap: { flex: 1, backgroundColor: '#0a0a0b' },
   content: { padding: 12, paddingBottom: 48 },
-  kicker: { color: '#93c5fd', fontSize: 12, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-  heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800' },
-  intro: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 8 },
+  kicker: { color: c.blueSoft, fontSize: 12, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+  heading: { color: c.text, fontSize: 26, fontWeight: '800' },
+  intro: { color: c.faint, fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   chip: { borderWidth: 1, borderColor: '#334155', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
-  chipText: { color: '#94a3b8', fontWeight: '700', fontSize: 12 },
+  chipText: { color: c.faint, fontWeight: '700', fontSize: 12 },
   layoutLabel: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.4,
@@ -434,13 +438,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
-  zoomLabel: { color: '#f8fafc', fontSize: 22, fontWeight: '800', marginTop: -2 },
+  zoomLabel: { color: c.text, fontSize: 22, fontWeight: '800', marginTop: -2 },
   hubText: { color: '#e2e8f0', fontSize: 10, fontWeight: '800' },
   nodeLabel: { color: '#e2e8f0', fontSize: 11, marginTop: 2, maxWidth: 88 },
   tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
   tableOn: { backgroundColor: '#1e293b' },
   cell: { color: '#e2e8f0', width: 88, fontSize: 12, paddingVertical: 8, paddingHorizontal: 6 },
-  head: { color: '#93c5fd', fontWeight: '800', fontSize: 11 },
+  head: { color: c.blueSoft, fontWeight: '800', fontSize: 11 },
   wide: { width: 140 },
   overlap: { color: OVERLAP, fontSize: 13, lineHeight: 20, marginBottom: 4 },
 });
+}
+

@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React,  useState, useCallback, useEffect,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -28,8 +29,11 @@ import {
 } from '../services/adminService';
 import { adminGetRewardsByEmail, adminSetRewards, perkLabel } from '../services/rewardsService';
 import { listCreditFeedback, creditFeedbackItems } from '../services/creditFeedback';
+import { useTheme } from '../themeContext';
 
 export default function AdminScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const email = (auth.currentUser?.email || '').toLowerCase();
   const [state, setState] = useState(null);
   const [grantEmail, setGrantEmail] = useState('');
@@ -417,27 +421,28 @@ export default function AdminScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, backgroundColor: '#0f1024', justifyContent: 'center', alignItems: 'center' },
-  pad: { padding: 20, paddingBottom: 48, backgroundColor: '#0f1024', flexGrow: 1 },
-  kicker: { color: '#60a5fa', fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '700', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginTop: 8 },
-  meta: { color: '#64748b', marginTop: 6, marginBottom: 8 },
+function screenStyles(c) {
+  return StyleSheet.create({
+  center: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' },
+  pad: { padding: 20, paddingBottom: 48, backgroundColor: c.bg, flexGrow: 1 },
+  kicker: { color: c.blueSoft, fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  heading: { color: c.text, fontSize: 28, fontWeight: '700', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 13, lineHeight: 18, marginTop: 8 },
+  meta: { color: c.faint, marginTop: 6, marginBottom: 8 },
   notice: { color: '#7dd3fc', marginTop: 10 },
-  section: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginTop: 28, marginBottom: 8 },
-  muted: { color: '#64748b', fontSize: 13, marginTop: 6 },
+  section: { color: c.text, fontSize: 18, fontWeight: '700', marginTop: 28, marginBottom: 8 },
+  muted: { color: c.faint, fontSize: 13, marginTop: 6 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
     marginTop: 8,
   },
   primary: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -446,13 +451,13 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   ghost: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 10,
   },
-  ghostText: { color: '#94a3b8', fontWeight: '700' },
+  ghostText: { color: c.faint, fontWeight: '700' },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -465,7 +470,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   rowText: { color: '#e2e8f0', fontWeight: '600', flex: 1, paddingRight: 8 },
-  link: { color: '#60a5fa', fontWeight: '700' },
+  link: { color: c.blueSoft, fontWeight: '700' },
   card: {
     borderWidth: 1,
     borderColor: '#334155',
@@ -478,11 +483,13 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   chipText: { color: '#e2e8f0', fontWeight: '600' },
-  code: { color: '#f8fafc', fontSize: 18, fontWeight: '700', letterSpacing: 1 },
+  code: { color: c.text, fontSize: 18, fontWeight: '700', letterSpacing: 1 },
 });
+}
+

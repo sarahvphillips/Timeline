@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React,  useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -12,6 +13,7 @@ import {
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import { saveEvent } from '../services/eventService';
 import { copyTextToClipboard } from '../services/shareService';
+import { useTheme } from '../themeContext';
 import {
   defaultShareCaption,
   eventShareImage,
@@ -25,6 +27,8 @@ import {
 const APP_ICON = require('../../assets/icon.png');
 
 export default function SharePostScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const event = route.params?.event;
   const photo = eventShareImage(event);
   const [caption, setCaption] = useState(defaultShareCaption(event));
@@ -230,13 +234,14 @@ export default function SharePostScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 22, paddingBottom: 48 },
-  emptyWrap: { flex: 1, backgroundColor: '#0f1024', justifyContent: 'center', alignItems: 'center' },
-  empty: { color: '#94a3b8', fontSize: 16 },
-  heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800', marginBottom: 8 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  emptyWrap: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' },
+  empty: { color: c.faint, fontSize: 16 },
+  heading: { color: c.text, fontSize: 26, fontWeight: '800', marginBottom: 8 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 16 },
   photo: {
     width: '100%',
     height: 280,
@@ -244,8 +249,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#0a0b18',
     marginBottom: 16,
   },
-  noPhoto: { color: '#64748b', marginBottom: 16, fontSize: 14 },
-  label: { color: '#94a3b8', fontSize: 14, marginBottom: 6 },
+  noPhoto: { color: c.faint, marginBottom: 16, fontSize: 14 },
+  label: { color: c.faint, fontSize: 14, marginBottom: 6 },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -259,13 +264,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  copyLabel: { color: '#93c5fd', fontWeight: '700', fontSize: 14 },
+  copyLabel: { color: c.blueSoft, fontWeight: '700', fontSize: 14 },
   copiedNote: { color: '#86efac', fontSize: 13, marginBottom: 8 },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -273,13 +278,13 @@ const styles = StyleSheet.create({
   },
   brandIcon: { width: 28, height: 28, borderRadius: 6 },
   brandText: { color: '#e2e8f0', fontWeight: '700', fontSize: 15 },
-  hint: { color: '#64748b', fontSize: 13, lineHeight: 18, marginBottom: 12 },
+  hint: { color: c.faint, fontSize: 13, lineHeight: 18, marginBottom: 12 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 16,
     minHeight: 160,
     marginBottom: 12,
@@ -294,7 +299,7 @@ const styles = StyleSheet.create({
   },
   saveText: { color: '#e2e8f0', fontWeight: '700', fontSize: 16 },
   primary: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -303,14 +308,14 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   ghost: {
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 8,
   },
-  ghostText: { color: '#93c5fd', fontWeight: '700', fontSize: 16 },
+  ghostText: { color: c.blueSoft, fontWeight: '700', fontSize: 16 },
   xRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -318,3 +323,5 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 });
+}
+

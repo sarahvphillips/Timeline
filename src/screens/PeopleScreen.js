@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState, useMemo from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ import { daysUntilNext, formatUk } from '../services/dateSpanService';
 import { saveEvent } from '../services/eventService';
 import { applyJoinRewards, CREDITS_PAUSED } from '../services/rewardsService';
 import { copyTextToClipboard } from '../services/shareService';
+import { useTheme } from '../themeContext';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -60,6 +61,8 @@ function whatsappHref(phone, body) {
 }
 
 export default function PeopleScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [people, setPeople] = useState([]);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -531,53 +534,54 @@ export default function PeopleScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
   rewardCard: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     marginBottom: 16,
   },
-  rewardTitle: { color: '#f8fafc', fontSize: 16, fontWeight: '800' },
-  rewardMeta: { color: '#c4b5fd', fontSize: 13, fontWeight: '700', marginTop: 4 },
-  rewardHint: { color: '#94a3b8', fontSize: 13, lineHeight: 18, marginTop: 6 },
+  rewardTitle: { color: c.text, fontSize: 16, fontWeight: '800' },
+  rewardMeta: { color: c.muted, fontSize: 13, fontWeight: '700', marginTop: 4 },
+  rewardHint: { color: c.faint, fontSize: 13, lineHeight: 18, marginTop: 6 },
   rewardWin: { color: '#86efac', fontSize: 13, marginTop: 8, fontWeight: '600' },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     marginBottom: 12,
   },
   cardTitle: { color: '#e2e8f0', fontSize: 16, fontWeight: '700', marginBottom: 6 },
-  label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 6 },
+  label: { color: c.muted, fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 6 },
   input: {
-    backgroundColor: '#0f1024',
-    borderColor: '#2e2f55',
+    backgroundColor: c.bg,
+    borderColor: c.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
-    color: '#f8fafc',
+    color: c.text,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
   },
   notes: { minHeight: 64, textAlignVertical: 'top' },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -585,72 +589,74 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   ghostBtn: { paddingVertical: 12, alignItems: 'center' },
-  ghostText: { color: '#94a3b8', fontSize: 15 },
+  ghostText: { color: c.faint, fontSize: 15 },
   secondary: {
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
     marginBottom: 20,
   },
-  secondaryText: { color: '#c4b5fd', fontWeight: '700' },
-  listTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '800', marginBottom: 10 },
-  empty: { color: '#94a3b8', fontSize: 14, lineHeight: 20 },
+  secondaryText: { color: c.muted, fontWeight: '700' },
+  listTitle: { color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 10 },
+  empty: { color: c.faint, fontSize: 14, lineHeight: 20 },
   person: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
   personTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  personName: { color: '#f8fafc', fontSize: 17, fontWeight: '700' },
-  personStatus: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
+  personName: { color: c.text, fontSize: 17, fontWeight: '700' },
+  personStatus: { color: c.faint, fontSize: 12, marginTop: 2 },
   meta: { color: '#cbd5e1', fontSize: 13 },
-  birthday: { color: '#93c5fd', fontSize: 13, fontWeight: '600', marginTop: 4 },
+  birthday: { color: c.blueSoft, fontSize: 13, fontWeight: '600', marginTop: 4 },
   note: { color: '#e2e8f0', fontSize: 14, marginTop: 6 },
   toggleRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   toggleChip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   toggleChipOn: { backgroundColor: '#166534', borderColor: '#22c55e' },
-  toggleText: { color: '#94a3b8', fontSize: 12, fontWeight: '700' },
+  toggleText: { color: c.faint, fontSize: 12, fontWeight: '700' },
   toggleTextOn: { color: '#dcfce7' },
-  autoHint: { color: '#64748b', fontSize: 11, lineHeight: 15, marginTop: 8 },
+  autoHint: { color: c.faint, fontSize: 11, lineHeight: 15, marginTop: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
-  link: { color: '#60a5fa', fontWeight: '700', fontSize: 13 },
-  delete: { color: '#f87171', fontWeight: '700', fontSize: 13 },
+  link: { color: c.blueSoft, fontWeight: '700', fontSize: 13 },
+  delete: { color: c.danger, fontWeight: '700', fontSize: 13 },
   shareBox: {
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#2e2f55',
+    borderTopColor: c.cardBorder,
   },
-  shareHint: { color: '#94a3b8', fontSize: 12, lineHeight: 16, marginBottom: 8 },
+  shareHint: { color: c.faint, fontSize: 12, lineHeight: 16, marginBottom: 8 },
   shareRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   shareChip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  shareChipOn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  shareChipText: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
+  shareChipOn: { backgroundColor: c.blue, borderColor: c.blue },
+  shareChipText: { color: c.blueSoft, fontSize: 13, fontWeight: '700' },
   shareChipTextOn: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });
+}
+

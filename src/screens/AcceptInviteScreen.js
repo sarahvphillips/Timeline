@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React,  useState, useEffect, useRef,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -22,6 +23,7 @@ import {
 import { parseInviteCodeFromScan } from '../utils/inviteCode';
 import { getJoinInvite, acceptJoinInvite } from '../services/peopleService';
 import { auth } from '../services/firebase';
+import { useTheme } from '../themeContext';
 
 let CameraView = null;
 let useCameraPermissions = null;
@@ -127,6 +129,8 @@ function WebScanNote() {
 }
 
 export default function AcceptInviteScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const signedIn = !!auth?.currentUser?.uid;
   const initialCode = String(route.params?.code || '').trim().toUpperCase();
   const [code, setCode] = useState(initialCode);
@@ -514,32 +518,33 @@ export default function AcceptInviteScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 48,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     flexGrow: 1,
   },
-  heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  hint: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  label: { color: '#c4b5fd', fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  heading: { color: c.text, fontSize: 22, fontWeight: '700', marginBottom: 8 },
+  hint: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  label: { color: c.muted, fontSize: 13, fontWeight: '600', marginBottom: 8 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#3b0764',
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 20,
-    color: '#f8fafc',
+    color: c.text,
     letterSpacing: 3,
     fontWeight: '700',
     textAlign: 'center',
   },
   scanButton: {
     marginTop: 14,
-    backgroundColor: '#7c3aed',
+    backgroundColor: c.spine,
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 16,
@@ -551,24 +556,24 @@ const styles = StyleSheet.create({
   scanButtonSub: { color: '#ddd6fe', fontSize: 12, marginTop: 4, fontWeight: '500' },
   webNote: {
     marginTop: 14,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     padding: 14,
   },
-  webNoteTitle: { color: '#c4b5fd', fontSize: 15, fontWeight: '700', marginBottom: 6 },
-  webNoteText: { color: '#94a3b8', fontSize: 13, lineHeight: 19 },
+  webNoteTitle: { color: c.muted, fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  webNoteText: { color: c.faint, fontSize: 13, lineHeight: 19 },
   secondary: {
     marginTop: 12,
     paddingVertical: 12,
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
   },
-  secondaryText: { color: '#94a3b8', fontWeight: '600' },
-  error: { color: '#f87171', marginTop: 12 },
+  secondaryText: { color: c.faint, fontWeight: '600' },
+  error: { color: c.danger, marginTop: 12 },
   preview: {
     marginTop: 20,
     padding: 16,
@@ -577,12 +582,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
-  previewTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700' },
-  previewMeta: { color: '#a5b4fc', marginTop: 6, fontSize: 13 },
-  previewDesc: { color: '#94a3b8', marginTop: 10, lineHeight: 20 },
-  previewStatus: { color: '#64748b', marginTop: 10, fontSize: 12 },
+  previewTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
+  previewMeta: { color: c.muted, marginTop: 6, fontSize: 13 },
+  previewDesc: { color: c.faint, marginTop: 10, lineHeight: 20 },
+  previewStatus: { color: c.faint, marginTop: 10, fontSize: 12 },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -600,8 +605,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#450a0a',
   },
   declineText: { color: '#fca5a5', fontSize: 16, fontWeight: '600' },
-  testPath: { color: '#64748b', fontSize: 12, lineHeight: 18, marginTop: 20 },
-  scannerRoot: { flex: 1, backgroundColor: '#0f1024' },
+  testPath: { color: c.faint, fontSize: 12, lineHeight: 18, marginTop: 20 },
+  scannerRoot: { flex: 1, backgroundColor: c.bg },
   scannerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -610,10 +615,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
   },
-  scannerTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700' },
-  scannerClose: { color: '#93c5fd', fontSize: 16, fontWeight: '600' },
+  scannerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
+  scannerClose: { color: c.blueSoft, fontSize: 16, fontWeight: '600' },
   scannerHint: {
-    color: '#94a3b8',
+    color: c.faint,
     textAlign: 'center',
     marginBottom: 8,
     paddingHorizontal: 16,
@@ -623,11 +628,11 @@ const styles = StyleSheet.create({
     flex: 1,
     margin: 16,
     borderRadius: 16,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cameraFallbackText: { color: '#94a3b8' },
+  cameraFallbackText: { color: c.faint },
   scannerFrame: {
     position: 'absolute',
     left: '18%',
@@ -639,3 +644,5 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
 });
+}
+

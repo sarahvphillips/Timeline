@@ -12,8 +12,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
 import { copyTextToClipboard } from '../services/shareService';
 import { buildWelcomeEmail, welcomePendingKey } from '../legal/welcomeEmail';
+import { useTheme } from '../themeContext';
 
 export default function WelcomeScreen({ navigation, route, onFinished }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const user = auth.currentUser;
   const letter = useMemo(
     () =>
@@ -83,28 +86,29 @@ export default function WelcomeScreen({ navigation, route, onFinished }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 22, paddingBottom: 48 },
   kicker: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  subject: { color: '#f8fafc', fontSize: 24, fontWeight: '800', marginTop: 8, lineHeight: 30 },
-  meta: { color: '#94a3b8', fontSize: 13, marginTop: 8, marginBottom: 18 },
+  subject: { color: c.text, fontSize: 24, fontWeight: '800', marginTop: 8, lineHeight: 30 },
+  meta: { color: c.faint, fontSize: 13, marginTop: 8, marginBottom: 18 },
   body: { color: '#e2e8f0', fontSize: 16, lineHeight: 24, marginBottom: 14 },
   poemBox: {
     borderLeftWidth: 2,
-    borderLeftColor: '#c4b5fd',
+    borderLeftColor: c.muted,
     paddingLeft: 14,
     marginBottom: 18,
     marginTop: 4,
   },
   poemKicker: {
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.8,
@@ -118,7 +122,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   primary: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -126,6 +130,8 @@ const styles = StyleSheet.create({
   },
   primaryText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   ghost: { paddingVertical: 14, alignItems: 'center' },
-  ghostText: { color: '#93c5fd', fontWeight: '700' },
-  fine: { color: '#64748b', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 4 },
+  ghostText: { color: c.blueSoft, fontWeight: '700' },
+  fine: { color: c.faint, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 4 },
 });
+}
+

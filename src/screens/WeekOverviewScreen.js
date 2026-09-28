@@ -22,6 +22,7 @@ import HomeFab from '../components/HomeFab';
 import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
+import { useTheme } from '../themeContext';
 
 function buildBubbleFilterFromParams(params) {
   if (!params) return null;
@@ -79,6 +80,8 @@ function formatWeekTitle(days) {
 const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function WeekOverviewScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -367,10 +370,11 @@ export default function WeekOverviewScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
-  center: { flex: 1, backgroundColor: '#0f1024', justifyContent: 'center', alignItems: 'center' },
-  syncHint: { marginTop: 12, color: '#94a3b8', fontSize: 14 },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
+  center: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' },
+  syncHint: { marginTop: 12, color: c.faint, fontSize: 14 },
   scroll: { paddingVertical: 16, paddingHorizontal: 10, paddingBottom: 100 },
   weekNav: {
     flexDirection: 'row',
@@ -379,19 +383,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     zIndex: 2,
   },
-  weekNavBtn: { color: '#c4b5fd', fontSize: 32, fontWeight: '700', paddingHorizontal: 8 },
+  weekNavBtn: { color: c.muted, fontSize: 32, fontWeight: '700', paddingHorizontal: 8 },
   titleCol: { flex: 1, alignItems: 'center' },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  title: { color: '#f8fafc', fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  title: { color: c.text, fontSize: 20, fontWeight: '800', textAlign: 'center' },
   intro: {
     textAlign: 'center',
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
@@ -400,9 +404,9 @@ const styles = StyleSheet.create({
   },
   chipRow: { alignItems: 'center', marginBottom: 12, zIndex: 2 },
   clearChip: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1.5,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -415,7 +419,7 @@ const styles = StyleSheet.create({
     left: '50%',
     width: 3,
     marginLeft: -1.5,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: c.spine,
     borderRadius: 2,
   },
   fab: {
@@ -425,33 +429,33 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     justifyContent: 'center',
     alignItems: 'center',
   },
   fabText: { color: '#fff', fontSize: 32, marginTop: -2 },
   menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   menu: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     padding: 20,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
-  menuTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  menuTitle: { color: c.text, fontSize: 18, fontWeight: '700', marginBottom: 12 },
   menuItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#334155' },
   menuItemText: { color: '#e2e8f0', fontSize: 16 },
   menuCancel: { paddingVertical: 14, alignItems: 'center' },
-  menuCancelText: { color: '#94a3b8', fontSize: 15 },
+  menuCancelText: { color: c.faint, fontSize: 15 },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 28,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     maxHeight: '70%',
   },
   sheetHandle: {
@@ -459,7 +463,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#475569',
+    backgroundColor: c.faint,
     marginBottom: 12,
   },
   sheetHeader: {
@@ -468,27 +472,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  sheetTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '800', flex: 1, paddingRight: 12 },
-  sheetClose: { color: '#94a3b8', fontSize: 18, fontWeight: '700', paddingHorizontal: 4 },
+  sheetTitle: { color: c.text, fontSize: 18, fontWeight: '800', flex: 1, paddingRight: 12 },
+  sheetClose: { color: c.faint, fontSize: 18, fontWeight: '700', paddingHorizontal: 4 },
   blurbList: { marginBottom: 16, gap: 10 },
   blurbRow: {
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
   blurbTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   blurbTitle: { color: '#e2e8f0', fontSize: 15, fontWeight: '600', flex: 1 },
-  blurbOpen: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
-  blurbDate: { color: '#94a3b8', fontSize: 12, marginTop: 4 },
-  blurbEmpty: { color: '#94a3b8', fontSize: 14, paddingVertical: 8 },
+  blurbOpen: { color: c.blueSoft, fontSize: 13, fontWeight: '700' },
+  blurbDate: { color: c.faint, fontSize: 12, marginTop: 4 },
+  blurbEmpty: { color: c.faint, fontSize: 14, paddingVertical: 8 },
   zoomBtn: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  zoomBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
+  zoomBtnText: { color: c.text, fontSize: 16, fontWeight: '800' },
 });
+}
+

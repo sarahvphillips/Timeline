@@ -21,6 +21,7 @@ import {
 import { getEvents } from '../services/eventService';
 import { getProfile, getProfilePhotoUri } from '../services/profileService';
 import HomeFab from '../components/HomeFab';
+import { useTheme } from '../themeContext';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const ME_COLOUR = '#2dd4bf';
@@ -286,6 +287,8 @@ function PersonalCard({ event, colour, onPress }) {
 }
 
 export default function EventsWithFriendsScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   const [sharedEvents, setSharedEvents] = useState([]);
   const [personalEvents, setPersonalEvents] = useState([]);
@@ -668,7 +671,8 @@ export default function EventsWithFriendsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a12' },
   center: {
     flex: 1,
@@ -692,9 +696,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarText: { fontWeight: '800' },
-  peopleMark: { fontSize: 18, color: '#94a3b8' },
+  peopleMark: { fontSize: 18, color: c.faint },
   screenTitle: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
@@ -707,13 +711,13 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   subtitle: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 13,
     marginTop: 8,
     textAlign: 'center',
   },
   subtitleFine: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
@@ -727,14 +731,14 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 7,
     maxWidth: 140,
   },
-  filterChipOn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  filterChipText: { color: '#94a3b8', fontSize: 13, fontWeight: '700' },
+  filterChipOn: { backgroundColor: c.blue, borderColor: c.blue },
+  filterChipText: { color: c.faint, fontSize: 13, fontWeight: '700' },
   filterChipTextOn: { color: '#fff' },
   privateToggle: {
     flexDirection: 'row',
@@ -744,8 +748,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingVertical: 6,
   },
-  tick: { color: '#c4b5fd', fontSize: 18 },
-  privateToggleText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
+  tick: { color: c.muted, fontSize: 18 },
+  privateToggleText: { color: c.faint, fontSize: 13, fontWeight: '600' },
   timeline: {
     position: 'relative',
     minHeight: 260,
@@ -816,23 +820,23 @@ const styles = StyleSheet.create({
   yearBox: {
     backgroundColor: '#0a0a12',
     borderWidth: 1.5,
-    borderColor: '#94a3b8',
+    borderColor: c.faint,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
-  yearText: { color: '#f8fafc', fontSize: 18, fontWeight: '800' },
+  yearText: { color: c.text, fontSize: 18, fontWeight: '800' },
   monthBox: {
     backgroundColor: '#0a0a12',
     borderWidth: 1,
-    borderColor: '#64748b',
+    borderColor: c.faint,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   monthText: { color: '#e2e8f0', fontSize: 14, fontWeight: '700' },
   weekText: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 11,
     fontWeight: '600',
     backgroundColor: '#0a0a12',
@@ -874,7 +878,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#16182a',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     paddingVertical: 12,
     paddingHorizontal: 14,
     width: CENTRE_CARD_W,
@@ -884,18 +888,18 @@ const styles = StyleSheet.create({
   },
   sharedGlyph: { fontSize: 16, marginBottom: 4, color: '#e2e8f0' },
   cardTitle: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 13,
     fontWeight: '700',
   },
   centreAlign: { textAlign: 'center', alignSelf: 'stretch' },
   cardDate: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 11,
     marginTop: 3,
   },
   cardSub: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 11,
     marginTop: 3,
   },
@@ -924,9 +928,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   emptyTitle: { color: '#e2e8f0', fontWeight: '700', fontSize: 16, marginBottom: 8 },
-  emptyBody: { color: '#94a3b8', lineHeight: 20, fontSize: 14 },
+  emptyBody: { color: c.faint, lineHeight: 20, fontSize: 14 },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -936,7 +940,9 @@ const styles = StyleSheet.create({
   ghost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
   },
-  ghostText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  ghostText: { color: c.faint, fontSize: 15, fontWeight: '600' },
 });
+}
+

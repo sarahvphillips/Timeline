@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -18,6 +19,7 @@ import { getPeople } from '../services/peopleService';
 import { formatUk } from '../services/dateSpanService';
 import { createEventShare } from '../services/shareService';
 import { PLACE_PRESETS, parseMapsLink, mapsSearchUrl, getCurrentPlace } from '../services/placesService';
+import { useTheme } from '../themeContext';
 
 const CATEGORIES = [
   { id: 'travel', label: 'Travel' },
@@ -38,6 +40,8 @@ function nowClock() {
 }
 
 export default function AddLocationScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [name, setName] = useState(existing?.title || existing?.placeName || '');
   const [address, setAddress] = useState(existing?.placeAddress || '');
@@ -396,8 +400,9 @@ export default function AddLocationScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
   kicker: {
     color: '#2dd4bf',
@@ -406,8 +411,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 26, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
+  heading: { color: c.text, fontSize: 26, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 16 },
   gpsBtn: {
     backgroundColor: '#134e4a',
     borderRadius: 12,
@@ -418,15 +423,15 @@ const styles = StyleSheet.create({
     borderColor: '#2dd4bf',
   },
   gpsText: { color: '#ccfbf1', fontWeight: '800', fontSize: 16 },
-  label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
-  hint: { color: '#94a3b8', fontSize: 13, marginBottom: 8 },
+  label: { color: c.muted, fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
+  hint: { color: c.faint, fontSize: 13, marginBottom: 8 },
   accent: { color: '#2dd4bf', fontSize: 13, fontWeight: '700', marginBottom: 8 },
   input: {
     backgroundColor: '#0a0a12',
-    borderColor: '#2e2f55',
+    borderColor: c.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
-    color: '#f8fafc',
+    color: c.text,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
@@ -437,17 +442,17 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   chipOn: { backgroundColor: '#0f766e', borderColor: '#2dd4bf' },
-  chipText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  chipText: { color: c.faint, fontWeight: '700', fontSize: 13 },
   chipTextOn: { color: '#fff' },
   checkRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 8 },
   tick: { color: '#2dd4bf', fontSize: 18 },
-  checkText: { color: '#94a3b8', fontSize: 13, flex: 1, lineHeight: 18 },
+  checkText: { color: c.faint, fontSize: 13, flex: 1, lineHeight: 18 },
   button: {
     backgroundColor: '#0f766e',
     borderRadius: 12,
@@ -457,17 +462,19 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  listTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  listTitle: { color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 },
   log: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
-  logTitle: { color: '#f8fafc', fontWeight: '700', fontSize: 16 },
+  logTitle: { color: c.text, fontWeight: '700', fontSize: 16 },
   meta: { color: '#cbd5e1', fontSize: 13, marginTop: 2 },
   link: { color: '#2dd4bf', fontWeight: '700', fontSize: 13 },
-  delete: { color: '#f87171', fontWeight: '700', fontSize: 13 },
+  delete: { color: c.danger, fontWeight: '700', fontSize: 13 },
 });
+}
+

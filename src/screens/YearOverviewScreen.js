@@ -27,8 +27,11 @@ import { pickFromGallery, asImageUri } from '../services/imagePicker';
 import HomeFab from '../components/HomeFab';
 import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
+import { useTheme } from '../themeContext';
 
 export default function YearOverviewScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const [years, setYears] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -335,15 +338,16 @@ export default function YearOverviewScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
   },
   filterBar: {
     paddingTop: 8,
     paddingBottom: 8,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     position: 'relative',
   },
   filterFade: {
@@ -354,10 +358,10 @@ const styles = StyleSheet.create({
     width: 28,
     alignItems: 'flex-end',
     justifyContent: 'center',
-    backgroundColor: 'rgba(15,16,36,0.72)',
+    backgroundColor: c.bg,
     paddingRight: 6,
   },
-  filterFadeMark: { color: '#93c5fd', fontSize: 22, fontWeight: '700' },
+  filterFadeMark: { color: c.blueSoft, fontSize: 22, fontWeight: '700' },
   filterScroll: {
     flexGrow: 0,
   },
@@ -369,19 +373,19 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   filterChipOn: {
-    backgroundColor: '#8b5cf6',
-    borderColor: '#8b5cf6',
+    backgroundColor: c.spine,
+    borderColor: c.spine,
   },
-  filterText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  filterText: { color: c.faint, fontWeight: '700', fontSize: 13 },
   filterTextOn: { color: '#fff' },
   filterHint: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 12,
     paddingHorizontal: 16,
     paddingBottom: 4,
@@ -398,7 +402,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyHint: {
-    color: '#94a3b8',
+    color: c.faint,
     textAlign: 'center',
     marginTop: 10,
     fontSize: 14,
@@ -407,7 +411,7 @@ const styles = StyleSheet.create({
   },
   emptyBtn: {
     marginTop: 20,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 28,
@@ -418,23 +422,23 @@ const styles = StyleSheet.create({
   emptyGhost: {
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 28,
     minWidth: 200,
     alignItems: 'center',
   },
-  emptyGhostText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  emptyGhostText: { color: c.faint, fontSize: 15, fontWeight: '600' },
   center: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   syncHint: {
     marginTop: 12,
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
   },
   scroll: {
@@ -449,7 +453,7 @@ const styles = StyleSheet.create({
     left: '50%',
     width: 3,
     marginLeft: -1.5,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: c.spine,
     borderRadius: 2,
   },
   sheetBackdrop: {
@@ -458,14 +462,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 28,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     maxHeight: '78%',
   },
   blurbScroll: {
@@ -479,7 +483,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#475569',
+    backgroundColor: c.faint,
     marginBottom: 12,
   },
   sheetHeader: {
@@ -489,14 +493,14 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sheetTitle: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 18,
     fontWeight: '800',
     flex: 1,
     paddingRight: 12,
   },
   sheetClose: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 18,
     fontWeight: '700',
     paddingHorizontal: 4,
@@ -506,12 +510,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   blurbRow: {
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
   blurbTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   blurbTitle: {
@@ -520,9 +524,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
-  blurbOpen: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
+  blurbOpen: { color: c.blueSoft, fontSize: 13, fontWeight: '700' },
   blurbDate: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 12,
     marginTop: 4,
   },
@@ -531,28 +535,30 @@ const styles = StyleSheet.create({
     height: 140,
     borderRadius: 10,
     marginTop: 8,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
   },
   addPhoto: {
-    color: '#a5b4fc',
+    color: c.muted,
     fontWeight: '700',
     marginTop: 8,
     fontSize: 14,
   },
   blurbEmpty: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
     paddingVertical: 8,
   },
   zoomBtn: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
   zoomBtnText: {
-    color: '#ffffff',
+    color: c.text,
     fontSize: 16,
     fontWeight: '800',
   },
 });
+}
+

@@ -22,6 +22,7 @@ import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import FilteredMonthSpine from '../components/FilteredMonthSpine';
 import EventLabelChips from '../components/EventLabelChips';
 import { getShowFoodInMenu, getShowWashInMenu } from '../services/profileService';
+import { useTheme } from '../themeContext';
 
 function buildBubbleFilterFromParams(params) {
   if (!params) return null;
@@ -75,6 +76,8 @@ function firstIsoInMonth(events, year, month, filter) {
 }
 
 export default function MonthOverviewScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const startYear = route.params?.year || new Date().getFullYear();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -368,20 +371,21 @@ export default function MonthOverviewScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
   },
   center: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   syncHint: {
     marginTop: 12,
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
   },
   scroll: {
@@ -395,7 +399,7 @@ const styles = StyleSheet.create({
   },
   yearHeading: {
     textAlign: 'center',
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 6,
@@ -403,7 +407,7 @@ const styles = StyleSheet.create({
   },
   yearHeadingFiltered: {
     textAlign: 'left',
-    color: '#c4b5fd',
+    color: c.muted,
     fontSize: 32,
     fontWeight: '800',
     letterSpacing: 0.4,
@@ -412,7 +416,7 @@ const styles = StyleSheet.create({
   },
   intro: {
     textAlign: 'center',
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 16,
@@ -430,9 +434,9 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   clearChip: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1.5,
-    borderColor: '#8b5cf6',
+    borderColor: c.spine,
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -454,7 +458,7 @@ const styles = StyleSheet.create({
   },
   poemsChipIcon: { fontSize: 16, marginRight: 8 },
   poemsChipText: { color: '#e9d5ff', fontSize: 16, fontWeight: '600' },
-  poemsChipX: { color: '#c4b5fd', fontSize: 18, marginLeft: 10, marginTop: -1 },
+  poemsChipX: { color: c.muted, fontSize: 18, marginLeft: 10, marginTop: -1 },
   spine: {
     position: 'absolute',
     top: 0,
@@ -462,7 +466,7 @@ const styles = StyleSheet.create({
     left: '50%',
     width: 3,
     marginLeft: -1.5,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: c.spine,
     borderRadius: 2,
   },
   fab: {
@@ -472,11 +476,11 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#7c3aed',
+    backgroundColor: c.spine,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 21,
-    shadowColor: '#c4b5fd',
+    shadowColor: c.muted,
     shadowOpacity: 0.7,
     shadowRadius: 16,
     elevation: 8,
@@ -492,12 +496,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   menu: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     padding: 20,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
-  menuTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  menuTitle: { color: c.text, fontSize: 18, fontWeight: '700', marginBottom: 12 },
   menuItem: {
     paddingVertical: 14,
     borderBottomWidth: 1,
@@ -505,21 +509,21 @@ const styles = StyleSheet.create({
   },
   menuItemText: { color: '#e2e8f0', fontSize: 16 },
   menuCancel: { paddingVertical: 14, alignItems: 'center' },
-  menuCancelText: { color: '#94a3b8', fontSize: 15 },
+  menuCancelText: { color: c.faint, fontSize: 15 },
   sheetBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 28,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     maxHeight: '78%',
   },
   blurbScroll: {
@@ -533,7 +537,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#475569',
+    backgroundColor: c.faint,
     marginBottom: 12,
   },
   sheetHeader: {
@@ -543,14 +547,14 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sheetTitle: {
-    color: '#f8fafc',
+    color: c.text,
     fontSize: 18,
     fontWeight: '800',
     flex: 1,
     paddingRight: 12,
   },
   sheetClose: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 18,
     fontWeight: '700',
     paddingHorizontal: 4,
@@ -560,12 +564,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   blurbRow: {
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
   blurbTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   blurbTitle: {
@@ -574,26 +578,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
-  blurbOpen: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
+  blurbOpen: { color: c.blueSoft, fontSize: 13, fontWeight: '700' },
   blurbDate: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 12,
     marginTop: 4,
   },
   blurbEmpty: {
-    color: '#94a3b8',
+    color: c.faint,
     fontSize: 14,
     paddingVertical: 8,
   },
   zoomBtn: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
   zoomBtnText: {
-    color: '#ffffff',
+    color: c.text,
     fontSize: 16,
     fontWeight: '800',
   },
 });
+}
+

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React,  useCallback, useEffect, useState, useMemo from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { getPeople, findPerson, patchPerson } from '../services/peopleService';
 import { formatUk } from '../services/dateSpanService';
 import { createEventShare } from '../services/shareService';
+import { useTheme } from '../themeContext';
 
 const CATEGORIES = [
   { id: 'personal', label: 'Personal' },
@@ -46,6 +47,8 @@ function eventToDateTime(iso) {
 }
 
 export default function AddSmsScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [direction, setDirection] = useState(existing?.smsDirection || 'received');
   const [contact, setContact] = useState(existing?.smsContact || '');
@@ -397,33 +400,34 @@ export default function AddSmsScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 110 },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '800', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 12 },
+  heading: { color: c.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 12 },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
     marginBottom: 16,
   },
-  label: { color: '#a5b4fc', fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
+  label: { color: c.muted, fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 6 },
   input: {
-    backgroundColor: '#0f1024',
-    borderColor: '#2e2f55',
+    backgroundColor: c.bg,
+    borderColor: c.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
-    color: '#f8fafc',
+    color: c.text,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
@@ -435,58 +439,58 @@ const styles = StyleSheet.create({
   two: { flexDirection: 'row', gap: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  chipOn: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  chipText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
+  chipOn: { backgroundColor: c.blue, borderColor: c.blue },
+  chipText: { color: c.faint, fontWeight: '700', fontSize: 13 },
   chipTextOn: { color: '#fff' },
   match: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: { color: '#fff', fontWeight: '800' },
-  matchName: { color: '#f8fafc', fontSize: 16, fontWeight: '700' },
-  meta: { color: '#94a3b8', fontSize: 13 },
-  hint: { color: '#64748b', fontSize: 12, lineHeight: 17, marginTop: 4 },
+  matchName: { color: c.text, fontSize: 16, fontWeight: '700' },
+  meta: { color: c.faint, fontSize: 13 },
+  hint: { color: c.faint, fontSize: 12, lineHeight: 17, marginTop: 4 },
   shareRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
   box: {
     width: 22,
     height: 22,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#64748b',
+    borderColor: c.faint,
     marginTop: 2,
   },
   boxOn: { backgroundColor: '#22c55e', borderColor: '#22c55e' },
   shareLabel: { color: '#e2e8f0', fontWeight: '700' },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 14,
   },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  listTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  listTitle: { color: c.text, fontSize: 18, fontWeight: '800', marginBottom: 8 },
   log: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2a2b4a',
+    borderColor: c.cardBorder,
   },
   bubble: {
     marginTop: 8,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     color: '#e2e8f0',
     padding: 10,
     borderRadius: 10,
@@ -494,17 +498,19 @@ const styles = StyleSheet.create({
   },
   bubbleSent: { backgroundColor: '#1d4ed8', color: '#fff', textAlign: 'right' },
   actions: { flexDirection: 'row', gap: 16, marginTop: 10 },
-  link: { color: '#60a5fa', fontWeight: '700' },
-  delete: { color: '#f87171', fontWeight: '700' },
+  link: { color: c.blueSoft, fontWeight: '700' },
+  delete: { color: c.danger, fontWeight: '700' },
   autoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   autoPill: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   autoPillOn: { backgroundColor: '#166534', borderColor: '#22c55e' },
-  autoPillText: { color: '#94a3b8', fontSize: 12, fontWeight: '700' },
+  autoPillText: { color: c.faint, fontSize: 12, fontWeight: '700' },
   autoPillTextOn: { color: '#dcfce7' },
 });
+}
+

@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -15,6 +16,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import { saveEvent, deleteEvent } from '../services/eventService';
+import { useTheme } from '../themeContext';
 import {
   loadYoutube,
   saveYoutube,
@@ -36,6 +38,8 @@ function formatUk(iso) {
 }
 
 export default function YouTubeScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [items, setItems] = useState([]);
   const [url, setUrl] = useState(existing?.youtubeUrl || '');
@@ -379,36 +383,37 @@ export default function YouTubeScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 96 },
   kicker: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginTop: 8,
   },
-  heading: { color: '#f8fafc', fontSize: 28, fontWeight: '700', marginTop: 4 },
-  intro: { color: '#94a3b8', fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 8 },
-  label: { color: '#93c5fd', fontSize: 12, fontWeight: '700', marginTop: 16, textTransform: 'uppercase' },
-  field: { color: '#94a3b8', fontSize: 14, marginTop: 12, marginBottom: 6 },
+  heading: { color: c.text, fontSize: 28, fontWeight: '700', marginTop: 4 },
+  intro: { color: c.faint, fontSize: 14, lineHeight: 20, marginTop: 8, marginBottom: 8 },
+  label: { color: c.blueSoft, fontSize: 12, fontWeight: '700', marginTop: 16, textTransform: 'uppercase' },
+  field: { color: c.faint, fontSize: 14, marginTop: 12, marginBottom: 6 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2e2f55',
+    borderColor: c.cardBorder,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   area: { minHeight: 90 },
-  hint: { color: '#64748b', fontSize: 12, marginTop: 6 },
+  hint: { color: c.faint, fontSize: 12, marginTop: 6 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
-  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: '#3b82f6' },
-  boxOn: { backgroundColor: '#3b82f6' },
+  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: c.blue },
+  boxOn: { backgroundColor: c.blue },
   toggleText: { color: '#e2e8f0', fontSize: 15 },
   friendRow: {
     flexDirection: 'row',
@@ -417,7 +422,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -425,39 +430,39 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  cancel: { color: '#94a3b8', textAlign: 'center', marginTop: 10 },
-  subHead: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginTop: 28, marginBottom: 8 },
+  cancel: { color: c.faint, textAlign: 'center', marginTop: 10 },
+  subHead: { color: c.text, fontSize: 18, fontWeight: '700', marginTop: 28, marginBottom: 8 },
   card: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2e2f55',
+    borderColor: c.cardBorder,
     padding: 12,
     marginTop: 10,
   },
   cardTop: { flexDirection: 'row', gap: 10 },
-  thumb: { width: 112, height: 64, borderRadius: 8, backgroundColor: '#0f1024' },
-  bodyStrong: { color: '#f8fafc', fontSize: 15, fontWeight: '700' },
-  meta: { color: '#94a3b8', fontSize: 13, marginTop: 4, lineHeight: 18 },
-  accent: { color: '#93c5fd', fontWeight: '700' },
+  thumb: { width: 112, height: 64, borderRadius: 8, backgroundColor: c.bg },
+  bodyStrong: { color: c.text, fontSize: 15, fontWeight: '700' },
+  meta: { color: c.faint, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  accent: { color: c.blueSoft, fontWeight: '700' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, alignItems: 'center' },
   chip: {
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: c.faint,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   chipOn: {
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#1e3a5f',
   },
-  chipText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
-  chipTextOn: { color: '#93c5fd', fontSize: 13, fontWeight: '700' },
+  chipText: { color: c.faint, fontSize: 13, fontWeight: '600' },
+  chipTextOn: { color: c.blueSoft, fontSize: 13, fontWeight: '700' },
   openBtn: {
     backgroundColor: '#dc2626',
     borderRadius: 999,
@@ -465,6 +470,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   openText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  detail: { marginTop: 12, borderTopWidth: 1, borderTopColor: '#2e2f55', paddingTop: 10 },
-  delete: { color: '#f87171', fontWeight: '600' },
+  detail: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder, paddingTop: 10 },
+  delete: { color: c.danger, fontWeight: '600' },
 });
+}
+

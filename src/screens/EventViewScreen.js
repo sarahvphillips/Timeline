@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect, useEffect } from 'react';
+import React,  useState, useLayoutEffect, useEffect, useMemo from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { copyTextToClipboard } from '../services/shareService';
 import { normalizeSocialUrl } from '../services/socialService';
 import { formatFullDate, getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
 import { asImageUri } from '../services/imagePicker';
+import { useTheme } from '../themeContext';
 
 export function openEventEditor(navigation, item) {
   if (!navigation || !item) return;
@@ -61,6 +62,8 @@ function Meta({ label, value }) {
 }
 
 export default function EventViewScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const event = route.params?.event;
   const { width: screenW, height: screenH } = useWindowDimensions();
   const [fullOpen, setFullOpen] = useState(false);
@@ -219,11 +222,12 @@ export default function EventViewScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 22, paddingBottom: 48 },
-  emptyWrap: { flex: 1, backgroundColor: '#0f1024', justifyContent: 'center', alignItems: 'center' },
-  empty: { color: '#94a3b8', fontSize: 16 },
+  emptyWrap: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' },
+  empty: { color: c.faint, fontSize: 16 },
   kind: {
     alignSelf: 'flex-start',
     borderWidth: 1,
@@ -233,8 +237,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   kindText: { fontSize: 13, fontWeight: '700' },
-  title: { color: '#f8fafc', fontSize: 28, fontWeight: '700', lineHeight: 34 },
-  when: { color: '#94a3b8', fontSize: 15, marginTop: 8, marginBottom: 16 },
+  title: { color: c.text, fontSize: 28, fontWeight: '700', lineHeight: 34 },
+  when: { color: c.faint, fontSize: 15, marginTop: 8, marginBottom: 16 },
   photo: {
     width: '100%',
     height: 240,
@@ -243,7 +247,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   photoHint: {
-    color: '#64748b',
+    color: c.faint,
     fontSize: 13,
     marginBottom: 16,
   },
@@ -257,7 +261,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   fullClose: {
-    color: '#93c5fd',
+    color: c.blueSoft,
     fontSize: 16,
     fontWeight: '700',
     alignSelf: 'flex-end',
@@ -267,10 +271,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   meta: { color: '#e2e8f0', fontSize: 15, marginBottom: 6, lineHeight: 22 },
-  metaLabel: { color: '#64748b', fontWeight: '600' },
+  metaLabel: { color: c.faint, fontWeight: '600' },
   body: {
     marginTop: 16,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 14,
     borderLeftWidth: 3,
     paddingHorizontal: 16,
@@ -279,17 +283,19 @@ const styles = StyleSheet.create({
   bodyPoem: { paddingVertical: 20 },
   bodyText: { color: '#e2e8f0', fontSize: 16, lineHeight: 24 },
   poemText: { fontSize: 17, lineHeight: 28 },
-  noBody: { color: '#64748b', marginTop: 18, fontSize: 15 },
+  noBody: { color: c.faint, marginTop: 18, fontSize: 15 },
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 14 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
   actionText: { color: '#7dd3fc', fontWeight: '700' },
   edit: {
     marginTop: 28,
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  editText: { color: '#93c5fd', fontSize: 16, fontWeight: '700' },
+  editText: { color: c.blueSoft, fontSize: 16, fontWeight: '700' },
 });
+}
+

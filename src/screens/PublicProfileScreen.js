@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React,  useCallback, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -12,8 +13,11 @@ import HomeFab from '../components/HomeFab';
 import { lookupPublicProfile, normalizeHandle } from '../services/profileService';
 import { savePerson } from '../services/peopleService';
 import { auth } from '../services/firebase';
+import { useTheme } from '../themeContext';
 
 export default function PublicProfileScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const incoming = normalizeHandle(route?.params?.handle || '');
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -94,10 +98,11 @@ export default function PublicProfileScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function screenStyles(c) {
+  return StyleSheet.create({
   wrap: {
     flex: 1,
-    backgroundColor: '#0f1024',
+    backgroundColor: c.bg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -106,21 +111,23 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: '800' },
-  name: { color: '#f8fafc', fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  handle: { color: '#c4b5fd', fontSize: 16, fontWeight: '700', marginTop: 4 },
-  meta: { color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 10, lineHeight: 20 },
+  name: { color: c.text, fontSize: 24, fontWeight: '800', textAlign: 'center' },
+  handle: { color: c.muted, fontSize: 16, fontWeight: '700', marginTop: 4 },
+  meta: { color: c.faint, fontSize: 14, textAlign: 'center', marginTop: 10, lineHeight: 20 },
   button: {
     marginTop: 20,
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 24,
   },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });
+}
+

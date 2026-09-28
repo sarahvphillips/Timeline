@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React,  useEffect, useState,
+  useMemo from 'react';
 import {
   View,
   Text,
@@ -14,8 +15,11 @@ import { saveEvent, CATEGORIES } from '../services/eventService';
 import { getEventCategories } from '../services/profileService';
 import ImageAttachField from '../components/ImageAttachField';
 import LabelPicker from '../components/LabelPicker';
+import { useTheme } from '../themeContext';
 
 export default function AddPoemScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => screenStyles(colors), [colors]);
   const existing = route.params?.event || null;
   const [title, setTitle] = useState(existing?.title || '');
   const [description, setDescription] = useState(existing?.description || '');
@@ -182,36 +186,37 @@ export default function AddPoemScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1024' },
+function screenStyles(c) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   content: { padding: 20, paddingBottom: 40 },
-  heading: { color: '#f8fafc', fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  label: { color: '#94a3b8', fontSize: 14, marginTop: 16, marginBottom: 8 },
+  heading: { color: c.text, fontSize: 22, fontWeight: '700', marginBottom: 8 },
+  label: { color: c.faint, fontSize: 14, marginTop: 16, marginBottom: 8 },
   input: {
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#f8fafc',
+    color: c.text,
   },
   poem: { minHeight: 180 },
   shareBox: { minHeight: 100 },
-  hint: { color: '#64748b', fontSize: 13, lineHeight: 18, marginBottom: 8 },
+  hint: { color: c.faint, fontSize: 13, lineHeight: 18, marginBottom: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 18,
-    backgroundColor: '#1a1b36',
+    backgroundColor: c.card,
     borderWidth: 1,
     borderColor: '#334155',
   },
-  chipText: { color: '#94a3b8', fontSize: 13 },
-  chipOn: { borderColor: '#8b5cf6', backgroundColor: '#3b0764' },
-  chipOnText: { color: '#c4b5fd', fontWeight: '600' },
+  chipText: { color: c.faint, fontSize: 13 },
+  chipOn: { borderColor: c.spine, backgroundColor: '#3b0764' },
+  chipOnText: { color: c.muted, fontWeight: '600' },
   save: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: c.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -219,3 +224,5 @@ const styles = StyleSheet.create({
   },
   saveText: { color: '#fff', fontSize: 17, fontWeight: '600' },
 });
+}
+
