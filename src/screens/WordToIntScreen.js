@@ -600,34 +600,36 @@ function WordToIntScreen({ navigation, route }) {
     }
     const already = searchList.some((row) => Number(row.number) === n && (row.method || 'all') === lookupMethod);
     if (already) {
-      Alert.alert('Search list', `${raw} is already on your search list for ${methodLabel(lookupMethod)}.`);
+      Alert.alert('Searching for', `${raw} is already on Searching for (${methodLabel(lookupMethod)}).`);
       return;
     }
-    Alert.alert(
-      'No saved word',
-      `No saved word matches ${raw}${lookupMethod === 'all' ? '' : ` using ${methodLabel(lookupMethod)}`}. Add it to your search list?`,
-      [
-        { text: 'Not now', style: 'cancel' },
-        {
-          text: 'Add to search list',
-          onPress: async () => {
-            try {
-              const result = await addNumberSearch(raw, lookupMethod);
-              const next = await getNumberSearchList();
-              setSearchList(next);
-              Alert.alert(
-                result.already ? 'Already listed' : 'Added',
-                result.already
-                  ? `${raw} was already on your search list.`
-                  : `${raw} is on your search list until a matching word is saved.`
-              );
-            } catch (e) {
-              Alert.alert('Could not add', e?.message || 'Try again.');
-            }
-          },
-        },
-      ]
-    );
+    const saveIt = async () => {
+      try {
+        const added = await addNumberSearch(raw, lookupMethod);
+        const next = await getNumberSearchList();
+        setSearchList(next);
+        Alert.alert(
+          added.already ? 'Already listed' : 'On Searching for',
+          added.already
+            ? `${raw} was already on Searching for.`
+            : `${raw} stays on Searching for until a matching word is saved.`
+        );
+      } catch (e) {
+        Alert.alert('Could not add', e?.message || 'Try again.');
+      }
+    };
+    if (matches.length) {
+      Alert.alert(
+        'Already have a word',
+        `${raw} already matches ${matches.map((item) => item.phrase).join(', ')}. Keep it on Searching for anyway?`,
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Keep on list', onPress: saveIt },
+        ]
+      );
+      return;
+    }
+    saveIt();
   };
 
   const removeSearch = async (row) => {
@@ -661,6 +663,10 @@ function WordToIntScreen({ navigation, route }) {
       </Text>
 
       <Text style={[styles.sectionTitle, { color: colors.muted }]}>Number to word</Text>
+      <Text style={[styles.inlineHint, { color: colors.faint }]}>
+        Type a number you want a word for. If nothing in the list matches, add it to Searching for
+        so it stays here until you save a word that hits it.
+      </Text>
       <Text style={[styles.label, { color: colors.muted }]}>Number</Text>
       <TextInput
         style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
@@ -674,6 +680,18 @@ function WordToIntScreen({ navigation, route }) {
           if (matches.length === 0) askAddSearch();
         }}
       />
+      {!!String(lookupNumber).trim() ? (
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.blue, marginTop: 8 }]}
+          onPress={askAddSearch}
+        >
+          <Text style={styles.buttonText}>
+            {matches.length
+              ? `Keep ${String(lookupNumber).trim()} on Searching for`
+              : `Add ${String(lookupNumber).trim()} to Searching for`}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
       <Text style={[styles.label, { color: colors.muted }]}>Match using</Text>
       <View style={styles.methodRow}>
         {lookupMethods.map((m) => (
@@ -692,13 +710,12 @@ function WordToIntScreen({ navigation, route }) {
         <View style={styles.lookupCard}>
           {matches.length === 0 ? (
             <>
-              <Text style={styles.empty}>
+              <Text style={[styles.empty, { color: colors.faint }]}>
                 No saved word
                 {lookupMethod === 'all' ? '' : ` with ${lookupMethod} ${String(lookupNumber).trim()}`}.
-                {lookupMethod !== 'all' ? ' Try All, or save the word first.' : ' Convert the word and tap Save to number list first.'}
               </Text>
-              <TouchableOpacity style={styles.copyBtn} onPress={askAddSearch}>
-                <Text style={styles.copyText}>Add to search list</Text>
+              <TouchableOpacity style={[styles.copyBtn, { backgroundColor: colors.blue }]} onPress={askAddSearch}>
+                <Text style={styles.copyText}>Add {String(lookupNumber).trim()} to Searching for</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -729,13 +746,18 @@ function WordToIntScreen({ navigation, route }) {
         </View>
       )}
 
-      {searchList.length > 0 ? (
-        <View style={styles.lookupCard}>
-          <Text style={[styles.sectionTitle, { color: colors.muted }]}>Searching for</Text>
-          <Text style={styles.meta}>
-            Numbers with no saved word yet, and words you have not saved to the number list yet.
+      <View style={[styles.lookupCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Text style={[styles.sectionTitle, { color: colors.muted, marginTop: 0 }]}>Searching for</Text>
+        <Text style={[styles.meta, { color: colors.faint }]}>
+          Numbers with no saved word yet, and words you have typed but not saved. Tap a row to fill
+          the boxes above.
+        </Text>
+        {searchList.length === 0 ? (
+          <Text style={[styles.empty, { color: colors.faint }]}>
+            Nothing waiting. Type a number that is not in the list, then tap Add to Searching for.
           </Text>
-          {searchList.map((row) => (
+        ) : (
+          searchList.map((row) => (
             <View key={row.id} style={styles.searchRow}>
               <TouchableOpacity
                 onPress={() => {
@@ -748,19 +770,18 @@ function WordToIntScreen({ navigation, route }) {
                   }
                 }}
               >
-                <Text style={styles.itemPhrase}>{row.phrase || row.number}</Text>
-                <Text style={styles.itemMeta}>
+                <Text style={[styles.itemPhrase, { color: colors.text }]}>{row.phrase || row.number}</Text>
+                <Text style={[styles.itemMeta, { color: colors.faint }]}>
                   {row.phrase ? 'Word · waiting to save' : `${methodLabel(row.method)} · no word yet`}
-                  {` · ${formatAddedAt(row.addedAt)}`}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => removeSearch(row)}>
                 <Text style={styles.removeText}>Remove</Text>
               </TouchableOpacity>
             </View>
-          ))}
-        </View>
-      ) : null}
+          ))
+        )}
+      </View>
 
       <Text style={[styles.sectionTitle, { color: colors.muted }]}>Word to number</Text>
       <Text style={[styles.label, { color: colors.muted }]}>Word or phrase</Text>
