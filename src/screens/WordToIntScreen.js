@@ -35,6 +35,7 @@ import {
   addNumberSearch,
   addWordSearch,
   removeNumberSearch,
+  updateNumberSearchNote,
   dropSearchHitsForEntry,
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
@@ -146,6 +147,8 @@ function WordToIntScreen({ navigation, route }) {
   const [showGraph, setShowGraph] = useState(false);
   const [searchList, setSearchList] = useState([]);
   const [searchListOpen, setSearchListOpen] = useState(true);
+  const [searchNote, setSearchNote] = useState('');
+  const [searchNoteDrafts, setSearchNoteDrafts] = useState({});
   const lastPhraseParam = useRef(null);
   const listRef = useRef([]);
 
@@ -580,9 +583,10 @@ function WordToIntScreen({ navigation, route }) {
       return;
     }
     try {
-      const added = await addWordSearch(raw);
+      const added = await addWordSearch(raw, searchNote);
       const next = await getNumberSearchList();
       setSearchList(next);
+      setSearchNote('');
       Alert.alert(
         added.already ? 'Already listed' : 'Added',
         added.already
@@ -608,9 +612,10 @@ function WordToIntScreen({ navigation, route }) {
     }
     const saveIt = async () => {
       try {
-        const added = await addNumberSearch(raw, lookupMethod);
+        const added = await addNumberSearch(raw, lookupMethod, searchNote);
         const next = await getNumberSearchList();
         setSearchList(next);
+        setSearchNote('');
         Alert.alert(
           added.already ? 'Already listed' : 'On Searching for',
           added.already
@@ -638,6 +643,32 @@ function WordToIntScreen({ navigation, route }) {
   const removeSearch = async (row) => {
     const next = await removeNumberSearch(row.id);
     setSearchList(next);
+    setSearchNoteDrafts((cur) => {
+      const copy = { ...cur };
+      delete copy[row.id];
+      return copy;
+    });
+  };
+
+  const searchNoteValue = (row) =>
+    Object.prototype.hasOwnProperty.call(searchNoteDrafts, row.id)
+      ? searchNoteDrafts[row.id]
+      : row.note || '';
+
+  const saveSearchNote = async (row) => {
+    const nextNote = String(searchNoteValue(row) || '').trim();
+    if (nextNote === String(row.note || '').trim()) return;
+    try {
+      const next = await updateNumberSearchNote(row.id, nextNote);
+      setSearchList(next);
+      setSearchNoteDrafts((cur) => {
+        const copy = { ...cur };
+        delete copy[row.id];
+        return copy;
+      });
+    } catch (e) {
+      Alert.alert('Could not save note', e?.message || 'Try again.');
+    }
   };
 
   const matches =
@@ -682,6 +713,15 @@ function WordToIntScreen({ navigation, route }) {
         onSubmitEditing={() => {
           if (matches.length === 0) askAddSearch();
         }}
+      />
+      <Text style={[styles.label, { color: colors.muted }]}>Note for Searching for (optional)</Text>
+      <TextInput
+        style={[styles.input, styles.notes, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
+        value={searchNote}
+        onChangeText={setSearchNote}
+        placeholder="Why this number, or what made you look it up"
+        placeholderTextColor="#64748b"
+        multiline
       />
       {!!String(lookupNumber).trim() ? (
         <TouchableOpacity
@@ -776,26 +816,39 @@ function WordToIntScreen({ navigation, route }) {
           </Text>
         ) : (
           searchList.map((row) => (
-            <View key={row.id} style={styles.searchRow}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (row.phrase) {
-                    setPhrase(row.phrase);
-                    setDupNotice(false);
-                  } else {
-                    setLookupNumber(String(row.number));
-                    setLookupMethod(row.method || 'all');
-                  }
-                }}
-              >
-                <Text style={[styles.itemPhrase, { color: colors.text }]}>{row.phrase || row.number}</Text>
-                <Text style={[styles.itemMeta, { color: colors.faint }]}>
-                  {row.phrase ? 'Word · waiting to save' : `${methodLabel(row.method)} · no word yet`}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => removeSearch(row)}>
-                <Text style={styles.removeText}>Remove</Text>
-              </TouchableOpacity>
+            <View key={row.id} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.cardBorder }}>
+              <View style={styles.searchRow}>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  onPress={() => {
+                    if (row.phrase) {
+                      setPhrase(row.phrase);
+                      setDupNotice(false);
+                    } else {
+                      setLookupNumber(String(row.number));
+                      setLookupMethod(row.method || 'all');
+                    }
+                    if (row.note) setSearchNote(row.note);
+                  }}
+                >
+                  <Text style={[styles.itemPhrase, { color: colors.text }]}>{row.phrase || row.number}</Text>
+                  <Text style={[styles.itemMeta, { color: colors.faint }]}>
+                    {row.phrase ? 'Word · waiting to save' : `${methodLabel(row.method)} · no word yet`}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => removeSearch(row)}>
+                  <Text style={styles.removeText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                style={[styles.inlineNote, { backgroundColor: colors.bg, borderColor: colors.cardBorder, color: colors.text }]}
+                value={searchNoteValue(row)}
+                onChangeText={(text) => setSearchNoteDrafts((cur) => ({ ...cur, [row.id]: text }))}
+                onBlur={() => saveSearchNote(row)}
+                placeholder="Why this is on the list"
+                placeholderTextColor={colors.faint}
+                multiline
+              />
             </View>
           ))
         )}

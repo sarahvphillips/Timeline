@@ -727,7 +727,7 @@ export async function getNumberSearchList() {
     .sort((a, b) => String(b.addedAt || '').localeCompare(String(a.addedAt || '')));
 }
 
-export async function addWordSearch(rawPhrase) {
+export async function addWordSearch(rawPhrase, note) {
   const phrase = String(rawPhrase || '').trim();
   if (!phrase) {
     const err = new Error('Type a word first.');
@@ -738,18 +738,26 @@ export async function addWordSearch(rawPhrase) {
   const existing = list.find(
     (row) => String(row.phrase || '').trim().toLowerCase() === phrase.toLowerCase()
   );
-  if (existing) return { item: existing, already: true };
+  const trimmedNote = String(note || '').trim();
+  if (existing) {
+    if (trimmedNote && !String(existing.note || '').trim()) {
+      existing.note = trimmedNote;
+      await writeNumberSearchList(list);
+    }
+    return { item: existing, already: true };
+  }
   const item = {
     id: `search-w-${Date.now()}`,
     kind: 'word',
     phrase,
+    note: trimmedNote,
     addedAt: new Date().toISOString(),
   };
   await writeNumberSearchList([item, ...list]);
   return { item, already: false };
 }
 
-export async function addNumberSearch(rawNumber, method) {
+export async function addNumberSearch(rawNumber, method, note) {
   const number = Number(String(rawNumber).trim());
   if (!String(rawNumber).trim() || Number.isNaN(number)) {
     const err = new Error('Type a number first.');
@@ -759,15 +767,32 @@ export async function addNumberSearch(rawNumber, method) {
   const methodId = method || 'all';
   const list = await readNumberSearchList();
   const existing = list.find((row) => Number(row.number) === number && (row.method || 'all') === methodId);
-  if (existing) return { item: existing, already: true };
+  const trimmedNote = String(note || '').trim();
+  if (existing) {
+    if (trimmedNote && !String(existing.note || '').trim()) {
+      existing.note = trimmedNote;
+      await writeNumberSearchList(list);
+    }
+    return { item: existing, already: true };
+  }
   const item = {
     id: `search-${Date.now()}`,
     number,
     method: methodId,
+    note: trimmedNote,
     addedAt: new Date().toISOString(),
   };
   await writeNumberSearchList([item, ...list]);
   return { item, already: false };
+}
+
+export async function updateNumberSearchNote(id, note) {
+  const list = await readNumberSearchList();
+  const next = list.map((row) =>
+    String(row.id) === String(id) ? { ...row, note: String(note || '').trim() } : row
+  );
+  await writeNumberSearchList(next);
+  return getNumberSearchList();
 }
 
 export async function removeNumberSearch(id) {

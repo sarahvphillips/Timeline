@@ -156,10 +156,10 @@ export async function importBackup(pack) {
   for (const row of pack.searches || []) {
     try {
       if (row.phrase) {
-        const added = await addWordSearch(row.phrase);
+        const added = await addWordSearch(row.phrase, row.note);
         if (!added.already) counts.searches += 1;
       } else if (row.number != null) {
-        const added = await addNumberSearch(row.number, row.method || 'all');
+        const added = await addNumberSearch(row.number, row.method || 'all', row.note);
         if (!added.already) counts.searches += 1;
       }
     } catch {
