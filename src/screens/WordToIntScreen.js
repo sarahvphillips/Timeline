@@ -147,6 +147,7 @@ function WordToIntScreen({ navigation, route }) {
   const [searchList, setSearchList] = useState([]);
   const [searchListOpen, setSearchListOpen] = useState(true);
   const lastPhraseParam = useRef(null);
+  const listRef = useRef([]);
 
   const result =
     typeof convertPhrase === 'function'
@@ -173,6 +174,26 @@ function WordToIntScreen({ navigation, route }) {
     () => (typeof sortWordNumberList === 'function' ? sortWordNumberList(list, sortMode) : list),
     [list, sortMode]
   );
+  listRef.current = list;
+
+  const loadList = useCallback(async () => {
+    try {
+      const [words, savedSpans, savedSort, searches] = await Promise.all([
+        getWordNumbers(),
+        getSpans(),
+        getListSort(),
+        getNumberSearchList(),
+      ]);
+      if (Array.isArray(words)) {
+        if (words.length > 0 || listRef.current.length === 0) setList(words);
+      }
+      setSpans(Array.isArray(savedSpans) ? savedSpans : []);
+      setSortMode(savedSort);
+      setSearchList(Array.isArray(searches) ? searches : []);
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
 
   const pickSort = async (id) => {
     setSortMode(id);
@@ -253,25 +274,6 @@ function WordToIntScreen({ navigation, route }) {
     saveItemNotes(item, next);
   };
 
-  const loadList = useCallback(async () => {
-    // Await cloud pull before showing saved list (avoids empty-then-fill flash).
-    setListLoading(true);
-    try {
-      const [words, savedSpans, savedSort, searches] = await Promise.all([
-        getWordNumbers(),
-        getSpans(),
-        getListSort(),
-        getNumberSearchList(),
-      ]);
-      setList(Array.isArray(words) ? words : []);
-      setSpans(Array.isArray(savedSpans) ? savedSpans : []);
-      setSortMode(savedSort);
-      setSearchList(Array.isArray(searches) ? searches : []);
-    } finally {
-      setListLoading(false);
-    }
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
       loadList();
@@ -290,7 +292,7 @@ function WordToIntScreen({ navigation, route }) {
       const timer = setInterval(() => {
         scrubWordNumberDuplicates()
           .then((words) => {
-            if (Array.isArray(words)) setList(words);
+            if (Array.isArray(words) && words.length > 0) setList(words);
           })
           .catch(() => {});
       }, 60 * 1000);
@@ -995,7 +997,7 @@ function WordToIntScreen({ navigation, route }) {
           Edit a note on its row. Leaving the box saves it. The tags add #norse, #binary or #poem without going back to the top.
         </Text>
       ) : null}
-      {listLoading ? (
+      {listLoading && list.length === 0 ? (
         <View style={styles.listLoading}>
           <ActivityIndicator size="small" color={colors.blue} />
           <Text style={styles.empty}>

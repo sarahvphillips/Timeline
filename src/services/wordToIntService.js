@@ -333,7 +333,11 @@ export async function scrubWordNumberDuplicates() {
     return sortWordNumbers(kept);
   } catch (e) {
     console.warn('Word-to-int duplicate scrub failed', e);
-    return [];
+    try {
+      return sortWordNumbers(await readListRaw(uid));
+    } catch (_) {
+      return [];
+    }
   }
 }
 
@@ -392,7 +396,7 @@ export async function getWordNumbers() {
     }
 
     if (!uid || !WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
-      if (uid && !isScopeCurrent(uid, epoch)) return [];
+      if (uid && !isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
       const cleaned = await applyDedupe(local, uid, epoch);
       return sortWordNumbers(cleaned);
     }
@@ -423,9 +427,8 @@ export async function getWordNumbers() {
         const cleaned = await applyDedupe(local, uid, epoch);
         return sortWordNumbers(cleaned);
       }
-      if (!isScopeCurrent(uid, epoch)) return [];
-      await writeList([], uid);
-      return [];
+      if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
+      return sortWordNumbers(local);
     }
 
     const remoteStamped = (remote || []).map((item) => ({
@@ -440,7 +443,11 @@ export async function getWordNumbers() {
     return sortWordNumbers(cleaned);
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
-    return [];
+    try {
+      return sortWordNumbers(await readListRaw(currentUid()));
+    } catch (_) {
+      return [];
+    }
   }
 }
 
