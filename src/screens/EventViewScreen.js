@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect, useEffect, useMemo } from 'react';
+import React, { useState, useLayoutEffect, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,13 +13,16 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { classifyYearBubbleKind, washStatusLabel } from '../services/eventService';
+import { useFocusEffect } from '@react-navigation/native';
+import { classifyYearBubbleKind, washStatusLabel, getEvents } from '../services/eventService';
 import EventLabelChips from '../components/EventLabelChips';
+import EventLinkPicker from '../components/EventLinkPicker';
 import { copyTextToClipboard } from '../services/shareService';
 import { normalizeSocialUrl } from '../services/socialService';
 import { formatFullDate, getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
 import { asImageUri } from '../services/imagePicker';
 import { useTheme } from '../themeContext';
+import { eventsByIds, linkEventGroup, unlinkEvents, eventKindLabel } from '../services/eventLinkService';
 
 export function openEventEditor(navigation, item) {
   if (!navigation || !item) return;
@@ -64,10 +67,34 @@ function Meta({ label, value }) {
 export default function EventViewScreen({ navigation, route }) {
   const { colors } = useTheme();
   const styles = useMemo(() => screenStyles(colors), [colors]);
-  const event = route.params?.event;
+  const seed = route.params?.event;
   const { width: screenW, height: screenH } = useWindowDimensions();
   const [fullOpen, setFullOpen] = useState(false);
   const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
+  const [event, setEvent] = useState(seed || null);
+  const [linked, setLinked] = useState([]);
+  const [linkOpen, setLinkOpen] = useState(false);
+
+  const loadLive = useCallback(async () => {
+    const id = seed?.id;
+    if (!id) return;
+    try {
+      const all = await getEvents();
+      const live = all.find((row) => String(row.id) === String(id));
+      if (live) setEvent(live);
+      const ids = live?.linkedEventIds || seed?.linkedEventIds || [];
+      const rows = await eventsByIds(ids);
+      setLinked(rows);
+    } catch {
+      setLinked([]);
+    }
+  }, [seed?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLive();
+    }, [loadLive])
+  );
 
   useEffect(() => {
     getDateFormat().then(setDateFormat).catch(() => setDateFormat(DATE_FORMAT_DMY));
@@ -152,6 +179,32 @@ export default function EventViewScreen({ navigation, route }) {
 
       <EventLabelChips labels={event.labels} />
 
+      <Text style={[styles.metaLabel, { marginTop: 8 }]}>Linked events</Text>
+      {linked.length === 0 ? (
+        <Text style={styles.noBody}>None yet. Link a poem, YouTube clip, social post or any other event.</Text>
+      ) : (
+        linked.map((item) => (
+          <View key={item.id} style={{ marginBottom: 8 }}>
+            <TouchableOpacity onPress={() => navigation.push('EventView', { event: item })}>
+              <Text style={{ color: '#7dd3fc', fontWeight: '700' }}>
+                {eventKindLabel(item)} · {item.title || 'Untitled'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                await unlinkEvents(event.id, item.id);
+                loadLive();
+              }}
+            >
+              <Text style={{ color: '#f87171', fontSize: 12, marginTop: 2 }}>Unlink</Text>
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+      <TouchableOpacity style={styles.edit} onPress={() => setLinkOpen(true)} activeOpacity={0.85}>
+        <Text style={styles.editText}>Link events</Text>
+      </TouchableOpacity>
+
       <Meta label="From" value={event.emailFrom} />
       <Meta label="Contact" value={event.smsContact} />
       <Meta label="Direction" value={event.smsDirection || event.callDirection} />
@@ -218,6 +271,21 @@ export default function EventViewScreen({ navigation, route }) {
           </ScrollView>
         </View>
       </Modal>
+      <EventLinkPicker
+        visible={linkOpen}
+        excludeIds={event?.id ? [event.id] : []}
+        selectedIds={event?.linkedEventIds || []}
+        onClose={() => setLinkOpen(false)}
+        onSave={async (ids) => {
+          setLinkOpen(false);
+          try {
+            await linkEventGroup([event.id, ...ids]);
+            await loadLive();
+          } catch (e) {
+            Alert.alert('Could not link', e?.message || 'Try again.');
+          }
+        }}
+      />
     </ScrollView>
   );
 }

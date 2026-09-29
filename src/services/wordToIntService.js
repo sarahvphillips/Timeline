@@ -795,6 +795,17 @@ export async function updateNumberSearchNote(id, note) {
   return getNumberSearchList();
 }
 
+export async function updateNumberSearchLinks(id, eventIds) {
+  const list = await readNumberSearchList();
+  const next = list.map((row) =>
+    String(row.id) === String(id)
+      ? { ...row, linkedEventIds: [...new Set((eventIds || []).map((item) => String(item)).filter(Boolean))] }
+      : row
+  );
+  await writeNumberSearchList(next);
+  return getNumberSearchList();
+}
+
 export async function removeNumberSearch(id) {
   const list = await readNumberSearchList();
   const next = list.filter((row) => String(row.id) !== String(id));

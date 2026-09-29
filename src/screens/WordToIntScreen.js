@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -36,6 +36,7 @@ import {
   addWordSearch,
   removeNumberSearch,
   updateNumberSearchNote,
+  updateNumberSearchLinks,
   dropSearchHitsForEntry,
 } from '../services/wordToIntService';
 import { getSpans, findSpansForNumber } from '../services/dateSpanService';
@@ -55,6 +56,8 @@ import {
 } from '../services/rewardsService';
 import { loadAdmin, canSeeHomeAdmin } from '../services/adminService';
 import WordGraphScreen from './WordGraphScreen';
+import EventLinkPicker from '../components/EventLinkPicker';
+import { eventsByIds, linkEventGroup, eventKindLabel } from '../services/eventLinkService';
 
 function isDayCount(n) {
   return Number.isInteger(n) && n >= 1 && n <= 200000;
@@ -149,6 +152,8 @@ function WordToIntScreen({ navigation, route }) {
   const [searchListOpen, setSearchListOpen] = useState(true);
   const [searchNote, setSearchNote] = useState('');
   const [searchNoteDrafts, setSearchNoteDrafts] = useState({});
+  const [linkRow, setLinkRow] = useState(null);
+  const [linkedEvents, setLinkedEvents] = useState({});
   const lastPhraseParam = useRef(null);
   const listRef = useRef([]);
 
@@ -671,6 +676,42 @@ function WordToIntScreen({ navigation, route }) {
     }
   };
 
+  useEffect(() => {
+    const ids = searchList.flatMap((row) => row.linkedEventIds || []);
+    if (!ids.length) {
+      setLinkedEvents({});
+      return;
+    }
+    let on = true;
+    eventsByIds(ids)
+      .then((rows) => {
+        if (!on) return;
+        const map = {};
+        rows.forEach((event) => {
+          map[String(event.id)] = event;
+        });
+        setLinkedEvents(map);
+      })
+      .catch(() => {
+        if (on) setLinkedEvents({});
+      });
+    return () => {
+      on = false;
+    };
+  }, [searchList]);
+
+  const attachLinksToSearch = async (row, eventIds) => {
+    const merged = [...new Set([...(row.linkedEventIds || []), ...(eventIds || [])].map(String))];
+    try {
+      if (merged.length >= 2) await linkEventGroup(merged);
+      const next = await updateNumberSearchLinks(row.id, merged);
+      setSearchList(next);
+      setLinkRow(null);
+    } catch (e) {
+      Alert.alert('Could not link', e?.message || 'Try again.');
+    }
+  };
+
   const matches =
     typeof findPhrasesForNumber === 'function' ? findPhrasesForNumber(list, lookupNumber, lookupMethod) : [];
   const spanMatches = typeof findSpansForNumber === 'function' ? findSpansForNumber(spans, lookupNumber) : [];
@@ -849,6 +890,23 @@ function WordToIntScreen({ navigation, route }) {
                 placeholderTextColor={colors.faint}
                 multiline
               />
+              {(row.linkedEventIds || []).map((id) => {
+                const event = linkedEvents[String(id)];
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    onPress={() => event && navigation?.navigate('EventView', { event })}
+                    style={{ marginTop: 6 }}
+                  >
+                    <Text style={[styles.link, { color: colors.blueSoft }]}>
+                      {event ? `${eventKindLabel(event)} · ${event.title || 'Untitled'}` : 'Linked event'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setLinkRow(row)}>
+                <Text style={[styles.link, { color: colors.blue }]}>Link events</Text>
+              </TouchableOpacity>
             </View>
           ))
         )}
@@ -1155,6 +1213,12 @@ function WordToIntScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
     ) : null}
+    <EventLinkPicker
+      visible={!!linkRow}
+      selectedIds={linkRow?.linkedEventIds || []}
+      onClose={() => setLinkRow(null)}
+      onSave={(ids) => linkRow && attachLinksToSearch(linkRow, ids)}
+    />
     </View>
   );
 }
