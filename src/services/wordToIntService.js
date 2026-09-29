@@ -712,8 +712,34 @@ async function writeNumberSearchList(list) {
 export async function getNumberSearchList() {
   const list = await readNumberSearchList();
   return list
-    .filter((row) => row && row.number != null && !Number.isNaN(Number(row.number)))
+    .filter((row) => {
+      if (!row) return false;
+      if (String(row.phrase || '').trim()) return true;
+      return row.number != null && !Number.isNaN(Number(row.number));
+    })
     .sort((a, b) => String(b.addedAt || '').localeCompare(String(a.addedAt || '')));
+}
+
+export async function addWordSearch(rawPhrase) {
+  const phrase = String(rawPhrase || '').trim();
+  if (!phrase) {
+    const err = new Error('Type a word first.');
+    err.code = 'BAD_PHRASE';
+    throw err;
+  }
+  const list = await readNumberSearchList();
+  const existing = list.find(
+    (row) => String(row.phrase || '').trim().toLowerCase() === phrase.toLowerCase()
+  );
+  if (existing) return { item: existing, already: true };
+  const item = {
+    id: `search-w-${Date.now()}`,
+    kind: 'word',
+    phrase,
+    addedAt: new Date().toISOString(),
+  };
+  await writeNumberSearchList([item, ...list]);
+  return { item, already: false };
 }
 
 export async function addNumberSearch(rawNumber, method) {
@@ -747,7 +773,14 @@ export async function removeNumberSearch(id) {
 /** Drop search-list numbers that a newly saved word now answers. */
 export async function dropSearchHitsForEntry(entry) {
   const list = await readNumberSearchList();
-  const next = list.filter((row) => findPhrasesForNumber([entry], row.number, row.method || 'all').length === 0);
+  const phrase = String(entry?.phrase || '').trim().toLowerCase();
+  const next = list.filter((row) => {
+    if (phrase && String(row.phrase || '').trim().toLowerCase() === phrase) return false;
+    if (row.number != null && !Number.isNaN(Number(row.number))) {
+      return findPhrasesForNumber([entry], row.number, row.method || 'all').length === 0;
+    }
+    return true;
+  });
   if (next.length !== list.length) await writeNumberSearchList(next);
   return next;
 }

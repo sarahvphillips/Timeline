@@ -33,6 +33,7 @@ import {
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
   getNumberSearchList,
   addNumberSearch,
+  addWordSearch,
   removeNumberSearch,
   dropSearchHitsForEntry,
 } from '../services/wordToIntService';
@@ -558,6 +559,38 @@ function WordToIntScreen({ navigation, route }) {
     return row ? row.short : id || 'All';
   };
 
+  const askAddWordSearch = async () => {
+    const raw = String(result.phrase || phrase || '').trim();
+    if (!raw) {
+      Alert.alert('Word', 'Type a word or phrase first.');
+      return;
+    }
+    if (findSavedPhrase(list, raw)) {
+      Alert.alert('Already saved', `"${raw}" is already on the number list.`);
+      return;
+    }
+    const already = searchList.some(
+      (row) => String(row.phrase || '').trim().toLowerCase() === raw.toLowerCase()
+    );
+    if (already) {
+      Alert.alert('Searching for', `"${raw}" is already on your searching-for list.`);
+      return;
+    }
+    try {
+      const added = await addWordSearch(raw);
+      const next = await getNumberSearchList();
+      setSearchList(next);
+      Alert.alert(
+        added.already ? 'Already listed' : 'Added',
+        added.already
+          ? `"${raw}" was already on your searching-for list.`
+          : `"${raw}" stays on Searching for until you save it to the number list.`
+      );
+    } catch (e) {
+      Alert.alert('Could not add', e?.message || 'Try again.');
+    }
+  };
+
   const askAddSearch = () => {
     const raw = String(lookupNumber).trim();
     const n = Number(raw);
@@ -698,14 +731,27 @@ function WordToIntScreen({ navigation, route }) {
 
       {searchList.length > 0 ? (
         <View style={styles.lookupCard}>
-          <Text style={[styles.sectionTitle, { color: colors.muted }]}>Search list</Text>
-          <Text style={styles.meta}>Numbers you looked up that had no saved word yet.</Text>
+          <Text style={[styles.sectionTitle, { color: colors.muted }]}>Searching for</Text>
+          <Text style={styles.meta}>
+            Numbers with no saved word yet, and words you have not saved to the number list yet.
+          </Text>
           {searchList.map((row) => (
             <View key={row.id} style={styles.searchRow}>
-              <TouchableOpacity onPress={() => { setLookupNumber(String(row.number)); setLookupMethod(row.method || 'all'); }}>
-                <Text style={styles.itemPhrase}>{row.number}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (row.phrase) {
+                    setPhrase(row.phrase);
+                    setDupNotice(false);
+                  } else {
+                    setLookupNumber(String(row.number));
+                    setLookupMethod(row.method || 'all');
+                  }
+                }}
+              >
+                <Text style={styles.itemPhrase}>{row.phrase || row.number}</Text>
                 <Text style={styles.itemMeta}>
-                  {methodLabel(row.method)} · {formatAddedAt(row.addedAt)}
+                  {row.phrase ? 'Word · waiting to save' : `${methodLabel(row.method)} · no word yet`}
+                  {` · ${formatAddedAt(row.addedAt)}`}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => removeSearch(row)}>
@@ -739,6 +785,11 @@ function WordToIntScreen({ navigation, route }) {
       ) : null}
       {showDup ? (
         <Text style={styles.dupMsg}>that word is already saved in the list!</Text>
+      ) : null}
+      {!!String(result.phrase || phrase || '').trim() && !editingId && !findSavedPhrase(list, result.phrase || phrase) ? (
+        <TouchableOpacity style={[styles.copyBtn, styles.ghostChip]} onPress={askAddWordSearch}>
+          <Text style={styles.ghostChipText}>Add to searching-for list</Text>
+        </TouchableOpacity>
       ) : null}
 
       <Text style={[styles.label, { color: colors.muted }]}>Method</Text>
