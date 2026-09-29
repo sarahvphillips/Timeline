@@ -21,7 +21,7 @@ import WashMediaField from '../components/WashMediaField';
 import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
 
-function ChipRow({ options, value, onChange }) {
+function ChipRow({ options, value, onChange, styles }) {
   return (
     <View style={styles.row}>
       {options.map((s) => {
@@ -230,10 +230,10 @@ export default function AddWashLoadScreen({ navigation, route }) {
         />
 
         <Text style={styles.label}>Status</Text>
-        <ChipRow options={WASH_STATUSES} value={washStatus} onChange={setWashStatus} />
+        <ChipRow options={WASH_STATUSES} value={washStatus} onChange={setWashStatus} styles={styles} />
 
         <Text style={styles.label}>Tumble dry</Text>
-        <ChipRow options={WASH_TUMBLE} value={washTumble} onChange={setWashTumble} />
+        <ChipRow options={WASH_TUMBLE} value={washTumble} onChange={setWashTumble} styles={styles} />
 
         <Text style={styles.label}>Did the machine sing?</Text>
         <ChipRow
@@ -243,6 +243,7 @@ export default function AddWashLoadScreen({ navigation, route }) {
           ]}
           value={washSang ? 'yes' : 'no'}
           onChange={(id) => setWashSang(id === 'yes')}
+          styles={styles}
         />
         {washSang ? (
           <>
