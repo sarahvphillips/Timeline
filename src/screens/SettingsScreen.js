@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useTheme } from '../themeContext';
 import { versionLine, APP_VERSION, APP_BUILD, APP_BUILD_DATE } from '../version';
+import { shareBackupFile, pickAndImportBackup } from '../services/timelineBackupService';
 import { MODES, PALETTES } from '../theme';
 import HomeFab from '../components/HomeFab';
 import {
@@ -105,6 +106,7 @@ export default function SettingsScreen({ navigation }) {
   const [savingWashPref, setSavingWashPref] = useState(false);
   const [referralLine, setReferralLine] = useState('');
   const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
+  const [backupBusy, setBackupBusy] = useState(false);
 
   const about = appAboutInfo();
 
@@ -209,6 +211,41 @@ export default function SettingsScreen({ navigation }) {
       return;
     }
     Alert.alert(title, message);
+  };
+
+  const handleExportBackup = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const result = await shareBackupFile();
+      const c = result.counts || {};
+      notify(
+        'Backup ready',
+        `${result.name}\n${c.events || 0} events · ${c.words || 0} words · ${c.spans || 0} date spans · ${c.people || 0} people · ${c.graphs || 0} saved graphs.\nSave the file to Google Drive or a hard drive. Photos that only live on this phone are not inside the file.`
+      );
+    } catch (e) {
+      notify('Could not export', e?.message || 'Try again.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleImportBackup = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const result = await pickAndImportBackup();
+      if (result.canceled) return;
+      const added = result.imported || {};
+      notify(
+        'Backup imported',
+        `Added ${added.events || 0} events, ${added.words || 0} words, ${added.spans || 0} date spans, ${added.people || 0} people, ${added.graphs || 0} graphs. Existing items were left in place.`
+      );
+    } catch (e) {
+      notify('Could not import', e?.message || 'Pick a Timeline-backup JSON file.');
+    } finally {
+      setBackupBusy(false);
+    }
   };
 
   const confirmAction = (title, message) => {
@@ -957,6 +994,26 @@ export default function SettingsScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         )}
+
+        <Text style={[styles.section, { color: colors.muted }]}>Your data</Text>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Download a JSON file of events, Word to int, Searching for, date spans, people, labels and saved graphs.
+          Keep a copy on Google Drive or an external drive. Import it on a new phone or account. Items you already have are not overwritten. Device photos stay on the device that took them.
+        </Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.blue, opacity: backupBusy ? 0.6 : 1 }]}
+          onPress={handleExportBackup}
+          disabled={backupBusy}
+        >
+          <Text style={styles.saveBtnText}>{backupBusy ? 'Working…' : 'Download all my data'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder, opacity: backupBusy ? 0.6 : 1 }]}
+          onPress={handleImportBackup}
+          disabled={backupBusy}
+        >
+          <Text style={[styles.saveBtnText, { color: colors.text }]}>Import backup file</Text>
+        </TouchableOpacity>
 
         <Text style={[styles.section, { color: colors.muted }]}>Local cache</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>

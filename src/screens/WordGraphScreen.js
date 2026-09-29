@@ -20,6 +20,7 @@ import { createGraphShare, copyTextToClipboard, takeSharedGraph } from '../servi
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
+import { shareBackupFile, pickAndImportBackup } from '../services/timelineBackupService';
 
 const METHODS = [
   { id: 'ordinal', label: 'Ordinal', color: '#93c5fd' },
@@ -938,6 +939,7 @@ function WordGraphScreen({ onClose, navigation }) {
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const [savingImage, setSavingImage] = useState(false);
   const [sharingGraph, setSharingGraph] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const [savedRows, setSavedRows] = useState([]);
   const [loadedSave, setLoadedSave] = useState(null);
@@ -1715,6 +1717,45 @@ function WordGraphScreen({ onClose, navigation }) {
     if (onClose) onClose();
   };
 
+  const exportFullBackup = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const result = await shareBackupFile();
+      const c = result.counts || {};
+      Alert.alert(
+        'Backup ready',
+        `${result.name}\n${c.events || 0} events · ${c.words || 0} words · ${c.graphs || 0} saved graphs.\nSave it to Drive or a hard drive.`
+      );
+    } catch (e) {
+      Alert.alert('Could not export', e?.message || 'Try again.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const importFullBackup = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const result = await pickAndImportBackup();
+      if (result.canceled) return;
+      const added = result.imported || {};
+      const rows = await getWordNumbers();
+      setList(rows || []);
+      const graphs = await listSavedGraphs();
+      setSavedRows(graphs);
+      Alert.alert(
+        'Backup imported',
+        `Added ${added.events || 0} events and ${added.words || 0} words. Existing items were kept.`
+      );
+    } catch (e) {
+      Alert.alert('Could not import', e?.message || 'Pick a Timeline-backup JSON file.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   const shareGraphData = () => {
     const count = graphRef.current?.nodes?.length || 0;
     Alert.alert(
@@ -1980,6 +2021,12 @@ function WordGraphScreen({ onClose, navigation }) {
         </TouchableOpacity>
         <TouchableOpacity style={[styles.chip, savedOpen && styles.chipOn]} onPress={() => setSavedOpen((open) => !open)}>
           <Text style={[styles.chipText, savedOpen && styles.chipTextOn]}>Saved graphs</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.chip} onPress={exportFullBackup} disabled={backupBusy}>
+          <Text style={styles.chipText}>{backupBusy ? 'Backup…' : 'Export backup'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.chip} onPress={importFullBackup} disabled={backupBusy}>
+          <Text style={styles.chipText}>Import backup</Text>
         </TouchableOpacity>
       </View>
       {loadedSave ? (
