@@ -145,6 +145,7 @@ function WordToIntScreen({ navigation, route }) {
   const [sharing, setSharing] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
   const [searchList, setSearchList] = useState([]);
+  const [searchListOpen, setSearchListOpen] = useState(true);
   const lastPhraseParam = useRef(null);
 
   const result =
@@ -747,7 +748,18 @@ function WordToIntScreen({ navigation, route }) {
       )}
 
       <View style={[styles.lookupCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <Text style={[styles.sectionTitle, { color: colors.muted, marginTop: 0 }]}>Searching for</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <Text style={[styles.sectionTitle, { color: colors.muted, marginTop: 0, flex: 1 }]}>
+            Searching for{searchList.length ? ` · ${searchList.length}` : ''}
+          </Text>
+          {searchList.length > 5 ? (
+            <TouchableOpacity onPress={() => setSearchListOpen((open) => !open)}>
+              <Text style={[styles.link, { color: colors.blueSoft }]}>
+                {searchListOpen ? 'Hide list' : 'Show list'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <Text style={[styles.meta, { color: colors.faint }]}>
           Numbers with no saved word yet, and words you have typed but not saved. Tap a row to fill
           the boxes above.
@@ -755,6 +767,10 @@ function WordToIntScreen({ navigation, route }) {
         {searchList.length === 0 ? (
           <Text style={[styles.empty, { color: colors.faint }]}>
             Nothing waiting. Type a number that is not in the list, then tap Add to Searching for.
+          </Text>
+        ) : searchList.length > 5 && !searchListOpen ? (
+          <Text style={[styles.empty, { color: colors.faint }]}>
+            {searchList.length} items hidden. Tap Show list to expand.
           </Text>
         ) : (
           searchList.map((row) => (
