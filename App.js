@@ -15,6 +15,7 @@ import { loadThemePrefs, writeThemePrefsLocalOnly } from './src/theme';
 import { registerThisDevice } from './src/services/deviceSession';
 import { buildAppLinking } from './src/services/appLinking';
 import ShareToTimeline from './src/share/ShareToTimeline';
+import VersionMark from './src/components/VersionMark';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import TimelineScreen from './src/screens/TimelineScreen';
@@ -238,6 +239,7 @@ function AppShell() {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
+        <VersionMark />
       </View>
     );
   }
@@ -249,12 +251,16 @@ function AppShell() {
         {cloudSyncing ? (
           <Text style={styles.syncText}>Syncing your timeline…</Text>
         ) : null}
+        <View style={styles.versionWrap}>
+          <VersionMark />
+        </View>
       </View>
     );
   }
 
   return (
     <ShareToTimeline navigationRef={navigationRef} user={user}>
+      <View style={{ flex: 1 }}>
       <NavigationContainer ref={navigationRef} linking={shareLinking}>
         <ThemedStatusBar />
         <ThemedNavigator
@@ -607,6 +613,7 @@ function AppShell() {
           )}
         </ThemedNavigator>
       </NavigationContainer>
+      </View>
     </ShareToTimeline>
   );
 }
@@ -628,6 +635,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
   },
+  versionWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 16,
+    alignItems: 'center',
+  },
 });
 
 function ThemedStatusBar() {
@@ -646,6 +660,7 @@ function ThemedNavigator({ children, navKey, initialRouteName }) {
         headerStyle: { backgroundColor: colors.headerBg },
         headerTintColor: colors.headerText,
         headerTitleStyle: { color: colors.headerText },
+        headerRight: () => <VersionMark compact />,
         contentStyle: { backgroundColor: colors.bg },
       }}
     >

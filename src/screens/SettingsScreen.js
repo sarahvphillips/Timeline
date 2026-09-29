@@ -13,6 +13,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useTheme } from '../themeContext';
+import { versionLine, APP_VERSION, APP_BUILD, APP_BUILD_DATE } from '../version';
 import { MODES, PALETTES } from '../theme';
 import HomeFab from '../components/HomeFab';
 import {
@@ -68,14 +69,10 @@ function formatLastSeen(iso) {
 
 function appAboutInfo() {
   const expoConfig = Constants.expoConfig || Constants.manifest || {};
-  const version =
-    expoConfig.version ||
-    Constants.nativeAppVersion ||
-    '1.0.0';
   const rawSdk = expoConfig.sdkVersion || Constants.manifest?.sdkVersion;
   const sdkVersion = rawSdk ? String(rawSdk).replace(/\.0$/, '') : '57';
   const name = expoConfig.name || 'TimelineApp';
-  return { version, sdkVersion, name };
+  return { version: APP_VERSION, sdkVersion, name, build: APP_BUILD, date: APP_BUILD_DATE };
 }
 
 export default function SettingsScreen({ navigation }) {
@@ -895,7 +892,7 @@ export default function SettingsScreen({ navigation }) {
         </TouchableOpacity>
         <View style={[styles.aboutCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
           <Text style={[styles.aboutName, { color: colors.text }]}>{about.name}</Text>
-          <Text style={[styles.aboutLine, { color: colors.muted }]}>Version {about.version}</Text>
+          <Text style={[styles.aboutLine, { color: colors.muted }]}>{versionLine()}</Text>
           <Text style={[styles.aboutLine, { color: colors.muted }]}>Expo SDK {about.sdkVersion}</Text>
           <Text style={[styles.aboutLine, { color: colors.muted }]}>#kern2622</Text>
         </View>
