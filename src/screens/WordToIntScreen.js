@@ -193,7 +193,16 @@ function WordToIntScreen({ navigation, route }) {
         getNumberSearchList(),
       ]);
       if (Array.isArray(words)) {
-        if (words.length > 0 || listRef.current.length === 0) setList(words);
+        const current = listRef.current || [];
+        if (words.length >= current.length || current.length === 0) {
+          setList(words);
+        } else {
+          const byId = new Map(words.map((item) => [String(item.id), item]));
+          current.forEach((item) => {
+            if (item?.id && !byId.has(String(item.id))) byId.set(String(item.id), item);
+          });
+          setList(Array.from(byId.values()));
+        }
       }
       setSpans(Array.isArray(savedSpans) ? savedSpans : []);
       setSortMode(savedSort);
@@ -1026,7 +1035,7 @@ function WordToIntScreen({ navigation, route }) {
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.listTitle}>Saved numbers</Text>
+      <Text style={styles.listTitle}>Saved numbers{list.length ? ` · ${list.length}` : ''}</Text>
       <TouchableOpacity style={[styles.button, styles.ghost]} onPress={() => setShowGraph(true)}>
         <Text style={styles.ghostText}>Graph — words that share a number</Text>
       </TouchableOpacity>

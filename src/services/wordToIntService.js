@@ -226,9 +226,15 @@ export async function clearLocalWordNumbersForUid(uid) {
 
 
 function entryBelongsToUid(entry, uid) {
-  // Strict: missing ownerUid does NOT belong — do not upload unscoped entries.
   if (!entry || !uid) return false;
+  if (!entry.ownerUid) return true;
   return entry.ownerUid === uid;
+}
+
+function claimLocalRows(list, uid) {
+  return (list || [])
+    .filter((item) => entryBelongsToUid(item, uid))
+    .map((item) => (item.ownerUid ? item : { ...item, ownerUid: uid }));
 }
 
 function sortWordNumbers(list) {
@@ -328,7 +334,7 @@ export async function scrubWordNumberDuplicates() {
   const epoch = authEpoch;
   try {
     let list = await readListRaw(uid);
-    if (uid) list = list.filter((item) => entryBelongsToUid(item, uid));
+    if (uid) list = claimLocalRows(list, uid);
     const kept = await applyDedupe(list, uid, epoch);
     return sortWordNumbers(kept);
   } catch (e) {
@@ -346,9 +352,7 @@ export async function readLocalWordNumbers(uid = currentUid()) {
   try {
     if (uid) await migrateLegacyWordNumbersOnce(uid);
     let local = await readListRaw(uid);
-    if (uid) {
-      local = local.filter((item) => entryBelongsToUid(item, uid));
-    }
+    if (uid) local = claimLocalRows(local, uid);
     return sortWordNumbers(local);
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
@@ -391,9 +395,7 @@ export async function getWordNumbers() {
   try {
     if (uid) await migrateLegacyWordNumbersOnce(uid);
     let local = await readListRaw(uid);
-    if (uid) {
-      local = local.filter((item) => entryBelongsToUid(item, uid));
-    }
+    if (uid) local = claimLocalRows(local, uid);
 
     if (!uid || !WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
       if (uid && !isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
