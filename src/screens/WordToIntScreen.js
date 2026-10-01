@@ -24,7 +24,6 @@ import {
   javaHashCode,
   METHODS,
   LOOKUP_METHODS,
-  scrubWordNumberDuplicates,
   LIST_SORTS,
   getListSort,
   setListSort,
@@ -306,14 +305,6 @@ function WordToIntScreen({ navigation, route }) {
         if (route.params?.preferred) setMethod(route.params.preferred);
         if (route.params?.notes) setNotes(route.params.notes);
       }
-      const timer = setInterval(() => {
-        scrubWordNumberDuplicates()
-          .then((words) => {
-            if (Array.isArray(words) && words.length > 0) setList(words);
-          })
-          .catch(() => {});
-      }, 60 * 1000);
-      return () => clearInterval(timer);
     }, [loadList, route?.params])
   );
 

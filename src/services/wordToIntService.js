@@ -231,6 +231,37 @@ function entryBelongsToUid(entry, uid) {
   return entry.ownerUid === uid;
 }
 
+async function adoptUnscopedWords(uid) {
+  if (!uid) return;
+  let extra = [];
+  for (const key of [GUEST_WORD_KEY, LEGACY_WORD_KEY]) {
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+      extra.push(
+        ...parsed.filter((item) => item && item.phrase && (!item.ownerUid || item.ownerUid === uid))
+      );
+    } catch (_) {
+      /* leave the other copy untouched */
+    }
+  }
+  if (!extra.length) return;
+  let local = [];
+  try {
+    local = await readListRaw(uid);
+  } catch (_) {
+    return;
+  }
+  const merged = mergeLists(
+    claimLocalRows(local, uid),
+    extra.map((item) => ({ ...item, ownerUid: uid }))
+  );
+  if (merged.length <= local.length) return;
+  await writeList(merged, uid);
+}
+
 function claimLocalRows(list, uid) {
   return (list || [])
     .filter((item) => entryBelongsToUid(item, uid))
@@ -394,6 +425,7 @@ export async function getWordNumbers() {
   const epoch = authEpoch;
   try {
     if (uid) await migrateLegacyWordNumbersOnce(uid);
+    if (uid) await adoptUnscopedWords(uid);
     let local = await readListRaw(uid);
     if (uid) local = claimLocalRows(local, uid);
 
