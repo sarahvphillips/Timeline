@@ -167,11 +167,11 @@ export default function NumberSentenceScreen() {
           const key = `${li}-${ti}-${raw}`;
           if (mode === 'words') {
             if (isNumberToken(raw)) {
-              return { key, raw, kind: 'literal', phrase: raw, number: raw, searching: false };
+              return { key, raw, kind: 'literal', phrase: raw, number: raw, hits: [], searching: false };
             }
             const lookup = lookupPhrase(raw);
             if (!lookup) {
-              return { key, raw, kind: 'mark', phrase: raw, number: '', searching: false };
+              return { key, raw, kind: 'mark', phrase: raw, number: '', hits: [], searching: false };
             }
             const saved = findSavedPhrase(list, lookup);
             const calculated = String(numberForPhrase(lookup, method));
@@ -237,10 +237,11 @@ export default function NumberSentenceScreen() {
   };
 
   const chosenPhrase = (token, roundLocks) => {
-    if (token.kind === 'word') return token.phrase;
-    const locked = roundLocks[token.key];
-    if (locked && token.hits.some((hit) => hit.phrase === locked)) return locked;
-    if (token.hits.length === 1) return token.hits[0].phrase;
+    if (!token || token.kind !== 'number') return token?.phrase || token?.raw || '';
+    const hits = token.hits || [];
+    const locked = roundLocks?.[token.key];
+    if (locked && hits.some((hit) => hit.phrase === locked)) return locked;
+    if (hits.length === 1) return hits[0].phrase;
     return '';
   };
 
@@ -251,7 +252,7 @@ export default function NumberSentenceScreen() {
     const multi = [];
     lines.forEach((line) => {
       line.forEach((token) => {
-        if (token.kind === 'number' && token.hits.length > 1) multi.push(token.key);
+        if (token.kind === 'number' && (token.hits || []).length > 1) multi.push(token.key);
       });
     });
     if (!multi.length) return;
@@ -509,9 +510,10 @@ export default function NumberSentenceScreen() {
             <View key={`line-${roundIndex}-${li}`} style={styles.poemLine}>
               {line.length === 0 ? <Text style={styles.word}> </Text> : null}
               {line.map((token) => {
+                const hits = token.hits || [];
                 const phrase = chosenPhrase(token, roundLocks);
-                const chosenHit = (token.hits || []).find((hit) => hit.phrase === phrase);
-                const open = token.kind === 'number' && token.hits.length > 1 && !roundLocks[token.key];
+                const chosenHit = hits.find((hit) => hit.phrase === phrase);
+                const open = token.kind === 'number' && hits.length > 1 && !roundLocks[token.key];
                 const red = !!(token.offerSave && !token.saved);
                 return (
                   <View key={`${roundIndex}-${token.key}`} style={styles.slot}>
@@ -537,7 +539,7 @@ export default function NumberSentenceScreen() {
                     )}
                     {open && (
                       <View style={styles.options}>
-                        {token.hits.map((hit) => (
+                        {hits.map((hit) => (
                           <TouchableOpacity
                             key={hit.id}
                             style={styles.option}
@@ -551,7 +553,7 @@ export default function NumberSentenceScreen() {
                         ))}
                       </View>
                     )}
-                    {token.kind === 'number' && token.hits.length > 1 && roundLocks[token.key] ? (
+                    {token.kind === 'number' && hits.length > 1 && roundLocks[token.key] ? (
                       <TouchableOpacity onPress={() => setRoundLock(roundIndex, token.key, '')}>
                         <Text style={styles.unlock}>Change</Text>
                       </TouchableOpacity>
