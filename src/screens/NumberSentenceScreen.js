@@ -14,6 +14,7 @@ import {
   findPhrasesForNumber,
   findSavedPhrase,
   getWordNumbers,
+  saveWordNumber,
   addWordSearch,
   addNumberSearch,
   LOOKUP_METHODS,
@@ -30,6 +31,19 @@ function numberForPhrase(phrase, method) {
   return result.ordinal;
 }
 
+function storedNumber(entry, method) {
+  if (!entry) return null;
+  if (method === 'pythagorean') return entry.pythagorean;
+  if (method === 'reverse') return entry.reverse;
+  if (method === 'reduced') return entry.reduced;
+  if (method === 'hashcode') return entry.hashCode;
+  return entry.ordinal;
+}
+
+function lookupPhrase(raw) {
+  return String(raw || '').replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, '');
+}
+
 function isNumberToken(raw) {
   return /^-?\d+$/.test(String(raw || '').trim());
 }
@@ -37,12 +51,22 @@ function isNumberToken(raw) {
 export default function NumberSentenceScreen() {
   const { colors } = useTheme();
   const [title, setTitle] = useState('');
+  const [mode, setMode] = useState('numbers');
   const [draft, setDraft] = useState('47 said 52');
   const [method, setMethod] = useState('ordinal');
   const [lines, setLines] = useState([]);
   const [locks, setLocks] = useState({});
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const switchMode = (next) => {
+    setMode(next);
+    setLines([]);
+    setNotice('');
+    setLocks({});
+    if (next === 'words' && draft.trim() === '47 said 52') setDraft('Frigg said the word');
+    if (next === 'numbers' && draft.trim() === 'Frigg said the word') setDraft('47 said 52');
+  };
 
   const show = async () => {
     const text = String(draft || '').trim();
@@ -58,6 +82,29 @@ export default function NumberSentenceScreen() {
         const tokens = line.trim() ? line.trim().split(/\s+/) : [];
         return tokens.map((raw, ti) => {
           const key = `${li}-${ti}-${raw}`;
+          if (mode === 'words') {
+            if (isNumberToken(raw)) {
+              return { key, raw, kind: 'literal', phrase: raw, number: raw, searching: false };
+            }
+            const lookup = lookupPhrase(raw);
+            if (!lookup) {
+              return { key, raw, kind: 'mark', phrase: raw, number: '', searching: false };
+            }
+            const saved = findSavedPhrase(list, lookup);
+            const calculated = String(numberForPhrase(lookup, method));
+            const fromStore = saved ? storedNumber(saved, method) : null;
+            return {
+              key,
+              raw,
+              kind: 'word',
+              hits: [],
+              lookup,
+              phrase: raw,
+              number: fromStore == null || fromStore === '' ? calculated : String(fromStore),
+              searching: !saved,
+              offerSave: !saved,
+            };
+          }
           if (isNumberToken(raw)) {
             const hits = findPhrasesForNumber(list, raw, method);
             return { key, raw, kind: 'number', hits, searching: hits.length === 0 };
@@ -75,24 +122,28 @@ export default function NumberSentenceScreen() {
         });
       });
 
-      for (const line of nextLines) {
-        for (const token of line) {
-          if (token.kind === 'word' && token.searching) {
-            const result = await addWordSearch(token.raw, 'From number sentence');
-            if (!result.already) added.push(token.raw);
-          }
-          if (token.kind === 'number' && token.searching) {
-            const result = await addNumberSearch(token.raw, method, 'From number sentence');
-            if (!result.already) added.push(token.raw);
+      if (mode === 'numbers') {
+        for (const line of nextLines) {
+          for (const token of line) {
+            if (token.kind === 'word' && token.searching) {
+              const result = await addWordSearch(token.raw, 'From number sentence');
+              if (!result.already) added.push(token.raw);
+            }
+            if (token.kind === 'number' && token.searching) {
+              const result = await addNumberSearch(token.raw, method, 'From number sentence');
+              if (!result.already) added.push(token.raw);
+            }
           }
         }
       }
 
       setLines(nextLines);
       setNotice(
-        added.length
-          ? `Added to Searching for: ${added.join(', ')}`
-          : 'Nothing new for Searching for.'
+        mode === 'words'
+          ? 'Blue numbers are already saved. Red numbers are calculated only — save or leave each one.'
+          : added.length
+            ? `Added to Searching for: ${added.join(', ')}`
+            : 'Nothing new for Searching for.'
       );
     } catch (e) {
       Alert.alert('Could not build that', e?.message || 'Try again.');
@@ -109,11 +160,41 @@ export default function NumberSentenceScreen() {
     return '';
   };
 
+  const markToken = (key, patch) => {
+    setLines((cur) => cur.map((line) => line.map((token) => (token.key === key ? { ...token, ...patch } : token))));
+  };
+
+  const storeWord = async (token) => {
+    const phrase = token.lookup || token.phrase;
+    if (!phrase) return;
+    try {
+      await saveWordNumber({ phrase, preferred: method, notes: 'From number sentence' });
+      markToken(token.key, { searching: false, offerSave: false, saved: true });
+    } catch (e) {
+      Alert.alert('Could not save', e?.message || 'Try again.');
+    }
+  };
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.page}>
+      <View style={styles.methodRow}>
+        <TouchableOpacity
+          style={[styles.chip, { borderColor: colors.cardBorder }, mode === 'numbers' && { backgroundColor: colors.blue, borderColor: colors.blue }]}
+          onPress={() => switchMode('numbers')}
+        >
+          <Text style={{ color: mode === 'numbers' ? '#fff' : colors.faint, fontSize: 13 }}>Numbers to words</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.chip, { borderColor: colors.cardBorder }, mode === 'words' && { backgroundColor: colors.blue, borderColor: colors.blue }]}
+          onPress={() => switchMode('words')}
+        >
+          <Text style={{ color: mode === 'words' ? '#fff' : colors.faint, fontSize: 13 }}>Words to numbers</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={[styles.intro, { color: colors.faint }]}>
-        Test. Type a line with saved numbers and any words you still need. Example: 47 said 52.
-        A number with more than one word stays open until you lock one. Unknown words go to Searching for.
+        {mode === 'words'
+          ? 'Write a sentence. Saved words use their stored number, in blue. A word that is not saved yet is calculated and shown in red. Save stores it. Leave keeps the red number for this printout only.'
+          : 'Type a line with saved numbers and any words you still need. Example: 47 said 52. A number with more than one word stays open until you lock one. Unknown words go to Searching for.'}
       </Text>
       <Text style={[styles.label, { color: colors.muted }]}>Title</Text>
       <TextInput
@@ -128,7 +209,7 @@ export default function NumberSentenceScreen() {
         style={[styles.input, styles.tall, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
         value={draft}
         onChangeText={setDraft}
-        placeholder={'47 said 52\n52 60 58'}
+        placeholder={mode === 'words' ? 'Frigg said the word' : '47 said 52\n52 60 58'}
         placeholderTextColor={colors.faint}
         multiline
         autoCapitalize="none"
@@ -159,11 +240,26 @@ export default function NumberSentenceScreen() {
               {line.map((token) => {
                 const phrase = chosenPhrase(token);
                 const open = token.kind === 'number' && token.hits.length > 1 && !locks[token.key];
+                const red = !!(token.offerSave && !token.saved);
                 return (
                   <View key={token.key} style={styles.slot}>
                     <Text style={styles.word}>{phrase || (open ? '·' : token.raw)}</Text>
-                    <Text style={styles.number}>{token.kind === 'word' ? token.number : token.raw}</Text>
-                    {token.searching ? <Text style={styles.searching}>searching</Text> : null}
+                    {!!(token.kind === 'word' ? token.number : token.raw) && (
+                      <Text style={[styles.number, red && styles.numberNew]}>
+                        {token.kind === 'word' || token.kind === 'literal' ? token.number : token.raw}
+                      </Text>
+                    )}
+                    {mode === 'numbers' && token.searching ? <Text style={styles.searching}>searching</Text> : null}
+                    {red && !token.left && (
+                      <View style={styles.saveRow}>
+                        <TouchableOpacity onPress={() => storeWord(token)}>
+                          <Text style={styles.saveText}>Save</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => markToken(token.key, { left: true })}>
+                          <Text style={styles.leaveText}>Leave</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                     {open && (
                       <View style={styles.options}>
                         {token.hits.map((hit) => (
@@ -244,6 +340,10 @@ const styles = StyleSheet.create({
   slot: { alignItems: 'center', maxWidth: 160 },
   word: { color: '#f6f1e6', fontSize: 18, textAlign: 'center' },
   number: { color: '#6ea8d8', fontSize: 13, marginTop: 2, textAlign: 'center' },
+  numberNew: { color: '#e85d5d' },
+  saveRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  saveText: { color: '#f3e6c8', fontSize: 12, fontWeight: '700' },
+  leaveText: { color: '#c4a574', fontSize: 12 },
   searching: { color: '#c4a574', fontSize: 10, marginTop: 2 },
   options: { marginTop: 6, gap: 4 },
   option: {
