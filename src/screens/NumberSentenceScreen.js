@@ -119,6 +119,8 @@ export default function NumberSentenceScreen() {
   const [method, setMethod] = useState('ordinal');
   const [lines, setLines] = useState([]);
   const [locks, setLocks] = useState({});
+  const [extraLocks, setExtraLocks] = useState([]);
+  const [anotherRound, setAnotherRound] = useState(false);
   const [notice, setNotice] = useState('');
   const [note, setNote] = useState('');
   const [savedId, setSavedId] = useState(null);
@@ -136,6 +138,7 @@ export default function NumberSentenceScreen() {
     setLines([]);
     setNotice('');
     setLocks({});
+    setExtraLocks([]);
     if (next === 'words' && draft.trim() === '47 said 52') setDraft('Frigg said the word');
     if (next === 'numbers' && draft.trim() === 'Frigg said the word') setDraft('47 said 52');
   };
@@ -210,6 +213,7 @@ export default function NumberSentenceScreen() {
       }
 
       setLines(nextLines);
+      setExtraLocks([]);
       setNotice(
         mode === 'words'
           ? 'Blue numbers are already saved. Red numbers are calculated only — save or leave each one.'
@@ -224,14 +228,43 @@ export default function NumberSentenceScreen() {
     }
   };
 
-  const chosenPhrase = (token) => {
+  const chosenPhrase = (token, roundLocks) => {
     if (token.kind === 'word') return token.phrase;
-    const locked = locks[token.key];
+    const locked = roundLocks[token.key];
     if (locked && token.hits.some((hit) => hit.phrase === locked)) return locked;
     if (token.hits.length === 1) return token.hits[0].phrase;
     return '';
   };
 
+  const roundList = [locks, ...extraLocks];
+
+  useEffect(() => {
+    if (!anotherRound || !lines.length) return;
+    const multi = [];
+    lines.forEach((line) => {
+      line.forEach((token) => {
+        if (token.kind === 'number' && token.hits.length > 1) multi.push(token.key);
+      });
+    });
+    if (!multi.length) return;
+    const last = roundList[roundList.length - 1] || {};
+    if (!multi.every((key) => last[key])) return;
+    setExtraLocks((cur) => {
+      const latest = cur.length ? cur[cur.length - 1] : locks;
+      if (!multi.every((key) => latest[key])) return cur;
+      return [...cur, {}];
+    });
+  }, [anotherRound, lines, locks, extraLocks]);
+
+  const setRoundLock = (index, key, phrase) => {
+    if (index === 0) {
+      setLocks((cur) => ({ ...cur, [key]: phrase }));
+      return;
+    }
+    setExtraLocks((cur) =>
+      cur.map((round, i) => (i === index - 1 ? { ...round, [key]: phrase } : round))
+    );
+  };
   const markToken = (key, patch) => {
     setLines((cur) => cur.map((line) => line.map((token) => (token.key === key ? { ...token, ...patch } : token))));
   };
@@ -261,6 +294,8 @@ export default function NumberSentenceScreen() {
         draft,
         lines,
         locks,
+        extraLocks,
+        anotherRound,
         createdAt: now,
       };
       const next = [item, ...list.filter((row) => row.id !== item.id)];
@@ -277,11 +312,17 @@ export default function NumberSentenceScreen() {
     if (!lines.length) return;
     const heading = title.trim() || 'Number sentence';
     const tags = noteTags(note);
-    const description = [printoutBody(lines, locks, method), note.trim()].filter(Boolean).join('\n\n');
+    const description = [locks, ...(extraLocks || [])]
+      .map((round, index, all) => {
+        const body = printoutBody(lines, round, method);
+        return all.length > 1 ? `Reading ${index + 1}\n${body}` : body;
+      })
+      .join('\n\n');
+    const full = [description, note.trim()].filter(Boolean).join('\n\n');
     try {
       await saveEvent({
         title: heading,
-        description,
+        description: full,
         date: new Date().toISOString(),
         category: 'personal',
         source: 'manual',
@@ -303,6 +344,8 @@ export default function NumberSentenceScreen() {
     setDraft(item.draft || '');
     setLines(Array.isArray(item.lines) ? item.lines : []);
     setLocks(item.locks || {});
+    setExtraLocks(Array.isArray(item.extraLocks) ? item.extraLocks : []);
+    setAnotherRound(!!item.anotherRound);
     setNotice('Opened a saved printout.');
   };
 
@@ -364,26 +407,42 @@ export default function NumberSentenceScreen() {
           </TouchableOpacity>
         ))}
       </View>
+      <TouchableOpacity
+        style={styles.tickRow}
+        onPress={() => {
+          setAnotherRound((on) => {
+            if (on) setExtraLocks([]);
+            return !on;
+          });
+        }}
+      >
+        <View style={[styles.box, { borderColor: colors.blue }, anotherRound && { backgroundColor: colors.blue }]} />
+        <Text style={[styles.tickText, { color: colors.text }]}>
+          Another printout after the words are locked
+        </Text>
+      </TouchableOpacity>
       <TouchableOpacity style={[styles.show, { backgroundColor: colors.blue }]} onPress={show} disabled={busy}>
         <Text style={styles.showText}>{busy ? 'Building…' : 'Show printout'}</Text>
       </TouchableOpacity>
       {!!notice && <Text style={[styles.notice, { color: colors.faint }]}>{notice}</Text>}
 
-      {lines.length > 0 && (
-        <View style={styles.card}>
+      {lines.length > 0 &&
+        roundList.map((roundLocks, roundIndex) => (
+        <View key={`round-${roundIndex}`} style={styles.card}>
           <Text style={styles.cardTitle}>{title.trim() || 'Number sentence'}</Text>
+          {roundList.length > 1 ? <Text style={styles.cardNote}>Reading {roundIndex + 1}</Text> : null}
           <View style={styles.rule} />
           {!!note.trim() && <Text style={styles.cardNote}>{note.trim()}</Text>}
           {lines.map((line, li) => (
-            <View key={`line-${li}`} style={styles.poemLine}>
+            <View key={`line-${roundIndex}-${li}`} style={styles.poemLine}>
               {line.length === 0 ? <Text style={styles.word}> </Text> : null}
               {line.map((token) => {
-                const phrase = chosenPhrase(token);
+                const phrase = chosenPhrase(token, roundLocks);
                 const chosenHit = (token.hits || []).find((hit) => hit.phrase === phrase);
-                const open = token.kind === 'number' && token.hits.length > 1 && !locks[token.key];
+                const open = token.kind === 'number' && token.hits.length > 1 && !roundLocks[token.key];
                 const red = !!(token.offerSave && !token.saved);
                 return (
-                  <View key={token.key} style={styles.slot}>
+                  <View key={`${roundIndex}-${token.key}`} style={styles.slot}>
                     <Text style={styles.word}>{phrase || (open ? '·' : token.raw)}</Text>
                     {!!chosenHit && !!calcNote(chosenHit) && (
                       <Text style={styles.calcNote}>{calcNote(chosenHit)}</Text>
@@ -394,7 +453,7 @@ export default function NumberSentenceScreen() {
                       </Text>
                     )}
                     {mode === 'numbers' && token.searching ? <Text style={styles.searching}>searching</Text> : null}
-                    {red && !token.left && (
+                    {red && !token.left && roundIndex === 0 && (
                       <View style={styles.saveRow}>
                         <TouchableOpacity onPress={() => storeWord(token)}>
                           <Text style={styles.saveText}>Save</Text>
@@ -410,7 +469,7 @@ export default function NumberSentenceScreen() {
                           <TouchableOpacity
                             key={hit.id}
                             style={styles.option}
-                            onPress={() => setLocks((cur) => ({ ...cur, [token.key]: hit.phrase }))}
+                            onPress={() => setRoundLock(roundIndex, token.key, hit.phrase)}
                           >
                             <Text style={styles.optionText}>
                               {hit.phrase}
@@ -420,8 +479,8 @@ export default function NumberSentenceScreen() {
                         ))}
                       </View>
                     )}
-                    {token.kind === 'number' && token.hits.length > 1 && locks[token.key] ? (
-                      <TouchableOpacity onPress={() => setLocks((cur) => ({ ...cur, [token.key]: '' }))}>
+                    {token.kind === 'number' && token.hits.length > 1 && roundLocks[token.key] ? (
+                      <TouchableOpacity onPress={() => setRoundLock(roundIndex, token.key, '')}>
                         <Text style={styles.unlock}>Change</Text>
                       </TouchableOpacity>
                     ) : null}
@@ -431,7 +490,7 @@ export default function NumberSentenceScreen() {
             </View>
           ))}
         </View>
-      )}
+        ))}
 
       {lines.length > 0 && (
         <View style={styles.actionRow}>
@@ -476,7 +535,9 @@ const styles = StyleSheet.create({
   tall: { minHeight: 88, textAlignVertical: 'top' },
   methodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 },
-  show: { marginTop: 14, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  tickRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
+  box: { width: 18, height: 18, borderWidth: 1, borderRadius: 4 },
+  tickText: { flex: 1, fontSize: 14 },
   showText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   notice: { marginTop: 10, fontSize: 13 },
   card: {
