@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,10 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../themeContext';
+import { auth } from '../services/firebase';
+import { saveEvent } from '../services/eventService';
 import {
   convertPhrase,
   findPhrasesForNumber,
@@ -62,6 +65,52 @@ function isNumberToken(raw) {
   return /^-?\d+$/.test(String(raw || '').trim());
 }
 
+function printoutKey() {
+  const uid = auth?.currentUser?.uid;
+  return uid ? `@number_sentences_${uid}` : '@number_sentences_guest';
+}
+
+function resolvedWord(token, locks) {
+  if (!token) return '';
+  if (token.kind !== 'number') return token.phrase || token.raw || '';
+  const locked = locks?.[token.key];
+  if (locked && (token.hits || []).some((hit) => hit.phrase === locked)) return locked;
+  if (token.hits?.length === 1) return token.hits[0].phrase;
+  return '';
+}
+
+function noteTags(note) {
+  const found = String(note || '').match(/#([A-Za-z0-9_]+)/g) || [];
+  return [...new Set(found.map((tag) => tag.slice(1)))];
+}
+
+function printoutBody(lines, locks, method) {
+  return (lines || [])
+    .map((line) =>
+      (line || [])
+        .map((token) => {
+          const word = resolvedWord(token, locks) || (token.kind === 'number' ? '…' : token.raw);
+          const number = token.kind === 'number' ? token.raw : token.number || '';
+          const hit = (token.hits || []).find((item) => item.phrase === word);
+          const calc = hit ? calcNote(hit) : method && token.kind !== 'number' ? method : '';
+          return [word, number, calc].filter(Boolean).join(' · ');
+        })
+        .join('   ')
+    )
+    .join('\n');
+}
+
+async function readPrintouts() {
+  const raw = await AsyncStorage.getItem(printoutKey());
+  if (!raw) return [];
+  const list = JSON.parse(raw);
+  return Array.isArray(list) ? list : [];
+}
+
+async function writePrintouts(list) {
+  await AsyncStorage.setItem(printoutKey(), JSON.stringify(list));
+}
+
 export default function NumberSentenceScreen() {
   const { colors } = useTheme();
   const [title, setTitle] = useState('');
@@ -71,7 +120,16 @@ export default function NumberSentenceScreen() {
   const [lines, setLines] = useState([]);
   const [locks, setLocks] = useState({});
   const [notice, setNotice] = useState('');
+  const [note, setNote] = useState('');
+  const [savedId, setSavedId] = useState(null);
+  const [savedList, setSavedList] = useState([]);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    readPrintouts()
+      .then((list) => setSavedList(list))
+      .catch(() => {});
+  }, []);
 
   const switchMode = (next) => {
     setMode(next);
@@ -189,6 +247,65 @@ export default function NumberSentenceScreen() {
     }
   };
 
+  const savePrintout = async () => {
+    if (!lines.length) return;
+    try {
+      const list = await readPrintouts();
+      const now = new Date().toISOString();
+      const item = {
+        id: savedId || `${Date.now()}`,
+        title: title.trim() || 'Number sentence',
+        note: note.trim(),
+        mode,
+        method,
+        draft,
+        lines,
+        locks,
+        createdAt: now,
+      };
+      const next = [item, ...list.filter((row) => row.id !== item.id)];
+      await writePrintouts(next);
+      setSavedId(item.id);
+      setSavedList(next);
+      Alert.alert('Saved', 'This printout is kept on this device.');
+    } catch (e) {
+      Alert.alert('Could not save the printout', e?.message || 'Try again.');
+    }
+  };
+
+  const addAsEvent = async () => {
+    if (!lines.length) return;
+    const heading = title.trim() || 'Number sentence';
+    const tags = noteTags(note);
+    const description = [printoutBody(lines, locks, method), note.trim()].filter(Boolean).join('\n\n');
+    try {
+      await saveEvent({
+        title: heading,
+        description,
+        date: new Date().toISOString(),
+        category: 'personal',
+        source: 'manual',
+        nextAction: 'none',
+        labels: tags,
+      });
+      Alert.alert('Added to timeline', tags.length ? `Labels: ${tags.join(', ')}` : 'Saved as a personal event for today.');
+    } catch (e) {
+      Alert.alert('Could not add the event', e?.message || 'Try again.');
+    }
+  };
+
+  const openSaved = (item) => {
+    setSavedId(item.id);
+    setTitle(item.title === 'Number sentence' ? '' : item.title || '');
+    setNote(item.note || '');
+    setMode(item.mode || 'numbers');
+    setMethod(item.method || 'ordinal');
+    setDraft(item.draft || '');
+    setLines(Array.isArray(item.lines) ? item.lines : []);
+    setLocks(item.locks || {});
+    setNotice('Opened a saved printout.');
+  };
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.page}>
       <View style={styles.methodRow}>
@@ -216,6 +333,14 @@ export default function NumberSentenceScreen() {
         value={title}
         onChangeText={setTitle}
         placeholder="Optional title"
+        placeholderTextColor={colors.faint}
+      />
+      <Text style={[styles.label, { color: colors.muted }]}>#note</Text>
+      <TextInput
+        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
+        value={note}
+        onChangeText={setNote}
+        placeholder="#norse or any note for this printout"
         placeholderTextColor={colors.faint}
       />
       <Text style={[styles.label, { color: colors.muted }]}>Numbers and words</Text>
@@ -248,6 +373,7 @@ export default function NumberSentenceScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{title.trim() || 'Number sentence'}</Text>
           <View style={styles.rule} />
+          {!!note.trim() && <Text style={styles.cardNote}>{note.trim()}</Text>}
           {lines.map((line, li) => (
             <View key={`line-${li}`} style={styles.poemLine}>
               {line.length === 0 ? <Text style={styles.word}> </Text> : null}
@@ -306,6 +432,32 @@ export default function NumberSentenceScreen() {
           ))}
         </View>
       )}
+
+      {lines.length > 0 && (
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={[styles.action, { borderColor: colors.blue }]} onPress={savePrintout}>
+            <Text style={[styles.actionText, { color: colors.blue }]}>Save printout</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.action, { backgroundColor: colors.blue, borderColor: colors.blue }]} onPress={addAsEvent}>
+            <Text style={[styles.actionText, { color: '#fff' }]}>Add as event</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {savedList.length > 0 && (
+        <View style={{ marginTop: 18 }}>
+          <Text style={[styles.label, { color: colors.muted }]}>Saved printouts</Text>
+          {savedList.map((item) => (
+            <TouchableOpacity key={item.id} onPress={() => openSaved(item)} style={{ paddingVertical: 8 }}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{item.title || 'Number sentence'}</Text>
+              <Text style={{ color: colors.faint, fontSize: 12 }}>
+                {(item.createdAt || '').slice(0, 16).replace('T', ' ')}
+                {item.note ? ` · ${item.note}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -343,6 +495,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
   },
+  cardNote: {
+    color: '#c4a574',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  actionText: { fontWeight: '700', fontSize: 14 },
   rule: {
     alignSelf: 'center',
     width: 180,
