@@ -205,7 +205,7 @@ function WordToIntScreen({ navigation, route }) {
       }
       setSpans(Array.isArray(savedSpans) ? savedSpans : []);
       setSortMode(savedSort);
-      setSearchList(Array.isArray(searches) ? searches : []);
+      if (Array.isArray(searches)) setSearchList(searches);
     } finally {
       setListLoading(false);
     }

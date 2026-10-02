@@ -733,15 +733,64 @@ function searchStorageKey(uid) {
   return uid ? `@word_to_int_search_${uid}` : '@word_to_int_search_guest';
 }
 
+function searchIdentity(row) {
+  const phrase = String(row?.phrase || '').trim().toLowerCase();
+  if (phrase) return `w:${phrase}`;
+  if (row?.number == null || Number.isNaN(Number(row.number))) return '';
+  return `n:${Number(row.number)}:${row.method || 'all'}`;
+}
+
+function mergeSearchLists(primary, extra) {
+  const map = new Map();
+  [...(primary || []), ...(extra || [])].forEach((row) => {
+    const key = searchIdentity(row);
+    if (!key) return;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, row);
+      return;
+    }
+    if (!String(prev.note || '').trim() && String(row.note || '').trim()) {
+      map.set(key, { ...prev, note: row.note });
+    }
+  });
+  return Array.from(map.values());
+}
+
+async function readSearchKey(key) {
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) return [];
+  const list = JSON.parse(raw);
+  if (!Array.isArray(list)) throw new Error('Searching-for list is not a list');
+  return list;
+}
+
+async function adoptGuestSearches(uid) {
+  if (!uid) return;
+  let local;
+  try {
+    local = await readSearchKey(searchStorageKey(uid));
+  } catch (e) {
+    console.warn('Signed-in Searching-for list left untouched', e);
+    return;
+  }
+  let extra = [];
+  for (const key of ['@word_to_int_search_guest', '@word_to_int_search']) {
+    try {
+      extra = extra.concat(await readSearchKey(key));
+    } catch (e) {
+      console.warn('Guest Searching-for list left untouched', e);
+    }
+  }
+  const merged = mergeSearchLists(local, extra);
+  if (merged.length <= local.length) return;
+  await AsyncStorage.setItem(searchStorageKey(uid), JSON.stringify(merged));
+}
+
 async function readNumberSearchList() {
   const uid = currentUid();
-  try {
-    const raw = await AsyncStorage.getItem(searchStorageKey(uid));
-    const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
+  if (uid) await adoptGuestSearches(uid);
+  return readSearchKey(searchStorageKey(uid));
 }
 
 async function writeNumberSearchList(list) {
@@ -751,14 +800,19 @@ async function writeNumberSearchList(list) {
 }
 
 export async function getNumberSearchList() {
-  const list = await readNumberSearchList();
-  return list
-    .filter((row) => {
-      if (!row) return false;
-      if (String(row.phrase || '').trim()) return true;
-      return row.number != null && !Number.isNaN(Number(row.number));
-    })
-    .sort((a, b) => String(b.addedAt || '').localeCompare(String(a.addedAt || '')));
+  try {
+    const list = await readNumberSearchList();
+    return list
+      .filter((row) => {
+        if (!row) return false;
+        if (String(row.phrase || '').trim()) return true;
+        return row.number != null && !Number.isNaN(Number(row.number));
+      })
+      .sort((a, b) => String(b.addedAt || '').localeCompare(String(a.addedAt || '')));
+  } catch (e) {
+    console.warn('Searching-for list could not be read. It was not overwritten.', e);
+    return null;
+  }
 }
 
 export async function addWordSearch(rawPhrase, note) {
