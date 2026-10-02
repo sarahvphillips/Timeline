@@ -53,9 +53,9 @@ function formatWhen(iso, dateFormat = DATE_FORMAT_DMY) {
   return `${date}  ${hh}:${min}`;
 }
 
-function Meta({ label, value }) {
+function Meta({ label, value, styles }) {
   const text = String(value || '').trim();
-  if (!text) return null;
+  if (!text || !styles) return null;
   return (
     <Text style={styles.meta}>
       <Text style={styles.metaLabel}>{label} </Text>
@@ -205,14 +205,14 @@ export default function EventViewScreen({ navigation, route }) {
         <Text style={styles.editText}>Link events</Text>
       </TouchableOpacity>
 
-      <Meta label="From" value={event.emailFrom} />
-      <Meta label="Contact" value={event.smsContact} />
-      <Meta label="Direction" value={event.smsDirection || event.callDirection} />
-      <Meta label="Length" value={callLength} />
-      <Meta label="Place" value={event.location || event.placeName || event.smsLocation} />
-      <Meta label="Book" value={event.collectionName} />
-      <Meta label="Wash" value={event.source === 'laundry' ? washStatusLabel(event.washStatus) : ''} />
-      <Meta label="Link" value={event.qrLink || event.url || event.socialUrl} />
+      <Meta styles={styles} label="From" value={event.emailFrom} />
+      <Meta styles={styles} label="Contact" value={event.smsContact} />
+      <Meta styles={styles} label="Direction" value={event.smsDirection || event.callDirection} />
+      <Meta styles={styles} label="Length" value={callLength} />
+      <Meta styles={styles} label="Place" value={event.location || event.placeName || event.smsLocation} />
+      <Meta styles={styles} label="Book" value={event.collectionName} />
+      <Meta styles={styles} label="Wash" value={event.source === 'laundry' ? washStatusLabel(event.washStatus) : ''} />
+      <Meta styles={styles} label="Link" value={event.qrLink || event.url || event.socialUrl} />
 
       {postLink ? (
         <View style={styles.actionRow}>
