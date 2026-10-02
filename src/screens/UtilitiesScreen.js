@@ -50,6 +50,12 @@ export default function UtilitiesScreen({ navigation }) {
               onPress={() => go('PeopleDateGraph')}
             />
             <MenuRow colors={colors} icon="text-outline" label="Word to int" onPress={() => go('WordToInt')} />
+            <MenuRow
+              colors={colors}
+              icon="reader-outline"
+              label="Number sentences (test)"
+              onPress={() => go('NumberSentence')}
+            />
             <MenuRow colors={colors} icon="git-branch-outline" label="Word graph" onPress={() => go('WordGraph')} />
             <MenuRow colors={colors} icon="analytics-outline" label="Event graph" onPress={() => go('EventGraph')} />
             <MenuRow colors={colors} icon="book-outline" label="Poem patterns" onPress={() => go('PoemInsights')} />

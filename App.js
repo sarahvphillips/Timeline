@@ -39,6 +39,7 @@ import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
 import EventViewScreen from './src/screens/EventViewScreen';
 import AddQrScreen from './src/screens/AddQrScreen';
 import WordToIntScreen from './src/screens/WordToIntScreen';
+import NumberSentenceScreen from './src/screens/NumberSentenceScreen';
 import WordGraphScreen from './src/screens/WordGraphScreen';
 import EventGraphScreen from './src/screens/EventGraphScreen';
 import PoemInsightsScreen from './src/screens/PoemInsightsScreen';
@@ -446,6 +447,12 @@ function AppShell() {
                 name="WordToInt"
                 component={WordToIntScreen}
                 options={{ title: 'Word to Int' }}
+              />
+
+              <Stack.Screen
+                name="NumberSentence"
+                component={NumberSentenceScreen}
+                options={{ title: 'Number sentences' }}
               />
 
               <Stack.Screen
