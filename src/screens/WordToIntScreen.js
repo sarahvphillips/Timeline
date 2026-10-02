@@ -58,6 +58,15 @@ import WordGraphScreen from './WordGraphScreen';
 import EventLinkPicker from '../components/EventLinkPicker';
 import { eventsByIds, linkEventGroup, eventKindLabel } from '../services/eventLinkService';
 
+function showNum(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'object') {
+    if (value.value != null) return String(value.value);
+    return '';
+  }
+  return String(value);
+}
+
 function isDayCount(n) {
   return Number.isInteger(n) && n >= 1 && n <= 200000;
 }
@@ -91,6 +100,10 @@ class WordToIntBoundary extends React.Component {
 
   static getDerivedStateFromError(error) {
     return { error };
+  }
+
+  componentDidCatch(error) {
+    console.error('Word to int crashed:', error?.message || error, error?.stack || '');
   }
 
   render() {
@@ -170,7 +183,9 @@ function WordToIntScreen({ navigation, route }) {
           breakdown: [],
         };
   const duplicateHit = findSavedPhrase(list, result.phrase || phrase);
-  const editingItem = list.find((item) => String(item.id) === String(editingId)) || null;
+  const editingItem = (Array.isArray(list) ? list : []).find(
+    (item) => item && String(item.id) === String(editingId)
+  ) || null;
   const conflicts = !!(
     duplicateHit && String(duplicateHit.id) !== String(editingId || '')
   );
@@ -473,7 +488,7 @@ function WordToIntScreen({ navigation, route }) {
   };
 
   const wordsUnlocked = CREDITS_PAUSED || hasPerk(rewards, SHARE_WORDS_PERK);
-  const selectedItems = sortedList.filter((item) => selected[item.id]);
+  const selectedItems = sortedList.filter((item) => item && selected[item.id]);
 
   const toggleWord = (id) => {
     setSelected((cur) => ({ ...cur, [id]: !cur[id] }));
@@ -1122,7 +1137,7 @@ function WordToIntScreen({ navigation, route }) {
       ) : list.length === 0 ? (
         <Text style={styles.empty}>No saved numbers yet. Convert a phrase and save it here.</Text>
       ) : (
-        sortedList.map((item) => (
+        sortedList.filter((item) => item && item.id).map((item) => (
           <View
             key={item.id}
             style={[
@@ -1136,18 +1151,18 @@ function WordToIntScreen({ navigation, route }) {
                 <Text style={[styles.tick, { color: colors.blueSoft }]}>{selected[item.id] ? '☑' : '☐'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.itemPhrase, { color: colors.text }]}>{item.phrase}</Text>
-                  <Text style={[styles.itemNumber, { color: colors.blueSoft }]}>{preferredNumber(item)}</Text>
+                  <Text style={[styles.itemNumber, { color: colors.blueSoft }]}>{showNum(preferredNumber(item))}</Text>
                 </View>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={() => reuseItem(item)} style={styles.itemMain}>
                 <Text style={[styles.itemPhrase, { color: colors.text }]}>{item.phrase}</Text>
-                <Text style={[styles.itemNumber, { color: colors.blueSoft }]}>{preferredNumber(item)}</Text>
+                <Text style={[styles.itemNumber, { color: colors.blueSoft }]}>{showNum(preferredNumber(item))}</Text>
                 <Text style={[styles.itemAdded, { color: colors.blue }]}>
                   Added {formatAddedAt(item.createdAt || item.updatedAt)}
                 </Text>
                 <Text style={[styles.itemMeta, { color: colors.faint }]}>
-                  Ord {item.ordinal} · Pyth {item.pythagorean} · Rev {item.reverse} · Red {item.reduced} · hash {displayHash(item)}
+                  Ord {showNum(item.ordinal)} · Pyth {showNum(item.pythagorean)} · Rev {showNum(item.reverse)} · Red {showNum(item.reduced)} · hash {showNum(displayHash(item))}
                 </Text>
               </TouchableOpacity>
             )}

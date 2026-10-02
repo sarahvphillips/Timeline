@@ -273,7 +273,7 @@ function claimLocalRows(list, uid) {
 }
 
 function sortWordNumbers(list) {
-  return (list || []).sort(
+  return (list || []).filter((item) => item && typeof item === 'object').sort(
     (a, b) =>
       new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
   );
@@ -615,13 +615,23 @@ export async function deleteWordNumber(id) {
   return next;
 }
 
+function asNumber(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') {
+    if (value.value != null && !Number.isNaN(Number(value.value))) return Number(value.value);
+    return null;
+  }
+  const n = Number(value);
+  return Number.isNaN(n) ? null : n;
+}
+
 export function preferredNumber(entry) {
   if (!entry) return null;
-  if (entry.preferred === 'pythagorean') return entry.pythagorean;
-  if (entry.preferred === 'reverse') return entry.reverse;
-  if (entry.preferred === 'reduced') return entry.reduced;
-  if (entry.preferred === 'hashcode') return entryHashCode(entry);
-  return entry.ordinal;
+  if (entry.preferred === 'pythagorean') return asNumber(entry.pythagorean);
+  if (entry.preferred === 'reverse') return asNumber(entry.reverse);
+  if (entry.preferred === 'reduced') return asNumber(entry.reduced);
+  if (entry.preferred === 'hashcode') return asNumber(entryHashCode(entry));
+  return asNumber(entry.ordinal);
 }
 
 const SORT_KEY = '@word_to_int_list_sort';
@@ -694,7 +704,7 @@ export function numberMatches(entry, n) {
   if (entry.ordinal === n) hits.push('ordinal');
   if (entry.pythagorean === n) hits.push('pythagorean');
   if (entry.reverse === n) hits.push('reverse');
-  if (legalReducedValue(n) && Number(entry.reduced) === n) hits.push('reduced');
+  if (legalReducedValue(n) && asNumber(entry.reduced) === n) hits.push('reduced');
   if (hash === n) hits.push('hashcode');
   else if (hash != null && n != null && Math.abs(hash) === Math.abs(n)) hits.push('hashcode');
   return [...new Set(hits)];
@@ -714,7 +724,7 @@ export function findPhrasesForNumber(list, rawNumber, methodFilter = 'all') {
     if (filter === 'ordinal') return entry.ordinal === n ? ['ordinal'] : [];
     if (filter === 'pythagorean') return entry.pythagorean === n ? ['pythagorean'] : [];
     if (filter === 'reverse') return entry.reverse === n ? ['reverse'] : [];
-    if (filter === 'reduced') return Number(entry.reduced) === reducedTo ? ['reduced'] : [];
+    if (filter === 'reduced') return asNumber(entry.reduced) === reducedTo ? ['reduced'] : [];
     if (filter === 'hashcode') {
       const hash = entryHashCode(entry);
       if (hash === n || (hash != null && Math.abs(hash) === Math.abs(n))) return ['hashcode'];
