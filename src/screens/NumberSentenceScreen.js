@@ -44,6 +44,20 @@ function lookupPhrase(raw) {
   return String(raw || '').replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, '');
 }
 
+function calcNote(hit) {
+  const labels = {
+    ordinal: 'Ordinal',
+    pythagorean: 'Pythagorean',
+    reverse: 'Reverse',
+    reduced: 'Reduced',
+    hashcode: 'hashCode',
+  };
+  return (hit?.matchOn || [])
+    .filter((id) => id !== 'preferred')
+    .map((id) => labels[id] || id)
+    .join(', ');
+}
+
 function isNumberToken(raw) {
   return /^-?\d+$/.test(String(raw || '').trim());
 }
@@ -239,11 +253,15 @@ export default function NumberSentenceScreen() {
               {line.length === 0 ? <Text style={styles.word}> </Text> : null}
               {line.map((token) => {
                 const phrase = chosenPhrase(token);
+                const chosenHit = (token.hits || []).find((hit) => hit.phrase === phrase);
                 const open = token.kind === 'number' && token.hits.length > 1 && !locks[token.key];
                 const red = !!(token.offerSave && !token.saved);
                 return (
                   <View key={token.key} style={styles.slot}>
                     <Text style={styles.word}>{phrase || (open ? '·' : token.raw)}</Text>
+                    {!!chosenHit && !!calcNote(chosenHit) && (
+                      <Text style={styles.calcNote}>{calcNote(chosenHit)}</Text>
+                    )}
                     {!!(token.kind === 'word' ? token.number : token.raw) && (
                       <Text style={[styles.number, red && styles.numberNew]}>
                         {token.kind === 'word' || token.kind === 'literal' ? token.number : token.raw}
@@ -268,7 +286,10 @@ export default function NumberSentenceScreen() {
                             style={styles.option}
                             onPress={() => setLocks((cur) => ({ ...cur, [token.key]: hit.phrase }))}
                           >
-                            <Text style={styles.optionText}>{hit.phrase}</Text>
+                            <Text style={styles.optionText}>
+                              {hit.phrase}
+                              {!!calcNote(hit) && <Text style={styles.calcNote}>  {calcNote(hit)}</Text>}
+                            </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -337,7 +358,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 10,
   },
-  slot: { alignItems: 'center', maxWidth: 160 },
+  slot: { alignItems: 'center', maxWidth: 220 },
   word: { color: '#f6f1e6', fontSize: 18, textAlign: 'center' },
   number: { color: '#6ea8d8', fontSize: 13, marginTop: 2, textAlign: 'center' },
   numberNew: { color: '#e85d5d' },
@@ -353,6 +374,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  optionText: { color: '#f3e6c8', fontSize: 13 },
+  optionText: { color: '#f3e6c8', fontSize: 13, textAlign: 'center' },
+  calcNote: { color: '#c4a574', fontSize: 11 },
   unlock: { color: '#c4a574', fontSize: 11, marginTop: 4 },
 });
