@@ -12,6 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../themeContext';
 import { auth } from '../services/firebase';
 import { saveEvent } from '../services/eventService';
+import { persistPickedImage, compressImageUri } from '../services/imagePicker';
+import { renderPrintoutPng } from '../services/printoutImage';
 import {
   convertPhrase,
   findPhrasesForNumber,
@@ -280,11 +282,62 @@ export default function NumberSentenceScreen() {
     }
   };
 
+  const printoutPicture = async () => {
+    const readings = roundList.map((round, index) => ({
+      label: roundList.length > 1 ? `Reading ${index + 1}` : '',
+      rows: lines.map((line) =>
+        line.map((token) => {
+          const phrase = chosenPhrase(token, round);
+          const open = token.kind === 'number' && (token.hits || []).length > 1 && !round[token.key];
+          const hit = (token.hits || []).find((item) => item.phrase === phrase);
+          return {
+            word: phrase || (open ? '·' : token.raw || ''),
+            number:
+              token.kind === 'word' || token.kind === 'literal'
+                ? String(token.number || '')
+                : String(token.raw || ''),
+            calc: hit ? calcNote(hit) : '',
+            red: !!(token.offerSave && !token.saved),
+            options: open
+              ? token.hits.map((item) => [item.phrase, calcNote(item)].filter(Boolean).join(' · '))
+              : [],
+          };
+        })
+      ),
+    }));
+    const dataUri = renderPrintoutPng({
+      title: title.trim() || 'Number sentence',
+      note: note.trim(),
+      readings,
+    });
+    const match = String(dataUri).match(/^data:[^;]+;base64,(.+)$/);
+    const compressed = await compressImageUri(dataUri);
+    const source = compressed || dataUri;
+    const sourceMatch = String(source).match(/^data:[^;]+;base64,(.+)$/);
+    const stored = await persistPickedImage(
+      source,
+      `number-sentence-${Date.now()}.jpg`,
+      sourceMatch ? sourceMatch[1] : match ? match[1] : null,
+      'image/jpeg'
+    );
+    const uri = stored?.uri || source;
+    if (String(uri).startsWith('data:') && String(uri).length > 2000000) {
+      throw new Error('Printout picture was too large to store.');
+    }
+    return uri;
+  };
+
   const savePrintout = async () => {
     if (!lines.length) return;
     try {
       const list = await readPrintouts();
       const now = new Date().toISOString();
+      let imageUri = '';
+      try {
+        imageUri = await printoutPicture();
+      } catch (e) {
+        console.warn('Printout image was not stored', e);
+      }
       const item = {
         id: savedId || `${Date.now()}`,
         title: title.trim() || 'Number sentence',
@@ -296,13 +349,14 @@ export default function NumberSentenceScreen() {
         locks,
         extraLocks,
         anotherRound,
+        imageUri: imageUri || undefined,
         createdAt: now,
       };
       const next = [item, ...list.filter((row) => row.id !== item.id)];
       await writePrintouts(next);
       setSavedId(item.id);
       setSavedList(next);
-      Alert.alert('Saved', 'This printout is kept on this device.');
+      Alert.alert('Saved', imageUri ? 'Printout and its picture are kept on this device.' : 'Printout saved. The picture could not be stored.');
     } catch (e) {
       Alert.alert('Could not save the printout', e?.message || 'Try again.');
     }
@@ -319,6 +373,12 @@ export default function NumberSentenceScreen() {
       })
       .join('\n\n');
     const full = [description, note.trim()].filter(Boolean).join('\n\n');
+    let imageUri = '';
+    try {
+      imageUri = await printoutPicture();
+    } catch (e) {
+      console.warn('Printout image was not stored', e);
+    }
     try {
       await saveEvent({
         title: heading,
@@ -328,8 +388,14 @@ export default function NumberSentenceScreen() {
         source: 'manual',
         nextAction: 'none',
         labels: tags,
+        imageUri: imageUri || undefined,
       });
-      Alert.alert('Added to timeline', tags.length ? `Labels: ${tags.join(', ')}` : 'Saved as a personal event for today.');
+      Alert.alert(
+        'Added to timeline',
+        imageUri
+          ? 'The words are in the event, and the printout picture is attached.'
+          : 'The words were saved. The picture could not be stored.'
+      );
     } catch (e) {
       Alert.alert('Could not add the event', e?.message || 'Try again.');
     }
