@@ -807,7 +807,11 @@ function WordToIntScreen({ navigation, route }) {
               <TouchableOpacity key={item.id} style={styles.lookupRow} onPress={() => reuseItem(item)}>
                 <Text style={styles.itemPhrase}>{item.phrase}</Text>
                 <Text style={styles.itemMeta}>
-                  {item.matchNumber} · {(item.matchOn || []).join(', ') || lookupMethod}
+                  {item.matchNumber} · {(item.matchOn || []).map((id) => (
+                    id === 'reduced' && item.reducedFrom != null
+                      ? `reduced ${item.reducedFrom}→${item.reducedTo}`
+                      : id
+                  )).join(', ') || lookupMethod}
                   {item.notes ? ` · ${item.notes}` : ''}
                 </Text>
               </TouchableOpacity>

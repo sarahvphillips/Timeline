@@ -91,8 +91,12 @@ function reverseOrdinalValue(ch) {
   return 27 - ordinalValue(ch); // A=26 ... Z=1
 }
 
+function legalReducedValue(n) {
+  return (n >= 1 && n <= 9) || n === 11 || n === 22 || n === 33;
+}
+
 function reduceNumber(n) {
-  let value = n;
+  let value = Math.abs(Number(n));
   const steps = [value];
   while (value > 9 && value !== 11 && value !== 22 && value !== 33) {
     value = String(value)
@@ -690,7 +694,7 @@ export function numberMatches(entry, n) {
   if (entry.ordinal === n) hits.push('ordinal');
   if (entry.pythagorean === n) hits.push('pythagorean');
   if (entry.reverse === n) hits.push('reverse');
-  if (entry.reduced === n) hits.push('reduced');
+  if (legalReducedValue(n) && Number(entry.reduced) === n) hits.push('reduced');
   if (hash === n) hits.push('hashcode');
   else if (hash != null && n != null && Math.abs(hash) === Math.abs(n)) hits.push('hashcode');
   return [...new Set(hits)];
@@ -701,12 +705,16 @@ export function findPhrasesForNumber(list, rawNumber, methodFilter = 'all') {
   const n = Number(String(rawNumber).trim());
   if (!String(rawNumber).trim() || Number.isNaN(n)) return [];
   const filter = methodFilter || 'all';
+  let reducedTo = null;
+  if (filter === 'reduced') {
+    reducedTo = reduceNumber(n).value;
+  }
 
   const hitsFor = (entry) => {
     if (filter === 'ordinal') return entry.ordinal === n ? ['ordinal'] : [];
     if (filter === 'pythagorean') return entry.pythagorean === n ? ['pythagorean'] : [];
     if (filter === 'reverse') return entry.reverse === n ? ['reverse'] : [];
-    if (filter === 'reduced') return Number(entry.reduced) === n ? ['reduced'] : [];
+    if (filter === 'reduced') return Number(entry.reduced) === reducedTo ? ['reduced'] : [];
     if (filter === 'hashcode') {
       const hash = entryHashCode(entry);
       if (hash === n || (hash != null && Math.abs(hash) === Math.abs(n))) return ['hashcode'];
@@ -719,7 +727,13 @@ export function findPhrasesForNumber(list, rawNumber, methodFilter = 'all') {
   (list || []).forEach((entry) => {
     const hits = hitsFor(entry);
     if (!hits.length) return;
-    rows.push({ ...entry, matchOn: hits, matchNumber: n });
+    rows.push({
+      ...entry,
+      matchOn: hits,
+      matchNumber: n,
+      reducedTo: filter === 'reduced' ? reducedTo : undefined,
+      reducedFrom: filter === 'reduced' && reducedTo !== n ? n : undefined,
+    });
   });
   rows.sort(
     (a, b) =>

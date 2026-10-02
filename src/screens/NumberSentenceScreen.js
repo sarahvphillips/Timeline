@@ -59,7 +59,13 @@ function calcNote(hit) {
   };
   return (hit?.matchOn || [])
     .filter((id) => id !== 'preferred')
-    .map((id) => labels[id] || id)
+    .map((id) => {
+      if (id === 'reduced' && hit.reducedFrom != null && hit.reducedTo != null) {
+        return `Reduced ${hit.reducedFrom}→${hit.reducedTo}`;
+      }
+      if (id === 'reduced' && hit.reducedTo != null) return `Reduced ${hit.reducedTo}`;
+      return labels[id] || id;
+    })
     .join(', ');
 }
 
