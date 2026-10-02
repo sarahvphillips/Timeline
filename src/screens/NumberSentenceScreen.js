@@ -92,7 +92,7 @@ function noteTags(note) {
   return [...new Set(found.map((tag) => tag.slice(1)))];
 }
 
-function printoutBody(lines, locks, method) {
+function printoutBody(lines, locks, method, plain) {
   return (lines || [])
     .map((line) =>
       (line || [])
@@ -100,7 +100,7 @@ function printoutBody(lines, locks, method) {
           const word = resolvedWord(token, locks) || (token.kind === 'number' ? '…' : token.raw);
           const number = token.kind === 'number' ? token.raw : token.number || '';
           const hit = (token.hits || []).find((item) => item.phrase === word);
-          const calc = hit ? calcNote(hit) : method && token.kind !== 'number' ? method : '';
+          const calc = plain ? '' : hit ? calcNote(hit) : method && token.kind !== 'number' ? method : '';
           return [word, number, calc].filter(Boolean).join(' · ');
         })
         .join('   ')
@@ -129,6 +129,7 @@ export default function NumberSentenceScreen() {
   const [locks, setLocks] = useState({});
   const [extraLocks, setExtraLocks] = useState([]);
   const [anotherRound, setAnotherRound] = useState(false);
+  const [plain, setPlain] = useState(false);
   const [notice, setNotice] = useState('');
   const [note, setNote] = useState('');
   const [savedId, setSavedId] = useState(null);
@@ -303,10 +304,12 @@ export default function NumberSentenceScreen() {
               token.kind === 'word' || token.kind === 'literal'
                 ? String(token.number || '')
                 : String(token.raw || ''),
-            calc: hit ? calcNote(hit) : '',
+            calc: plain || !hit ? '' : calcNote(hit),
             red: !!(token.offerSave && !token.saved),
             options: open
-              ? token.hits.map((item) => [item.phrase, calcNote(item)].filter(Boolean).join(' · '))
+              ? (token.hits || []).map((item) =>
+                  plain ? item.phrase : [item.phrase, calcNote(item)].filter(Boolean).join(' · ')
+                )
               : [],
           };
         })
@@ -356,6 +359,7 @@ export default function NumberSentenceScreen() {
         locks,
         extraLocks,
         anotherRound,
+        plain,
         imageUri: imageUri || undefined,
         createdAt: now,
       };
@@ -375,7 +379,7 @@ export default function NumberSentenceScreen() {
     const tags = noteTags(note);
     const description = [locks, ...(extraLocks || [])]
       .map((round, index, all) => {
-        const body = printoutBody(lines, round, method);
+        const body = printoutBody(lines, round, method, plain);
         return all.length > 1 ? `Reading ${index + 1}\n${body}` : body;
       })
       .join('\n\n');
@@ -419,6 +423,7 @@ export default function NumberSentenceScreen() {
     setLocks(item.locks || {});
     setExtraLocks(Array.isArray(item.extraLocks) ? item.extraLocks : []);
     setAnotherRound(!!item.anotherRound);
+    setPlain(!!item.plain);
     setNotice('Opened a saved printout.');
   };
 
@@ -494,6 +499,12 @@ export default function NumberSentenceScreen() {
           Another printout after the words are locked
         </Text>
       </TouchableOpacity>
+      <TouchableOpacity style={styles.tickRow} onPress={() => setPlain((on) => !on)}>
+        <View style={[styles.box, { borderColor: colors.blue }, plain && { backgroundColor: colors.blue }]} />
+        <Text style={[styles.tickText, { color: colors.text }]}>
+          Plain printout — no Ordinal, Reduced, or other calculation names
+        </Text>
+      </TouchableOpacity>
       <TouchableOpacity style={[styles.show, { backgroundColor: colors.blue }]} onPress={show} disabled={busy}>
         <Text style={styles.showText}>{busy ? 'Building…' : 'Show printout'}</Text>
       </TouchableOpacity>
@@ -518,7 +529,7 @@ export default function NumberSentenceScreen() {
                 return (
                   <View key={`${roundIndex}-${token.key}`} style={styles.slot}>
                     <Text style={styles.word}>{phrase || (open ? '·' : token.raw)}</Text>
-                    {!!chosenHit && !!calcNote(chosenHit) && (
+                    {!!chosenHit && !plain && !!calcNote(chosenHit) && (
                       <Text style={styles.calcNote}>{calcNote(chosenHit)}</Text>
                     )}
                     {!!(token.kind === 'word' ? token.number : token.raw) && (
@@ -547,7 +558,7 @@ export default function NumberSentenceScreen() {
                           >
                             <Text style={styles.optionText}>
                               {hit.phrase}
-                              {!!calcNote(hit) && <Text style={styles.calcNote}>  {calcNote(hit)}</Text>}
+                              {!plain && !!calcNote(hit) && <Text style={styles.calcNote}>  {calcNote(hit)}</Text>}
                             </Text>
                           </TouchableOpacity>
                         ))}
