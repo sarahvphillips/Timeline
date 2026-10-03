@@ -212,7 +212,7 @@ Product map:
   3. License tester: `sarah.v.phillips@googlemail.com`.
   4. Monetize with Play → Products → One-time products → Create each SKU (Buy, not Rent/subscription) → price → Activate.
   5. App consumes after grant (`finishTransaction` / `isConsumable: true`) then Firestore credits. No extra rules text for SKUs.
-- [ ] Firebase Storage for event photos (imageUri/coverImageUri currently local-only / web AsyncStorage-split; compress+separate keys is a stopgap - Storage is the real fix)
+- [x] Firebase Storage for event photos (3 Oct 2026). Saving an event uploads `imageUri` and `coverImageUri` to `users/{uid}/events/{eventId}/`. The https address is what Firestore keeps, so the photo opens on another signed-in device. Wash-load photos stay on the device. Guests stay on the device. If upload fails, the photo still saves locally. Paste `storage.rules` in Firebase Console → Storage → Rules. Older photos upload up to 6 per timeline open.
 
 ---
 

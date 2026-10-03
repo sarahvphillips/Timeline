@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { isGuestUid } from './guestSession';
+import { uploadEventImage, deleteEventPhotos } from './photoStorage';
 import { asImageUri } from './imagePicker';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
@@ -339,9 +340,8 @@ function isLocalOnlyImageUri(uri) {
 }
 
 /**
- * Prepare an event for Firestore: strip undefined and omit local-only image URIs
- * so we never upload file:// (etc.) as if they were portable. Does not invent Storage.
- * Use with setDoc merge:true so omitting image fields does not wipe existing cloud URLs.
+ * Prepare an event for Firestore: strip undefined and omit local-only image URIs.
+ * https download URLs from Firebase Storage are kept.
  */
 function eventPayloadForCloud(event, uid) {
   const payload = { ...event, ownerUid: uid };
@@ -356,6 +356,53 @@ function eventPayloadForCloud(event, uid) {
     delete payload.videoUri;
   }
   return stripUndefined(payload);
+}
+
+async function attachCloudPhotos(event, uid) {
+  if (!event?.id || !uid || isGuestUid(uid) || event.source === 'laundry') return event;
+  let next = event;
+  for (const field of ['imageUri', 'coverImageUri']) {
+    const uri = next[field];
+    if (!isLocalOnlyImageUri(uri)) continue;
+    try {
+      const remote = await uploadEventImage(uid, next.id, field, uri);
+      if (remote && remote !== uri) next = { ...next, [field]: remote };
+    } catch (e) {
+      console.warn('Event photo stayed on this device', field, e?.message || e);
+    }
+  }
+  return next;
+}
+
+async function promotePendingEventPhotos(events, uid, limit = 6) {
+  if (!uid || isGuestUid(uid) || !Array.isArray(events)) return events;
+  let left = limit;
+  const out = [];
+  let changed = false;
+  for (const event of events) {
+    if (!event || left <= 0 || event.source === 'laundry') {
+      out.push(event);
+      continue;
+    }
+    let next = event;
+    for (const field of ['imageUri', 'coverImageUri']) {
+      if (left <= 0) break;
+      if (!isLocalOnlyImageUri(next[field])) continue;
+      left -= 1;
+      try {
+        const remote = await uploadEventImage(uid, next.id, field, next[field]);
+        if (remote && remote !== next[field]) {
+          next = { ...next, [field]: remote };
+          changed = true;
+          await setDoc(eventDoc(uid, next.id), eventPayloadForCloud(next, uid), { merge: true });
+        }
+      } catch (e) {
+        console.warn('Pending event photo stayed on this device', e?.message || e);
+      }
+    }
+    out.push(next);
+  }
+  return changed ? out : events;
 }
 
 function toIso(value) {
@@ -553,7 +600,7 @@ export async function syncEventsFromCloud(uid) {
     cloudEvents.forEach((ev) => {
       if (!ev?.id) return;
       const prev = byId[ev.id];
-      // Cloud strips local-only photo URIs (no Firebase Storage yet) — keep device photos.
+      // Keep a device photo until Storage has a copy. A cloud https URL wins.
       byId[ev.id] = {
         ...ev,
         imageUri: ev.imageUri || (prev && prev.imageUri) || undefined,
@@ -577,7 +624,12 @@ export async function syncEventsFromCloud(uid) {
     }
 
     if (!isScopeCurrent(uid, epoch)) return Object.values(byId);
-    const merged = sortEvents(Object.values(byId));
+    let merged = sortEvents(Object.values(byId));
+    try {
+      merged = await promotePendingEventPhotos(merged, uid, 6);
+    } catch (e) {
+      console.warn('Pending photo upload skipped', e);
+    }
     await writeCache(merged, uid);
     return merged;
   } catch (e) {
@@ -647,6 +699,15 @@ export async function saveEvent(event) {
 
   if (!saved) return events;
 
+  if (uid && !isGuestUid(uid)) {
+    const withPhotos = await attachCloudPhotos(saved, uid);
+    if (withPhotos !== saved) {
+      const index = events.findIndex((item) => item.id === saved.id);
+      if (index !== -1) events[index] = withPhotos;
+      saved = withPhotos;
+    }
+  }
+
   await writeCache(events, uid);
 
   if (saved && uid) {
@@ -670,6 +731,12 @@ export async function deleteEvent(id) {
   const filtered = events.filter((e) => e.id !== id);
   await removeImageKeysForEvents(removed);
   await writeCache(filtered, uid);
+
+  if (uid && !isGuestUid(uid) && EVENTS_FIRESTORE_SYNC_ENABLED) {
+    try {
+      await deleteEventPhotos(uid, id);
+    } catch (_) {}
+  }
 
   if (uid && EVENTS_FIRESTORE_SYNC_ENABLED) {
     try {
