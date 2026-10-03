@@ -21,6 +21,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   getEvents,
   deleteEvent,
+  saveEvent,
   getCategoryColor,
   CATEGORIES,
   getNextActionLabel,
@@ -204,6 +205,17 @@ export default function TimelineScreen({ navigation, route }) {
     }
   };
 
+  const markNextDone = async (item) => {
+    try {
+      await saveEvent({ ...item, nextAction: 'done' });
+      const updated = await getEvents();
+      setAllEvents(updated);
+      showToast('Marked done');
+    } catch (e) {
+      Alert.alert('Could not update', e?.message || 'Try again.');
+    }
+  };
+
   const openGrok = async () => {
     try {
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -274,6 +286,18 @@ export default function TimelineScreen({ navigation, route }) {
             {shareNotices[item.shareId].sug ? (
               <Text style={[styles.noticeFlag, styles.noticeFlagSug]}>Note suggested</Text>
             ) : null}
+          </View>
+        ) : null}
+
+        {item.nextAction && item.nextAction !== 'none' && item.nextAction !== 'done' ? (
+          <View style={styles.nextRow}>
+            <Text style={styles.nextLabel}>Next: {getNextActionLabel(item.nextAction)}</Text>
+            <TouchableOpacity
+              onPress={() => markNextDone(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.markDone}>Mark done</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
@@ -354,12 +378,8 @@ export default function TimelineScreen({ navigation, route }) {
               <Text style={styles.description}>{item.description}</Text>
             ) : null}
 
-            {item.nextAction && item.nextAction !== 'none' ? (
-              <View style={styles.nextRow}>
-                <Text style={styles.nextLabel}>
-                  Next: {getNextActionLabel(item.nextAction)}
-                </Text>
-              </View>
+            {item.nextAction === 'done' ? (
+              <Text style={styles.nextLabel}>Next: Done</Text>
             ) : null}
 
             {isPoemEvent(item) ? (
@@ -607,6 +627,7 @@ function screenStyles(c) {
   description: { color: c.faint, fontSize: 14, lineHeight: 20, marginBottom: 8 },
   nextRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nextLabel: { color: c.blueSoft, fontSize: 13, flex: 1 },
+  markDone: { color: '#86efac', fontSize: 13, fontWeight: '700', marginLeft: 8 },
   grokRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   grokButton: { alignSelf: 'flex-start', marginTop: 8, backgroundColor: c.blue, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
   grokButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },

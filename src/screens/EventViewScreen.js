@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { classifyYearBubbleKind, washStatusLabel, getEvents } from '../services/eventService';
+import { classifyYearBubbleKind, washStatusLabel, getEvents, saveEvent, getNextActionLabel } from '../services/eventService';
 import EventLabelChips from '../components/EventLabelChips';
 import EventLinkPicker from '../components/EventLinkPicker';
 import { copyTextToClipboard } from '../services/shareService';
@@ -213,6 +213,29 @@ export default function EventViewScreen({ navigation, route }) {
       <Meta styles={styles} label="Book" value={event.collectionName} />
       <Meta styles={styles} label="Wash" value={event.source === 'laundry' ? washStatusLabel(event.washStatus) : ''} />
       <Meta styles={styles} label="Link" value={event.qrLink || event.url || event.socialUrl} />
+
+      {event.nextAction && event.nextAction !== 'none' && event.nextAction !== 'done' ? (
+        <View style={styles.actionRow}>
+          <Text style={[styles.meta, { flex: 1, marginBottom: 0 }]}>
+            Next: {getNextActionLabel(event.nextAction)}
+          </Text>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={async () => {
+              try {
+                await saveEvent({ ...event, nextAction: 'done' });
+                setEvent({ ...event, nextAction: 'done' });
+              } catch (e) {
+                Alert.alert('Could not update', e?.message || 'Try again.');
+              }
+            }}
+          >
+            <Text style={styles.actionText}>Mark done</Text>
+          </TouchableOpacity>
+        </View>
+      ) : event.nextAction === 'done' ? (
+        <Text style={styles.meta}>Next: Done</Text>
+      ) : null}
 
       {postLink ? (
         <View style={styles.actionRow}>

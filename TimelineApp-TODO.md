@@ -201,7 +201,7 @@ Product map:
 - [ ] Google Sign-In (re-enable fully if needed)
 - [ ] Better date picker (calendar UI)
 - [x] Filter timeline by category (20 Sep 2026): chips on Years + list. **Poems** (and Games/SMS/…) puts every matching item on the spine as its own bubble, grouped by year — same idea as the poems-chip design.
-- [ ] Mark next-action as done from the list
+- [x] Mark next-action as done from the list (3 Oct 2026). Timeline cards with Ask Grok or Follow up later show Mark done without opening Edit. The event view has the same button. It sets nextAction to done.
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)
 - [x] **Privacy policy + user manual** (20 Sep 2026): Settings screens + docs/PRIVACY.md + docs/USER-MANUAL.md. Public URL still needed for Play Store. Export/delete account still later.
 - [ ] Custom Firebase password-reset email template (needs Blaze plan)
