@@ -33,6 +33,7 @@ import SocialScreen from './src/screens/SocialScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import StarlinkCheckScreen from './src/screens/StarlinkCheckScreen';
 import UtilitiesScreen from './src/screens/UtilitiesScreen';
+import ShareTimelineScreen from './src/screens/ShareTimelineScreen';
 import YearOverviewScreen from './src/screens/YearOverviewScreen';
 import MonthOverviewScreen from './src/screens/MonthOverviewScreen';
 import WeekOverviewScreen from './src/screens/WeekOverviewScreen';
@@ -435,6 +436,11 @@ function AppShell() {
                 name="Utilities"
                 component={UtilitiesScreen}
                 options={{ title: 'Utilities' }}
+              />
+              <Stack.Screen
+                name="ShareTimeline"
+                component={ShareTimelineScreen}
+                options={{ title: 'Share timeline' }}
               />
 
               <Stack.Screen

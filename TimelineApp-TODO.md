@@ -92,7 +92,7 @@ Leave SMS reading, call-log access, and live Open Banking out of this version.
 - [x] **Events with friends layout (21 Sep 2026):** year/month/week on the centre axis; shared cards left/right with curves. Filter chips per friend + All friends. **Show private items** off by default (personal cards grey, Personal only).
 - [x] **People invite share (21 Sep 2026):** Copy, Gmail, SMS, WhatsApp, More (OS share sheet). After Add person, optional Invite.
 - [x] **Profile privacy (21 Sep 2026):** Settings Totally private (default) vs Searchable. Public handle, share link + QR. People → Find a public profile. Publish `publicProfiles` + `profileHandles` rules.
-- [ ] Share whole timeline with another Timeline user (still later)
+- [x] Share whole timeline with one other user (3 Oct 2026). Utilities → Workshop → Share whole timeline. One invite code, one recipient. Copies titles, dates and text. Photos stay on the sender's device. Events already received from a friend are left out. Hide the section with Settings → Show workshop before a tester build. Publish the new `timelineShares` block in firestore.rules.
 - [ ] Add another account (alert: log out and sign in with a different email)
 
 ---

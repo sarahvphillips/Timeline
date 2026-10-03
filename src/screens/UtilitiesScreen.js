@@ -1,14 +1,23 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../themeContext';
 import { auth } from '../services/firebase';
 import { CREDITS_PAUSED } from '../services/rewardsService';
 import { MenuCard, MenuRow, MenuSection } from '../components/MenuGroup';
 import DeviceSessionsCard from '../components/DeviceSessionsCard';
+import { getShowWorkshop } from '../services/workshopPrefs';
 
 export default function UtilitiesScreen({ navigation }) {
   const { colors } = useTheme();
   const signedIn = !!auth.currentUser?.uid;
+  const [showWorkshop, setShowWorkshop] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      getShowWorkshop().then(setShowWorkshop).catch(() => setShowWorkshop(true));
+    }, [])
+  );
 
   const needAccount = (label) => {
     Alert.alert(
@@ -18,7 +27,7 @@ export default function UtilitiesScreen({ navigation }) {
   };
 
   const go = (screen, label) => {
-    if (!signedIn && (screen === 'EventsWithFriends' || screen === 'AcceptInvite' || screen === 'CreditFeedback' || screen === 'CreditsShop')) {
+    if (!signedIn && (screen === 'EventsWithFriends' || screen === 'AcceptInvite' || screen === 'CreditFeedback' || screen === 'CreditsShop' || screen === 'ShareTimeline')) {
       needAccount(label);
       return;
     }
@@ -96,6 +105,23 @@ export default function UtilitiesScreen({ navigation }) {
             <MenuRow colors={colors} icon="water-outline" label="Wash loads" last onPress={() => go('AddWashLoad')} />
           </MenuCard>
         </MenuSection>
+
+        {showWorkshop ? (
+          <MenuSection title="WORKSHOP">
+            <MenuCard colors={colors}>
+              <MenuRow
+                colors={colors}
+                icon="git-compare-outline"
+                label="Share whole timeline"
+                last
+                onPress={() => go('ShareTimeline', 'Share whole timeline')}
+              />
+            </MenuCard>
+            <Text style={[styles.hint, { color: colors.faint }]}>
+              Unfinished features stay here. Settings can hide this section before testers use the app.
+            </Text>
+          </MenuSection>
+        ) : null}
 
         <MenuSection title="TESTING">
           <MenuCard colors={colors}>

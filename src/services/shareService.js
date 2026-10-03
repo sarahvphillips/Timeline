@@ -6,6 +6,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  writeBatch,
   collection,
   query,
   where,
@@ -565,6 +566,232 @@ async function acceptWordListInvite(invite, uid, code) {
   };
 }
 
+const TIMELINE_SHARE_KEY = '@timeline_whole_share_';
+
+function timelineShareStorageKey() {
+  const uid = getUid();
+  return uid ? `${TIMELINE_SHARE_KEY}${uid}` : null;
+}
+
+function ownTimelineEvents(events) {
+  return (events || []).filter((event) => {
+    if (!event || !event.id) return false;
+    if (event.source === 'shared' || event.timelineShareId) return false;
+    return true;
+  });
+}
+
+function slimTimelineEvent(event) {
+  const labels = Array.isArray(event.labels) ? event.labels.map((item) => String(item)).slice(0, 12) : [];
+  return stripUndefined({
+    sourceEventId: String(event.id),
+    title: String(event.title || 'Untitled').slice(0, 180),
+    description: String(event.description || '').slice(0, 1500),
+    date: event.date || new Date().toISOString(),
+    category: event.category || 'personal',
+    origin: event.source || 'manual',
+    labels,
+  });
+}
+
+export async function timelineSharePreview() {
+  const events = ownTimelineEvents(await getEvents());
+  const stored = timelineShareStorageKey() ? await AsyncStorage.getItem(timelineShareStorageKey()) : null;
+  let active = null;
+  if (stored) {
+    try {
+      active = JSON.parse(stored);
+    } catch {
+      active = null;
+    }
+  }
+  return { count: events.length, active };
+}
+
+/**
+ * One invite for the whole timeline, for one other signed-in user.
+ * Photos stay on this device. Events already received from a friend are left out.
+ */
+export async function createTimelineShare() {
+  const uid = getUid();
+  if (!uid) throw new Error('Sign in to share your timeline.');
+  const existingRaw = await AsyncStorage.getItem(timelineShareStorageKey());
+  if (existingRaw) {
+    try {
+      const existing = JSON.parse(existingRaw);
+      if (existing?.status === 'accepted') {
+        throw new Error('This timeline is already shared with one person.');
+      }
+      if (existing?.code && existing?.shareId) {
+        const snap = await getDoc(doc(db, 'timelineShares', existing.shareId));
+        if (snap.exists()) {
+          const data = snap.data() || {};
+          if ((data.participantUids || []).length >= 2 || data.status === 'accepted') {
+            await AsyncStorage.setItem(
+              timelineShareStorageKey(),
+              JSON.stringify({ ...existing, status: 'accepted' })
+            );
+            throw new Error('This timeline is already shared with one person.');
+          }
+          return {
+            shareId: existing.shareId,
+            code: existing.code,
+            link: buildShareLink(existing.code),
+            count: data.eventCount || existing.count || 0,
+            already: true,
+          };
+        }
+      }
+    } catch (e) {
+      if (e?.message && e.message.includes('already shared')) throw e;
+    }
+  }
+
+  const events = ownTimelineEvents(await getEvents()).slice(0, 300);
+  if (!events.length) throw new Error('There are no events on your timeline to share yet.');
+
+  const now = new Date();
+  const expires = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  let code = makeInviteCode(6);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const existingInvite = await getDoc(doc(db, 'eventInvites', code));
+    if (!existingInvite.exists()) break;
+    code = makeInviteCode(6);
+  }
+
+  const me = await currentParticipantProfile(FRIEND_COLOURS[0]);
+  const shareId = `timeline_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  await setDoc(
+    doc(db, 'timelineShares', shareId),
+    stripUndefined({
+      kind: 'timeline',
+      title: `${me.displayName || 'Timeline'}'s timeline`,
+      eventCount: events.length,
+      createdByUid: uid,
+      createdByName: me.displayName,
+      createdByEmail: me.email,
+      participantUids: [uid],
+      participants: { [uid]: participantForCloud(me) },
+      status: 'pending',
+      inviteCode: code,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    })
+  );
+
+  let batch = writeBatch(db);
+  let pending = 0;
+  for (const event of events) {
+    const slim = slimTimelineEvent(event);
+    batch.set(doc(db, 'timelineShares', shareId, 'items', slim.sourceEventId), slim);
+    pending += 1;
+    if (pending === 400) {
+      await batch.commit();
+      batch = writeBatch(db);
+      pending = 0;
+    }
+  }
+  if (pending) await batch.commit();
+
+  await setDoc(
+    doc(db, 'eventInvites', code),
+    stripUndefined({
+      kind: 'timeline',
+      shareId,
+      fromUid: uid,
+      fromName: me.displayName,
+      fromEmail: me.email,
+      code,
+      status: 'pending',
+      eventTitle: 'Whole timeline',
+      eventCount: events.length,
+      createdAt: now.toISOString(),
+      expiresAt: expires.toISOString(),
+    })
+  );
+
+  const result = {
+    shareId,
+    code,
+    link: buildShareLink(code),
+    count: events.length,
+    status: 'pending',
+  };
+  await AsyncStorage.setItem(timelineShareStorageKey(), JSON.stringify(result));
+  return result;
+}
+
+async function acceptTimelineInvite(invite, uid, code) {
+  const shareRef = doc(db, 'timelineShares', invite.shareId);
+  const snap = await getDoc(shareRef);
+  if (!snap.exists()) throw new Error('Shared timeline not found.');
+  const share = snap.data() || {};
+  if (share.createdByUid === uid) throw new Error('This is your own timeline share.');
+  const members = share.participantUids || [];
+  const already = members.includes(uid);
+  if (!already && members.length >= 2) {
+    throw new Error('This timeline was already shared with one person.');
+  }
+
+  const nowIso = new Date().toISOString();
+  if (!already) {
+    const colourIndex = members.length % FRIEND_COLOURS.length;
+    const me = await currentParticipantProfile(FRIEND_COLOURS[colourIndex]);
+    await updateDoc(shareRef, {
+      participantUids: arrayUnion(uid),
+      recipientUid: uid,
+      status: 'accepted',
+      [`participants.${uid}`]: participantForCloud({ ...me, status: 'accepted', joinedAt: nowIso }),
+      updatedAt: nowIso,
+    });
+  }
+  await updateDoc(doc(db, 'eventInvites', code), {
+    status: 'accepted',
+    acceptedByUid: uid,
+    acceptedAt: nowIso,
+  });
+
+  const itemsSnap = await getDocs(collection(db, 'timelineShares', invite.shareId, 'items'));
+  const local = await getEvents();
+  let added = 0;
+  let skipped = 0;
+  for (const itemDoc of itemsSnap.docs) {
+    const item = itemDoc.data() || {};
+    const sourceEventId = String(item.sourceEventId || itemDoc.id);
+    const exists = local.some(
+      (event) => event.timelineShareId === invite.shareId && String(event.sourceEventId) === sourceEventId
+    );
+    if (exists) {
+      skipped += 1;
+      continue;
+    }
+    await saveEvent(
+      stripUndefined({
+        title: item.title || 'Untitled',
+        description: item.description || '',
+        date: item.date || nowIso,
+        category: item.category || 'personal',
+        source: 'shared',
+        labels: Array.isArray(item.labels) ? item.labels : [],
+        timelineShareId: invite.shareId,
+        sourceEventId,
+        isShared: true,
+        sharedFrom: share.createdByUid,
+        sharedFromEmail: share.createdByEmail || invite.fromEmail,
+        inviteCode: code,
+      })
+    );
+    added += 1;
+  }
+  return {
+    kind: 'timeline',
+    invite,
+    imported: { added, skipped },
+    count: itemsSnap.size,
+    alreadyParticipant: already,
+  };
+}
+
 /**
  * Accept invite by code: add current user to shared event participants,
  * mark invite accepted, and create/link a local event copy.
@@ -584,6 +811,10 @@ export async function acceptInviteByCode(rawCode) {
 
   if (invite.kind === 'words') {
     return acceptWordListInvite(invite, uid, code);
+  }
+
+  if (invite.kind === 'timeline') {
+    return acceptTimelineInvite(invite, uid, code);
   }
 
   const shared = await getSharedEvent(invite.shareId);

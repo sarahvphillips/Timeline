@@ -190,6 +190,14 @@ export default function AcceptInviteScreen({ navigation, route }) {
           });
           return;
         }
+        if (invite.kind === 'timeline') {
+          setPreview({
+            kind: 'timeline',
+            invite,
+            eventCount: invite.eventCount || 0,
+          });
+          return;
+        }
         let shared = null;
         try {
           shared = await getSharedEvent(invite.shareId);
@@ -290,6 +298,21 @@ export default function AcceptInviteScreen({ navigation, route }) {
         );
         return;
       }
+      if (result.kind === 'timeline') {
+        const added = result.imported?.added || 0;
+        const skipped = result.imported?.skipped || 0;
+        Alert.alert(
+          result.alreadyParticipant ? 'Already on your timeline' : 'Timeline added',
+          `${added} event${added === 1 ? '' : 's'} copied from your friend.` +
+            (skipped ? ` ${skipped} were already there.` : '') +
+            ' Photos were not included.',
+          [
+            { text: 'Timeline', onPress: () => navigation.replace('YearOverview') },
+            { text: 'OK', style: 'cancel' },
+          ],
+        );
+        return;
+      }
       Alert.alert(
         result.alreadyParticipant ? 'Already shared' : 'Invite accepted',
         result.alreadyParticipant
@@ -342,7 +365,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
       'Decline',
     );
     if (!ok) return;
-    if (preview?.kind === 'words' || preview?.kind === 'graph') {
+    if (preview?.kind === 'words' || preview?.kind === 'graph' || preview?.kind === 'timeline') {
       notify('Word list', 'Ignore the code if you do not want the words. Decline is for shared events.');
       return;
     }
@@ -442,6 +465,22 @@ export default function AcceptInviteScreen({ navigation, route }) {
           </Text>
           <Text style={styles.previewDesc}>
             {preview.graph.nodeCount || preview.invite?.nodeCount || 0} nodes, including the words, notes and positions. This is the graph data, not only a picture.
+          </Text>
+          <Text style={styles.previewStatus}>Status: {preview.invite?.status || 'pending'}</Text>
+        </View>
+      ) : null}
+      {preview?.kind === 'timeline' ? (
+        <View style={styles.preview}>
+          <Text style={styles.previewTitle}>Whole timeline</Text>
+          <Text style={styles.previewMeta}>
+            {preview.invite?.fromEmail
+              ? `From ${preview.invite.fromEmail}`
+              : preview.invite?.fromName
+                ? `From ${preview.invite.fromName}`
+                : 'Timeline share'}
+          </Text>
+          <Text style={styles.previewDesc}>
+            {preview.eventCount || preview.invite?.eventCount || 0} events. Titles, dates and text are copied. Photos stay on their device. Only one person can accept this code.
           </Text>
           <Text style={styles.previewStatus}>Status: {preview.invite?.status || 'pending'}</Text>
         </View>

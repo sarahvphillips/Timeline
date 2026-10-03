@@ -33,6 +33,7 @@ import {
   saveShowWashInMenu,
   normalizeHandle,
 } from '../services/profileService';
+import { getShowWorkshop, saveShowWorkshop } from '../services/workshopPrefs';
 import { clearThisAccountLocalCache } from '../services/localCache';
 import { accountNeedsPassword, deleteSignedInAccount } from '../services/accountDelete';
 import { auth } from '../services/firebase';
@@ -104,6 +105,7 @@ export default function SettingsScreen({ navigation }) {
   const [savingFoodPref, setSavingFoodPref] = useState(false);
   const [showWashInMenu, setShowWashInMenu] = useState(true);
   const [savingWashPref, setSavingWashPref] = useState(false);
+  const [showWorkshop, setShowWorkshop] = useState(true);
   const [referralLine, setReferralLine] = useState('');
   const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
   const [backupBusy, setBackupBusy] = useState(false);
@@ -144,6 +146,7 @@ export default function SettingsScreen({ navigation }) {
           (perks.length ? ` · ${perks.join(', ')}` : '') +
           ` · ${next}`
       );
+      setShowWorkshop(await getShowWorkshop());
     } catch {
       setReferralLine('Open People to see invite counts and rewards.');
     }
@@ -849,6 +852,34 @@ export default function SettingsScreen({ navigation }) {
           </View>
         </View>
         {renderSoonRow("Widgets", "Home screen widgets")}
+        <View
+          style={[
+            styles.menuRow,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card },
+          ]}
+        >
+          <View style={styles.menuRowText}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={[styles.menuRowLabel, { color: colors.text }]}>Show workshop</Text>
+              <Text style={[styles.hint, { color: colors.faint, marginBottom: 0, marginTop: 4 }]}>
+                Unfinished features, including sharing a whole timeline. Turn this off before testers use the app.
+              </Text>
+            </View>
+            <Switch
+              value={showWorkshop}
+              onValueChange={async (value) => {
+                setShowWorkshop(value);
+                try {
+                  await saveShowWorkshop(value);
+                } catch {
+                  setShowWorkshop(!value);
+                }
+              }}
+              trackColor={{ false: colors.cardBorder, true: colors.blue }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
 
         <Text style={[styles.section, { color: colors.muted }]}>Sharing & mail</Text>
         <TouchableOpacity
