@@ -670,10 +670,14 @@ function WordToIntScreen({ navigation, route }) {
     });
   };
 
-  const searchNoteValue = (row) =>
-    Object.prototype.hasOwnProperty.call(searchNoteDrafts, row.id)
-      ? searchNoteDrafts[row.id]
-      : row.note || '';
+  const searchNoteValue = (row) => {
+    if (!row) return '';
+    if (Object.prototype.hasOwnProperty.call(searchNoteDrafts, row.id)) {
+      const draft = searchNoteDrafts[row.id];
+      return draft == null || typeof draft === 'object' ? '' : String(draft);
+    }
+    return row.note == null || typeof row.note === 'object' ? '' : String(row.note);
+  };
 
   const saveSearchNote = async (row) => {
     const nextNote = String(searchNoteValue(row) || '').trim();
@@ -692,7 +696,9 @@ function WordToIntScreen({ navigation, route }) {
   };
 
   useEffect(() => {
-    const ids = searchList.flatMap((row) => row.linkedEventIds || []);
+    const ids = searchList.flatMap((row) =>
+      Array.isArray(row?.linkedEventIds) ? row.linkedEventIds.map((id) => String(id)) : []
+    );
     if (!ids.length) {
       setLinkedEvents({});
       return;
@@ -875,25 +881,34 @@ function WordToIntScreen({ navigation, route }) {
             {searchList.length} items hidden. Tap Show list to expand.
           </Text>
         ) : (
-          searchList.map((row) => (
-            <View key={row.id} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.cardBorder }}>
+          searchList.map((row, index) => {
+            if (!row || typeof row !== 'object') return null;
+            const phraseText = row.phrase == null || typeof row.phrase === 'object' ? '' : String(row.phrase);
+            const numberText = showNum(row.number);
+            const label = phraseText || numberText || 'Item';
+            const rowId = String(row.id || `${label}-${index}`);
+            const links = Array.isArray(row.linkedEventIds)
+              ? row.linkedEventIds.map((id) => String(id?.id || id)).filter(Boolean)
+              : [];
+            return (
+            <View key={rowId} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.cardBorder }}>
               <View style={styles.searchRow}>
                 <TouchableOpacity
                   style={{ flex: 1 }}
                   onPress={() => {
-                    if (row.phrase) {
-                      setPhrase(row.phrase);
+                    if (phraseText) {
+                      setPhrase(phraseText);
                       setDupNotice(false);
-                    } else {
-                      setLookupNumber(String(row.number));
-                      setLookupMethod(row.method || 'all');
+                    } else if (numberText) {
+                      setLookupNumber(numberText);
+                      setLookupMethod(typeof row.method === 'string' ? row.method : 'all');
                     }
-                    if (row.note) setSearchNote(row.note);
+                    if (typeof row.note === 'string') setSearchNote(row.note);
                   }}
                 >
-                  <Text style={[styles.itemPhrase, { color: colors.text }]}>{row.phrase || row.number}</Text>
+                  <Text style={[styles.itemPhrase, { color: colors.text }]}>{label}</Text>
                   <Text style={[styles.itemMeta, { color: colors.faint }]}>
-                    {row.phrase ? 'Word · waiting to save' : `${methodLabel(row.method)} · no word yet`}
+                    {phraseText ? 'Word · waiting to save' : `${methodLabel(row.method)} · no word yet`}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => removeSearch(row)}>
@@ -909,8 +924,9 @@ function WordToIntScreen({ navigation, route }) {
                 placeholderTextColor={colors.faint}
                 multiline
               />
-              {(row.linkedEventIds || []).map((id) => {
+              {links.map((id) => {
                 const event = linkedEvents[String(id)];
+                const title = event && typeof event.title === 'string' ? event.title : 'Untitled';
                 return (
                   <TouchableOpacity
                     key={id}
@@ -918,7 +934,7 @@ function WordToIntScreen({ navigation, route }) {
                     style={{ marginTop: 6 }}
                   >
                     <Text style={[styles.link, { color: colors.blueSoft }]}>
-                      {event ? `${eventKindLabel(event)} · ${event.title || 'Untitled'}` : 'Linked event'}
+                      {event ? `${String(eventKindLabel(event))} · ${title}` : 'Linked event'}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -927,7 +943,8 @@ function WordToIntScreen({ navigation, route }) {
                 <Text style={[styles.link, { color: colors.blue }]}>Link events</Text>
               </TouchableOpacity>
             </View>
-          ))
+            );
+          })
         )}
       </View>
 

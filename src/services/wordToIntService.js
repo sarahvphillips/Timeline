@@ -827,11 +827,26 @@ export async function getNumberSearchList() {
   try {
     const list = await readNumberSearchList();
     return list
-      .filter((row) => {
-        if (!row) return false;
-        if (String(row.phrase || '').trim()) return true;
-        return row.number != null && !Number.isNaN(Number(row.number));
+      .map((row) => {
+        if (!row || typeof row !== 'object') return null;
+        const phrase = row.phrase == null || typeof row.phrase === 'object' ? '' : String(row.phrase).trim();
+        const rawNumber = row.number && typeof row.number === 'object' ? row.number.value : row.number;
+        const number = rawNumber == null || rawNumber === '' ? null : Number(rawNumber);
+        const hasNumber = number != null && !Number.isNaN(number);
+        if (!phrase && !hasNumber) return null;
+        return {
+          ...row,
+          id: row.id != null ? String(row.id) : `search-${phrase || number}`,
+          phrase,
+          number: hasNumber ? number : null,
+          method: typeof row.method === 'string' ? row.method : 'all',
+          note: row.note == null || typeof row.note === 'object' ? '' : String(row.note),
+          linkedEventIds: Array.isArray(row.linkedEventIds)
+            ? row.linkedEventIds.map((id) => String(id?.id || id)).filter(Boolean)
+            : [],
+        };
       })
+      .filter(Boolean)
       .sort((a, b) => String(b.addedAt || '').localeCompare(String(a.addedAt || '')));
   } catch (e) {
     console.warn('Searching-for list could not be read. It was not overwritten.', e);
