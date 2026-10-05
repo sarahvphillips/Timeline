@@ -122,7 +122,7 @@ function cardGlyph(ev) {
   return '◆';
 }
 
-function Avatar({ name, photoUri, colour, size = 52 }) {
+function Avatar({ name, photoUri, colour, size = 52, styles }) {
   const initial = (name || 'Y').charAt(0).toUpperCase();
   return (
     <View
@@ -149,7 +149,7 @@ function Avatar({ name, photoUri, colour, size = 52 }) {
   );
 }
 
-function Curve({ colour, side }) {
+function Curve({ colour, side, styles }) {
   const common = {
     width: CURVE,
     height: CURVE,
@@ -193,7 +193,7 @@ function shortWho(person) {
   return person?.initial || name.charAt(0).toUpperCase() || 'F';
 }
 
-function SharedCard({ item, colour, onPress }) {
+function SharedCard({ item, colour, onPress, styles }) {
   const shared = item.shared;
   const friends = item.friends || [];
   const who = ['You', ...friends.map(shortWho)].join(' · ');
@@ -228,7 +228,7 @@ function SharedCard({ item, colour, onPress }) {
   );
 }
 
-function PersonalCard({ event, colour, onPress }) {
+function PersonalCard({ event, colour, onPress, styles }) {
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -480,7 +480,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.headerBlock}>
           <View style={styles.avatarRow}>
-            <Avatar name={me.initial} photoUri={me.photoUri} colour={ME_COLOUR} />
+            <Avatar name={me.initial} photoUri={me.photoUri} colour={ME_COLOUR} styles={styles} />
             <Text style={styles.peopleMark}>👥</Text>
             {friendRoster.length > 0 ? (
               friendRoster.map((f) => (
@@ -489,10 +489,11 @@ export default function EventsWithFriendsScreen({ navigation }) {
                   name={f.displayName}
                   photoUri={f.photoUri}
                   colour={f.colour || primaryFriendColour}
+                  styles={styles}
                 />
               ))
             ) : (
-              <Avatar name={friendInitial} colour={primaryFriendColour} />
+              <Avatar name={friendInitial} colour={primaryFriendColour} styles={styles} />
             )}
           </View>
           <Text style={styles.screenTitle}>Events with friends</Text>
@@ -587,12 +588,14 @@ export default function EventsWithFriendsScreen({ navigation }) {
                   <PersonalCard
                     event={row.item.event}
                     colour={row.colour}
+                    styles={styles}
                     onPress={() => openPersonal(row.item.event)}
                   />
                 ) : (
                   <SharedCard
                     item={row.item}
                     colour={row.colour}
+                    styles={styles}
                     onPress={() => openShared(row.item)}
                   />
                 );
@@ -606,7 +609,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
                     {left ? (
                       <View style={styles.personalWrap}>
                         {card}
-                        <Curve colour={row.colour} side="left" />
+                        <Curve colour={row.colour} side="left" styles={styles} />
                       </View>
                     ) : null}
                   </View>
@@ -614,7 +617,7 @@ export default function EventsWithFriendsScreen({ navigation }) {
                   <View style={styles.sideSlot}>
                     {!left ? (
                       <View style={[styles.personalWrap, styles.personalWrapRight]}>
-                        <Curve colour={row.colour} side="right" />
+                        <Curve colour={row.colour} side="right" styles={styles} />
                         {card}
                       </View>
                     ) : null}
