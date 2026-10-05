@@ -21,9 +21,11 @@ import {
   loadRememberedEmail,
   prepareSignIn,
   saveRememberedEmail,
+  deleteUser,
 } from '../services/firebase';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 import { PRIVACY_URL, DELETE_ACCOUNT_URL, DELETE_DATA_URL } from '../legal/docs';
+import { normalizeHandle, saveProfile } from '../services/profileService';
 import { useTheme } from '../themeContext';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -31,6 +33,7 @@ export default function LoginScreen({ onEnterGuest }) {
   const { colors } = useTheme();
   const styles = useMemo(() => screenStyles(colors), [colors]);
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -68,6 +71,15 @@ export default function LoginScreen({ onEnterGuest }) {
       return;
     }
 
+    const chosenName = normalizeHandle(username);
+    if (isRegisterMode && chosenName.length < 3) {
+      Alert.alert(
+        'Username',
+        'Choose a username of at least 3 letters or numbers. It cannot be changed later.',
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -76,6 +88,20 @@ export default function LoginScreen({ onEnterGuest }) {
         await AsyncStorage.setItem(WELCOME_NEXT_KEY, '1');
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         const uid = cred?.user?.uid;
+        try {
+          await saveProfile({ handle: chosenName, visibility: 'private' });
+        } catch (profileError) {
+          if (cred?.user) {
+            try {
+              await deleteUser(cred.user);
+            } catch (_) {
+              /* account may remain; the username was not saved */
+            }
+          }
+          if (uid) await AsyncStorage.removeItem(welcomePendingKey(uid));
+          await AsyncStorage.removeItem(WELCOME_NEXT_KEY);
+          throw profileError;
+        }
         if (uid) {
           await AsyncStorage.setItem(welcomePendingKey(uid), '1');
           await AsyncStorage.removeItem(WELCOME_NEXT_KEY);
@@ -107,6 +133,12 @@ export default function LoginScreen({ onEnterGuest }) {
           break;
         case 'auth/network-request-failed':
           message = 'Network error. Check your internet connection.';
+          break;
+        case 'HANDLE_TAKEN':
+          message = 'That username is already in use. Try another.';
+          break;
+        case 'HANDLE_REQUIRED':
+          message = 'Choose a username of at least 3 letters or numbers.';
           break;
         default:
           message = error.message || message;
@@ -196,6 +228,24 @@ export default function LoginScreen({ onEnterGuest }) {
           onChangeText={setEmail}
           editable={!loading && !resetLoading}
         />
+
+        {isRegisterMode ? (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="Username"
+              placeholderTextColor="#999"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={username}
+              onChangeText={(t) => setUsername(normalizeHandle(t))}
+              editable={!loading && !resetLoading}
+            />
+            <Text style={styles.usernameHint}>
+              Letters and numbers. Friends see this instead of your email. It cannot be changed later.
+            </Text>
+          </>
+        ) : null}
 
         <View style={styles.passwordRow}>
           <TextInput
@@ -345,6 +395,13 @@ function screenStyles(c) {
     paddingVertical: 14,
     fontSize: 16,
     color: c.text,
+    marginBottom: 14,
+  },
+  usernameHint: {
+    color: c.faint,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: -6,
     marginBottom: 14,
   },
   passwordRow: {

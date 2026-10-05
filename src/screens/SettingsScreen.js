@@ -82,6 +82,7 @@ export default function SettingsScreen({ navigation }) {
   const [displayName, setDisplayName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [handle, setHandle] = useState('');
+  const [handleLocked, setHandleLocked] = useState(false);
   const [visibility, setVisibility] = useState('private');
   const [labels, setLabels] = useState([]);
   const [poemCats, setPoemCats] = useState([]);
@@ -126,6 +127,7 @@ export default function SettingsScreen({ navigation }) {
     setDisplayName(profile.displayName);
     setDateOfBirth(profile.dateOfBirth);
     setHandle(profile.handle || '');
+    setHandleLocked(normalizeHandle(profile.handle).length >= 3);
     setVisibility(profile.visibility === 'public' ? 'public' : 'private');
     setLabels(labs);
     setPoemCats(cats);
@@ -200,7 +202,9 @@ export default function SettingsScreen({ navigation }) {
       );
     } catch (e) {
       Alert.alert(
-        e?.code === 'HANDLE_TAKEN' || e?.code === 'HANDLE_REQUIRED' ? 'Handle' : 'Error',
+        e?.code === 'HANDLE_TAKEN' || e?.code === 'HANDLE_REQUIRED' || e?.code === 'HANDLE_LOCKED'
+          ? 'Username'
+          : 'Error',
         e?.message || 'Could not save profile.',
       );
     } finally {
@@ -444,19 +448,23 @@ export default function SettingsScreen({ navigation }) {
           })}
         </View>
         <Text style={[styles.label, { color: colors.muted }]}>Username</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
-          value={handle}
-          onChangeText={(t) => setHandle(normalizeHandle(t))}
-          placeholder="e.g. sarahv"
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholderTextColor={colors.faint}
-        />
+        {handleLocked ? (
+          <Text style={[styles.hint, { color: colors.text }]}>@{handle}</Text>
+        ) : (
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
+            value={handle}
+            onChangeText={(t) => setHandle(normalizeHandle(t))}
+            placeholder="e.g. sarahv"
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholderTextColor={colors.faint}
+          />
+        )}
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Friends see @username on shared events instead of your email. It can stay set while the
-          profile is totally private. Searchable is separate, and needs a username before the QR
-          link works. Save profile after changing it.
+          {handleLocked
+            ? 'Chosen for this account. It cannot be changed. Friends see this instead of your email.'
+            : 'Set this once. After you save it, it cannot be changed. Friends see it instead of your email. Searchable profiles use the same name for the public link.'}
         </Text>
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder }]}

@@ -230,6 +230,11 @@ export async function saveProfile(profile) {
     ...profile,
     updatedAt: new Date().toISOString(),
   });
+  if (current.handle && next.handle !== current.handle) {
+    const err = new Error('Your username is set for this account and cannot be changed.');
+    err.code = 'HANDLE_LOCKED';
+    throw err;
+  }
   if (next.visibility === 'public' && next.handle.length < 3) {
     const err = new Error('Pick a username of at least 3 letters or numbers to be searchable.');
     err.code = 'HANDLE_REQUIRED';
