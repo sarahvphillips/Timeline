@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -334,9 +334,16 @@ function isLocalOnlyImageUri(uri) {
   if (!t) return false;
   if (/^(https?:|gs:)/i.test(t)) return false;
   if (/^(file:|content:|blob:|ph:|assets-library:|ms-appdata:|ms-appx:|data:)/i.test(t)) return true;
-  // Bare absolute / relative paths without a remote scheme
   if (!t.includes('://')) return true;
   return false;
+}
+
+function photoCanLeaveDevice(uri) {
+  const text = String(uri || '');
+  if (!isLocalOnlyImageUri(text)) return false;
+  if (text.startsWith('data:')) return true;
+  if (Platform.OS === 'web') return false;
+  return true;
 }
 
 /**
@@ -379,7 +386,7 @@ async function attachCloudPhotos(event, uid) {
   let next = event;
   for (const field of ['imageUri', 'coverImageUri']) {
     let uri = next[field];
-    if (!isLocalOnlyImageUri(uri)) continue;
+    if (!photoCanLeaveDevice(uri)) continue;
     if (typeof uri === 'string' && uri.startsWith('data:') && uri.length > 500000) {
       try {
         const smaller = await compressImageUri(uri);
@@ -412,7 +419,7 @@ async function promotePendingEventPhotos(events, uid, limit = 6) {
     let next = event;
     for (const field of ['imageUri', 'coverImageUri']) {
       if (left <= 0) break;
-      if (!isLocalOnlyImageUri(next[field])) continue;
+      if (!photoCanLeaveDevice(next[field])) continue;
       left -= 1;
       try {
         const remote = await uploadEventImage(uid, next.id, field, next[field]);

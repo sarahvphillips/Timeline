@@ -99,8 +99,16 @@ async function compressViaCanvas(uri) {
  */
 export async function compressImageUri(uri) {
   if (!uri) return uri;
+  if (Platform.OS === 'web') {
+    const text = String(uri);
+    if (text.indexOf('data:') !== 0 && text.indexOf('blob:') !== 0) return uri;
+    try {
+      return await compressViaCanvas(text);
+    } catch (_) {
+      return uri;
+    }
+  }
   try {
-    // Avoid upscaling small images — only resize when wider than MAX_IMAGE_WIDTH.
     let actions = [{ resize: { width: MAX_IMAGE_WIDTH } }];
     try {
       const { Image } = require('react-native');
@@ -111,46 +119,15 @@ export async function compressImageUri(uri) {
           (err) => reject(err || new Error('getSize failed'))
         );
       });
-      if (size && size.w && size.w <= MAX_IMAGE_WIDTH) {
-        actions = [];
-      }
-    } catch (_) {
-      // Keep resize action if size unknown (phone photos are usually large).
-    }
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      actions,
-      {
-        compress: JPEG_QUALITY,
-        format: ImageManipulator.SaveFormat.JPEG,
-        // On web, base64 lets us build a durable data: URI (blob: dies on reload).
-        base64: Platform.OS === 'web',
-      }
-    );
-    if (Platform.OS === 'web') {
-      if (result?.base64) {
-        return `data:image/jpeg;base64,${result.base64}`;
-      }
-      if (result?.uri) {
-        if (result.uri.indexOf('data:') === 0) return result.uri;
-        try {
-          return await compressViaCanvas(result.uri);
-        } catch (e) {
-          console.warn('compressImageUri: canvas after manipulator failed', e);
-          return result.uri;
-        }
-      }
-    }
+      if (size && size.w && size.w <= MAX_IMAGE_WIDTH) actions = [];
+    } catch (_) {}
+    const result = await ImageManipulator.manipulateAsync(uri, actions, {
+      compress: JPEG_QUALITY,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
     return (result && result.uri) || uri;
   } catch (e) {
     console.warn('compressImageUri: manipulator failed', e);
-    if (Platform.OS === 'web') {
-      try {
-        return await compressViaCanvas(uri);
-      } catch (e2) {
-        console.warn('compressImageUri: canvas fallback failed', e2);
-      }
-    }
     return uri;
   }
 }
@@ -268,7 +245,28 @@ function readBlobAsDataUrl(blob) {
   });
 }
 
-/** Snapshot a picker result before the browser throws the temporary blob: link away. */
+async function fileToJpegDataUrl(file) {
+  if (file && typeof createImageBitmap === 'function' && typeof document !== 'undefined') {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = bitmap.width > MAX_IMAGE_WIDTH ? MAX_IMAGE_WIDTH / bitmap.width : 1;
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('canvas unavailable');
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      if (typeof bitmap.close === 'function') bitmap.close();
+      return canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+    } catch (e) {
+      console.warn('fileToJpegDataUrl failed', e);
+    }
+  }
+  if (file) return readBlobAsDataUrl(file);
+  return '';
+}
 async function durableImageUri(uri, file, base64, mimeType) {
   if (file) {
     try {
@@ -294,8 +292,14 @@ async function persistAsset(asset) {
   if (!asset || !asset.uri) return null;
   const name = asset.fileName || asset.filename || asset.name || null;
   if (Platform.OS === 'web') {
-    const dataUrl = await durableImageUri(asset.uri, asset.file, asset.base64, asset.mimeType);
-    return persistPickedImage(dataUrl || asset.uri, name, null, asset.mimeType || 'image/jpeg');
+    let dataUrl = '';
+    if (asset.file) dataUrl = await fileToJpegDataUrl(asset.file);
+    if (!dataUrl) dataUrl = await durableImageUri(asset.uri, null, asset.base64, asset.mimeType);
+    if (!dataUrl || String(dataUrl).indexOf('blob:') === 0) {
+      tell('Photo not kept', 'This browser could not read that picture. Choose a JPEG or PNG.');
+      return null;
+    }
+    return { uri: tidyDataUrl(dataUrl), filename: (name || 'photo').replace(/\.[a-zA-Z0-9]+$/i, '') + '.jpg' };
   }
   return persistPickedImage(asset.uri, name, asset.base64, asset.mimeType);
 }
