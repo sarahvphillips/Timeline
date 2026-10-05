@@ -78,23 +78,23 @@ export default function LoginScreen({ onEnterGuest }) {
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Missing info', 'Please enter both email and password.');
+      showMessage('Missing info', 'Please enter both email and password.');
       return;
     }
 
     if (!/\S+@\S+\.\S+/.test(email.trim())) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      showMessage('Invalid email', 'Please enter a valid email address.');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+      showMessage('Weak password', 'Password must be at least 6 characters.');
       return;
     }
 
     const chosenName = normalizeHandle(username);
     if (isRegisterMode && chosenName.length < 3) {
-      Alert.alert(
+      showMessage(
         'Username',
         'Choose a username of at least 3 letters or numbers. It cannot be changed later.',
       );
@@ -144,7 +144,9 @@ export default function LoginScreen({ onEnterGuest }) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
         case 'auth/invalid-credential':
-          message = 'Incorrect email or password.';
+          message = isRegisterMode
+            ? 'Could not create the account. Check the email and password, then try again.'
+            : 'No account was found for that email, or the password is wrong. If you are new, tap "Don\'t have an account? Create one" and register.';
           break;
         case 'auth/weak-password':
           message = 'Password is too weak (minimum 6 characters).';
@@ -165,7 +167,7 @@ export default function LoginScreen({ onEnterGuest }) {
           message = error.message || message;
       }
 
-      Alert.alert(isRegisterMode ? 'Registration failed' : 'Login failed', message);
+      showMessage(isRegisterMode ? 'Registration failed' : 'Login failed', message);
     } finally {
       setLoading(false);
     }
