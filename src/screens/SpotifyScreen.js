@@ -14,6 +14,7 @@ import HomeFab from '../components/HomeFab';
 import { saveEvent, deleteEvent } from '../services/eventService';
 import { useTheme } from '../themeContext';
 import {
+import DateField from '../components/DateField';
   loadSpotify,
   saveSpotify,
   parseSpotify,
@@ -206,15 +207,8 @@ export default function SpotifyScreen({ navigation, route }) {
           ))}
         </View>
 
-        <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-        <TextInput
-          style={styles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#64748b"
-          autoCapitalize="none"
-        />
+        <Text style={styles.label}>Date</Text>
+        <DateField value={date} onChange={setDate} />
         <Text style={styles.hint}>Shown as {date ? formatUk(date) : '—'}</Text>
 
         <Text style={styles.label}>Note</Text>

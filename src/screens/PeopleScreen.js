@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
+import DateField from '../components/DateField';
 import {
   savePerson,
   deletePerson,
@@ -115,7 +116,7 @@ export default function PeopleScreen({ navigation }) {
     setName(p.name);
     setPhone(p.phone);
     setEmail(p.email);
-    setBirthday(p.birthday ? formatUk(p.birthday) : '');
+    setBirthday(p.birthday || '');
     setNote(p.note);
   };
 
@@ -351,15 +352,8 @@ export default function PeopleScreen({ navigation }) {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          <Text style={styles.label}>Birthday (DD/MM/YYYY)</Text>
-          <TextInput
-            style={styles.input}
-            value={birthday}
-            onChangeText={setBirthday}
-            placeholder="14/11/1986"
-            placeholderTextColor="#64748b"
-            keyboardType="numbers-and-punctuation"
-          />
+          <Text style={styles.label}>Birthday</Text>
+          <DateField value={birthday} onChange={setBirthday} />
           <Text style={styles.label}>Note (optional)</Text>
           <TextInput
             style={[styles.input, styles.notes]}

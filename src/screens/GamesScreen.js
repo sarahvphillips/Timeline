@@ -18,6 +18,7 @@ import LabelPicker from '../components/LabelPicker';
 import { saveEvent, deleteEvent } from '../services/eventService';
 import { useTheme } from '../themeContext';
 import {
+import DateField from '../components/DateField';
   loadGames,
   saveGames,
   parseGameLink,
@@ -225,13 +226,7 @@ export default function GamesScreen({ navigation, route }) {
 
           <Text style={styles.label}>Date · session</Text>
           <View style={styles.two}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#64748b"
-            />
+            <DateField value={date} onChange={setDate} style={{ flex: 1 }} />
             <TextInput
               style={[styles.input, { flex: 1 }]}
               value={hours}

@@ -20,6 +20,7 @@ import {
 import WashMediaField from '../components/WashMediaField';
 import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 function ChipRow({ options, value, onChange, styles }) {
   return (
@@ -219,15 +220,8 @@ export default function AddWashLoadScreen({ navigation, route }) {
           onChangeText={setWashSetting}
         />
 
-        <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-        <TextInput
-          style={styles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#64748b"
-          autoCapitalize="none"
-        />
+        <Text style={styles.label}>Date</Text>
+        <DateField value={date} onChange={setDate} />
 
         <Text style={styles.label}>Status</Text>
         <ChipRow options={WASH_STATUSES} value={washStatus} onChange={setWashStatus} styles={styles} />

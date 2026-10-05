@@ -47,6 +47,7 @@ import {
 import { syncAcceptedJoins } from '../services/peopleService';
 import { applyJoinRewards, perkLabel, getRewards, hasPerk, CREDITS_PAUSED } from '../services/rewardsService';
 import {
+import DateField from '../components/DateField';
   DATE_FORMAT_DMY,
   DATE_FORMAT_MDY,
   getDateFormat,
@@ -436,13 +437,7 @@ export default function SettingsScreen({ navigation }) {
           placeholderTextColor={colors.faint}
         />
         <Text style={[styles.label, { color: colors.muted }]}>Date of birth</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
-          value={dateOfBirth}
-          onChangeText={setDateOfBirth}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.faint}
-        />
+        <DateField value={dateOfBirth} onChange={setDateOfBirth} />
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: colors.blue }]}
           onPress={handleSaveProfile}

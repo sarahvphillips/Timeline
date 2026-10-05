@@ -199,7 +199,7 @@ Product map:
 - [ ] **Future: IRL / public event QR** - scan a venue/poster/public-page QR -> draft a Timeline event from page/link metadata (title, URL, date if present). Friend-invite Scan QR (share code / `timelineapp://share/CODE`) stays separate; codes/SMS remain for remote invites.
 
 - [ ] Google Sign-In (re-enable fully if needed)
-- [ ] Better date picker (calendar UI)
+- [x] **Calendar date picker (5 Oct 2026):** Tap a date to open a month calendar. Year and month step buttons, so a birthday in another year is not a long scroll. The stored value stays YYYY-MM-DD. The button shows DD/MM/YYYY or MM/DD/YYYY from Settings. Used on add-event screens, poems, Settings date of birth, Days between, and Date circle.
 - [x] Filter timeline by category (20 Sep 2026): chips on Years + list. **Poems** (and Games/SMS/…) puts every matching item on the spine as its own bubble, grouped by year — same idea as the poems-chip design.
 - [x] Mark next-action as done from the list (3 Oct 2026). Timeline cards with Ask Grok or Follow up later show Mark done without opening Edit. The event view has the same button. It sets nextAction to done.
 - [x] Photos / attachments on events (imageUri on Add Event / Add Poem; shown on expanded Timeline cards)

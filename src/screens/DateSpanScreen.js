@@ -34,6 +34,7 @@ import {
 } from '../services/wordToIntService';
 import { saveEvent } from '../services/eventService';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -308,15 +309,8 @@ export default function DateSpanScreen({ navigation, route }) {
         multiline
       />
 
-      <Text style={styles.label}>From date (YYYY-MM-DD)</Text>
-      <TextInput
-        style={styles.input}
-        value={fromDate}
-        onChangeText={setFromDate}
-        placeholder="1972-06-28"
-        placeholderTextColor="#64748b"
-        autoCapitalize="none"
-      />
+      <Text style={styles.label}>From date</Text>
+      <DateField value={fromDate} onChange={setFromDate} />
       <Text style={styles.label}>From time (HH:MM:SS)</Text>
       <TextInput
         style={styles.input}
@@ -326,15 +320,8 @@ export default function DateSpanScreen({ navigation, route }) {
         placeholderTextColor="#64748b"
       />
 
-      <Text style={styles.label}>To date (YYYY-MM-DD)</Text>
-      <TextInput
-        style={styles.input}
-        value={toDate}
-        onChangeText={setToDate}
-        placeholder="1986-11-14"
-        placeholderTextColor="#64748b"
-        autoCapitalize="none"
-      />
+      <Text style={styles.label}>To date</Text>
+      <DateField value={toDate} onChange={setToDate} />
       <Text style={styles.label}>To time (HH:MM:SS)</Text>
       <TextInput
         style={styles.input}

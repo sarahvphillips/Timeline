@@ -16,6 +16,7 @@ import CallAudioField from '../components/CallAudioField';
 import { saveEvent, getEvents, deleteEvent } from '../services/eventService';
 import { formatUk } from '../services/dateSpanService';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 const KINDS = [
   { id: 'singing', label: 'Singing' },
@@ -157,15 +158,8 @@ export default function AddSingingScreen({ navigation, route }) {
           placeholderTextColor="#64748b"
         />
 
-        <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-        <TextInput
-          style={styles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#64748b"
-          autoCapitalize="none"
-        />
+        <Text style={styles.label}>Date</Text>
+        <DateField value={date} onChange={setDate} />
         <Text style={styles.hint}>{date ? formatUk(date) : '—'}</Text>
 
         <CallAudioField

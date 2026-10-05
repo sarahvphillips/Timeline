@@ -21,6 +21,7 @@ import { pickFromGallery, asImageUri } from '../services/imagePicker';
 import { copyTextToClipboard } from '../services/shareService';
 import { useTheme } from '../themeContext';
 import {
+import DateField from '../components/DateField';
   loadSocial,
   saveSocial,
   parseSocialLink,
@@ -311,13 +312,7 @@ export default function SocialScreen({ navigation, route }) {
           </View>
 
           <Text style={styles.label}>Date</Text>
-          <TextInput
-            style={styles.input}
-            value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor="#64748b"
-          />
+          <DateField value={date} onChange={setDate} />
           <Text style={styles.hint}>{date ? formatUk(date) : ''}</Text>
 
           <Text style={styles.label}>Note</Text>

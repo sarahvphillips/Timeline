@@ -17,6 +17,7 @@ import { getPeople, findPerson, patchPerson } from '../services/peopleService';
 import { formatUk } from '../services/dateSpanService';
 import { createEventShare } from '../services/shareService';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 const CATEGORIES = [
   { id: 'personal', label: 'Personal' },
@@ -251,16 +252,9 @@ export default function AddSmsScreen({ navigation, route }) {
             </TouchableOpacity>
           ) : null}
 
-          <Text style={styles.label}>Date (YYYY-MM-DD) · Time (HH:MM)</Text>
+          <Text style={styles.label}>Date · Time (HH:MM)</Text>
           <View style={styles.two}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#64748b"
-              autoCapitalize="none"
-            />
+            <DateField value={date} onChange={setDate} style={{ flex: 1 }} />
             <TextInput
               style={[styles.input, { flex: 1 }]}
               value={time}

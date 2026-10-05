@@ -14,6 +14,7 @@ import { saveEvent, deleteEvent } from '../services/eventService';
 import ImageAttachField from '../components/ImageAttachField';
 import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 const FOOD_STATUSES = [
   { id: 'planned', label: 'Planned' },
@@ -174,15 +175,8 @@ export default function AddFoodScreen({ navigation, route }) {
           textAlignVertical="top"
         />
 
-        <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-        <TextInput
-          style={styles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#64748b"
-          autoCapitalize="none"
-        />
+        <Text style={styles.label}>Date</Text>
+        <DateField value={date} onChange={setDate} />
 
         <Text style={styles.label}>Status</Text>
         <View style={styles.row}>

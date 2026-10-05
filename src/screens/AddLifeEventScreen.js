@@ -20,6 +20,7 @@ import { daysUntilNext, formatUk } from '../services/dateSpanService';
 import { getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
 import { PLACE_PRESETS } from '../services/placesService';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 export const LIFE_KINDS = [
   { id: 'birthday', label: 'Birthday', hint: 'Date of birth. Coming-up uses the next birthday from today.' },
@@ -248,17 +249,8 @@ export default function AddLifeEventScreen({ navigation, route }) {
           placeholderTextColor="#64748b"
         />
 
-        <Text style={styles.label}>
-          Date ({dateFormat === 'mdy' ? 'shows as MM/DD/YYYY' : 'shows as DD/MM/YYYY'})
-        </Text>
-        <TextInput
-          style={styles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#64748b"
-          autoCapitalize="none"
-        />
+        <Text style={styles.label}>Date</Text>
+        <DateField value={date} onChange={setDate} />
         <Text style={styles.hint}>{date ? formatUk(date, dateFormat) : '—'}</Text>
 
         <Text style={styles.label}>Who</Text>

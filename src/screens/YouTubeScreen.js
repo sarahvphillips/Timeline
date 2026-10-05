@@ -17,6 +17,7 @@ import HomeFab from '../components/HomeFab';
 import { saveEvent, deleteEvent } from '../services/eventService';
 import { useTheme } from '../themeContext';
 import {
+import DateField from '../components/DateField';
   loadYoutube,
   saveYoutube,
   parseYoutubeId,
@@ -227,15 +228,8 @@ export default function YouTubeScreen({ navigation, route }) {
           placeholderTextColor="#64748b"
         />
 
-        <Text style={styles.field}>Uploaded (YYYY-MM-DD)</Text>
-        <TextInput
-          style={styles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#64748b"
-          autoCapitalize="none"
-        />
+        <Text style={styles.field}>Uploaded</Text>
+        <DateField value={date} onChange={setDate} />
         <Text style={styles.hint}>Shown as {date ? formatUk(date) : '—'}</Text>
 
         <Text style={styles.field}>Note</Text>

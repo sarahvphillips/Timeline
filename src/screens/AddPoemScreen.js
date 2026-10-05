@@ -15,6 +15,7 @@ import { getEventCategories } from '../services/profileService';
 import ImageAttachField from '../components/ImageAttachField';
 import LabelPicker from '../components/LabelPicker';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 export default function AddPoemScreen({ navigation, route }) {
   const { colors } = useTheme();
@@ -98,13 +99,8 @@ export default function AddPoemScreen({ navigation, route }) {
           onChangeText={setTitle}
         />
 
-        <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-        <TextInput
-          style={styles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholderTextColor="#64748b"
-        />
+        <Text style={styles.label}>Date</Text>
+        <DateField value={date} onChange={setDate} />
 
         <Text style={styles.label}>Category</Text>
         <View style={styles.row}>

@@ -43,6 +43,7 @@ import { ADD_KINDS } from '../constants/addKinds';
 import { getShowFoodInMenu, getShowWashInMenu, getEventCategories } from '../services/profileService';
 import { PLACE_PRESETS } from '../services/placesService';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 export default function AddEventScreen({ navigation, route }) {
   const { colors } = useTheme();
@@ -762,16 +763,8 @@ export default function AddEventScreen({ navigation, route }) {
           </>
         )}
 
-        <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-        <TextInput
-          style={[styles.input, coreReadOnly && styles.inputReadOnly]}
-          placeholder="2026-08-23"
-          placeholderTextColor="#64748b"
-          value={date}
-          onChangeText={setDate}
-          editable={!coreReadOnly}
-          keyboardType="numbers-and-punctuation"
-        />
+        <Text style={styles.label}>Date</Text>
+        <DateField value={date} onChange={setDate} editable={!coreReadOnly} />
 
         <Text style={styles.label}>Location (optional)</Text>
         <View style={styles.categories}>

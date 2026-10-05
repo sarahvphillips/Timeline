@@ -17,6 +17,7 @@ import LabelPicker from '../components/LabelPicker';
 import { saveEvent, deleteEvent } from '../services/eventService';
 import { useTheme } from '../themeContext';
 import {
+import DateField from '../components/DateField';
   WATCH_KINDS,
   WATCH_PLACES,
   WATCH_STATUSES,
@@ -251,14 +252,8 @@ export default function AddWatchedScreen({ navigation, route }) {
             autoCapitalize="none"
           />
 
-          <Text style={styles.label}>Watched on (YYYY-MM-DD)</Text>
-          <TextInput
-            style={styles.input}
-            value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor="#64748b"
-          />
+          <Text style={styles.label}>Watched on</Text>
+          <DateField value={date} onChange={setDate} />
           <Text style={styles.hint}>Shown as {date ? formatUk(date) : '—'}</Text>
 
           <Text style={styles.label}>Status</Text>

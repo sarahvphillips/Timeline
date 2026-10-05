@@ -35,6 +35,7 @@ import {
 import { getWordNumbers, findPhrasesForNumber } from '../services/wordToIntService';
 import { saveEvent } from '../services/eventService';
 import { useTheme } from '../themeContext';
+import DateField from '../components/DateField';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -495,14 +496,7 @@ export default function DateCircleScreen({ navigation }) {
 
       <View style={styles.card}>
         <Text style={styles.label}>Date at the top</Text>
-        <TextInput
-          style={styles.input}
-          value={focus}
-          onChangeText={setFocus}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.faint}
-          autoCapitalize="none"
-        />
+        <DateField value={focus} onChange={setFocus} />
         <Text style={styles.hint}>Shown as {focus ? formatDob(focus) : '—'}</Text>
         <TouchableOpacity style={styles.toggle} onPress={() => setExcludeEnd((v) => !v)}>
           <View style={[styles.box, excludeEnd && styles.boxOn]} />
@@ -776,14 +770,7 @@ export default function DateCircleScreen({ navigation }) {
           </TouchableOpacity>
         </View>
         {!useToday ? (
-          <TextInput
-            style={styles.input}
-            value={eventDate}
-            onChangeText={setEventDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={colors.faint}
-            autoCapitalize="none"
-          />
+          <DateField value={eventDate} onChange={setEventDate} />
         ) : (
           <Text style={styles.hint}>Uses {formatUk(todayIso())}</Text>
         )}
@@ -847,14 +834,7 @@ export default function DateCircleScreen({ navigation }) {
         placeholder="Initials e.g. KD"
         placeholderTextColor={colors.faint}
       />
-      <TextInput
-        style={[styles.input, { marginTop: 8 }]}
-        value={birth}
-        onChangeText={setBirth}
-        placeholder="DoB YYYY-MM-DD"
-        placeholderTextColor={colors.faint}
-        autoCapitalize="none"
-      />
+      <DateField value={birth} onChange={setBirth} style={{ marginTop: 8 }} />
       <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={addPerson}>
         <Text style={styles.buttonText}>{editingId ? 'Save changes' : 'Add to wheel'}</Text>
       </TouchableOpacity>
@@ -881,13 +861,10 @@ export default function DateCircleScreen({ navigation }) {
                   placeholder="First initials"
                   placeholderTextColor={colors.faint}
                 />
-                <TextInput
-                  style={[styles.input, { marginTop: 8 }]}
+                <DateField
                   value={pairDraft.aDate}
-                  onChangeText={(v) => setPairDraft((d) => ({ ...d, aDate: v }))}
-                  placeholder="First date YYYY-MM-DD"
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="none"
+                  onChange={(v) => setPairDraft((d) => ({ ...d, aDate: v }))}
+                  style={{ marginTop: 8 }}
                 />
                 <TextInput
                   style={[styles.input, { marginTop: 8 }]}
@@ -896,21 +873,15 @@ export default function DateCircleScreen({ navigation }) {
                   placeholder="Second initials"
                   placeholderTextColor={colors.faint}
                 />
-                <TextInput
-                  style={[styles.input, { marginTop: 8 }]}
+                <DateField
                   value={pairDraft.bDate}
-                  onChangeText={(v) => setPairDraft((d) => ({ ...d, bDate: v }))}
-                  placeholder="Second date YYYY-MM-DD"
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="none"
+                  onChange={(v) => setPairDraft((d) => ({ ...d, bDate: v }))}
+                  style={{ marginTop: 8 }}
                 />
-                <TextInput
-                  style={[styles.input, { marginTop: 8 }]}
+                <DateField
                   value={pairDraft.focus}
-                  onChangeText={(v) => setPairDraft((d) => ({ ...d, focus: v }))}
-                  placeholder="Top date YYYY-MM-DD"
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="none"
+                  onChange={(v) => setPairDraft((d) => ({ ...d, focus: v }))}
+                  style={{ marginTop: 8 }}
                 />
                 <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={savePairEdit}>
                   <Text style={styles.buttonText}>Save changes</Text>
