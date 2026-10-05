@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   deleteUser,
+  updatePassword,
   EmailAuthProvider,
   reauthenticateWithCredential,
   setPersistence,
@@ -143,6 +144,7 @@ export {
   onAuthStateChanged,
   sendPasswordResetEmail,
   deleteUser,
+  updatePassword,
   EmailAuthProvider,
   reauthenticateWithCredential,
 };

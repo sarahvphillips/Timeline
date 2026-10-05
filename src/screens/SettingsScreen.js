@@ -35,7 +35,7 @@ import {
 } from '../services/profileService';
 import { getShowWorkshop, saveShowWorkshop } from '../services/workshopPrefs';
 import { clearThisAccountLocalCache } from '../services/localCache';
-import { accountNeedsPassword, deleteSignedInAccount } from '../services/accountDelete';
+import { accountNeedsPassword, changeSignedInPassword, deleteSignedInAccount } from '../services/accountDelete';
 import { auth } from '../services/firebase';
 import {
   getOrCreateDeviceId,
@@ -97,6 +97,10 @@ export default function SettingsScreen({ navigation }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteWord, setDeleteWord] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [thisDeviceId, setThisDeviceId] = useState(null);
@@ -318,6 +322,35 @@ export default function SettingsScreen({ navigation }) {
       notify('Could not clear', fail);
     } finally {
       setClearingCache(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (changingPassword) return;
+    if (nextPassword !== confirmPassword) {
+      notify('Password', 'The new password and the confirmation do not match.');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await changeSignedInPassword(currentPassword, nextPassword);
+      setCurrentPassword('');
+      setNextPassword('');
+      setConfirmPassword('');
+      notify('Password changed', 'Use the new password the next time you sign in.');
+    } catch (e) {
+      const code = e?.code || '';
+      const message =
+        code === 'auth/invalid-credential' || code === 'auth/wrong-password'
+          ? 'The current password is not correct.'
+          : code === 'auth/weak-password' || code === 'WEAK_PASSWORD'
+            ? 'The new password must be at least 6 characters.'
+            : code === 'auth/too-many-requests'
+              ? 'Too many attempts. Wait a moment and try again.'
+              : e?.message || 'Could not change the password.';
+      notify('Password', message);
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -974,6 +1007,56 @@ export default function SettingsScreen({ navigation }) {
           <Text style={[styles.aboutLine, { color: colors.muted }]}>Expo SDK {about.sdkVersion}</Text>
           <Text style={[styles.aboutLine, { color: colors.muted }]}>#kern2622</Text>
         </View>
+
+        <Text style={[styles.section, { color: colors.muted }]}>Password</Text>
+        {!auth.currentUser ? (
+          <Text style={[styles.hint, { color: colors.faint }]}>Sign in to change a password.</Text>
+        ) : !accountNeedsPassword(auth.currentUser) ? (
+          <Text style={[styles.hint, { color: colors.faint }]}>This login does not use a password.</Text>
+        ) : (
+          <View>
+            <Text style={[styles.hint, { color: colors.faint }]}>
+              Enter the current password, then a new one of at least 6 characters.
+            </Text>
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.bg || '#0f1024' }]}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="Current password"
+              placeholderTextColor={colors.faint}
+            />
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.bg || '#0f1024' }]}
+              value={nextPassword}
+              onChangeText={setNextPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="New password"
+              placeholderTextColor={colors.faint}
+            />
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.bg || '#0f1024' }]}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="Confirm new password"
+              placeholderTextColor={colors.faint}
+            />
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: colors.blue, opacity: changingPassword ? 0.6 : 1 }]}
+              onPress={handleChangePassword}
+              disabled={changingPassword}
+            >
+              <Text style={styles.saveBtnText}>{changingPassword ? 'Changing…' : 'Change password'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={[styles.section, { color: colors.muted }]}>Account</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>

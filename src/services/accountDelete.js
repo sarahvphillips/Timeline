@@ -15,6 +15,7 @@ import {
   deleteUser,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  updatePassword,
 } from './firebase';
 
 const LAST_UID_KEY = '@timeline_last_uid';
@@ -107,6 +108,36 @@ async function deleteLocalAccount(uid) {
 export function accountNeedsPassword(user) {
   const current = user || auth.currentUser;
   return (current?.providerData || []).some((row) => row.providerId === 'password');
+}
+
+export async function changeSignedInPassword(currentPassword, nextPassword) {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Sign in first.');
+  if (!accountNeedsPassword(user)) {
+    const err = new Error('This login does not use a password.');
+    err.code = 'NO_PASSWORD';
+    throw err;
+  }
+  const current = String(currentPassword || '');
+  const next = String(nextPassword || '');
+  if (!current) {
+    const err = new Error('Enter your current password.');
+    err.code = 'NEED_PASSWORD';
+    throw err;
+  }
+  if (next.length < 6) {
+    const err = new Error('The new password must be at least 6 characters.');
+    err.code = 'WEAK_PASSWORD';
+    throw err;
+  }
+  if (current === next) {
+    const err = new Error('Choose a password that is different from the current one.');
+    err.code = 'SAME_PASSWORD';
+    throw err;
+  }
+  const cred = EmailAuthProvider.credential(user.email, current);
+  await reauthenticateWithCredential(user, cred);
+  await updatePassword(user, next);
 }
 
 export async function deleteSignedInAccount(password) {
