@@ -95,7 +95,7 @@ export default function AddEventScreen({ navigation, route }) {
   const [imageUri, setImageUri] = useState(existing?.imageUri || route.params?.imageUri || '');
   const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
   const [labels, setLabels] = useState(Array.isArray(existing?.labels) ? existing.labels : []);
-  const [location, setLocation] = useState(existing?.location || '');
+  const [location, setLocation] = useState(existing?.location || route.params?.location || '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saveNotice, setSaveNotice] = useState('');

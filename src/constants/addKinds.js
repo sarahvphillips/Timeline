@@ -13,7 +13,7 @@ export const ADD_KINDS = [
   { id: 'watched', label: 'TV & films', blurb: 'What you watched, optional score', screen: 'AddWatched' },
   { id: 'email', label: 'Email', blurb: 'Save a mail as an event', screen: 'AddEvent', params: { kind: 'email', fromEmail: true, source: 'email' } },
   { id: 'gmail', label: 'Pick from Gmail', blurb: 'Choose a message, then save', screen: 'PickFromGmail' },
-  { id: 'qr', label: 'QR link', blurb: 'Link plus a code', screen: 'AddQr' },
+  { id: 'qr', label: 'QR link', blurb: 'Scan a poster, or save a link', screen: 'AddQr' },
   { id: 'food', label: 'Food', blurb: 'Planned or eaten. Photo optional', screen: 'AddFood', needsFood: true },
   { id: 'wash', label: 'Wash load', blurb: 'Laundry on the household central axis', screen: 'AddWashLoad', needsWash: true },
   { id: 'location', label: 'Location', blurb: 'Home, internet, or a named place', screen: 'AddLocation' },

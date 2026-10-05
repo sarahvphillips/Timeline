@@ -196,7 +196,7 @@ Product map:
 
 ## Next / Nice to have
 
-- [ ] **Future: IRL / public event QR** - scan a venue/poster/public-page QR -> draft a Timeline event from page/link metadata (title, URL, date if present). Friend-invite Scan QR (share code / `timelineapp://share/CODE`) stays separate; codes/SMS remain for remote invites.
+- [x] **Poster QR into a draft event (5 Oct 2026):** Add event → QR link → Scan a poster QR, or paste the link. Opens Add event with a title, the link, a date when the code or page has one, and a place when a calendar code has one. Nothing is saved until Save. A Timeline friend-invite code is sent to Enter invite instead.
 
 - [ ] Google Sign-In (re-enable fully if needed)
 - [x] **Calendar date picker (5 Oct 2026):** Tap a date to open a month calendar. Year and month step buttons, so a birthday in another year is not a long scroll. The stored value stays YYYY-MM-DD. The button shows DD/MM/YYYY or MM/DD/YYYY from Settings. Used on add-event screens, poems, Settings date of birth, Days between, and Date circle.
