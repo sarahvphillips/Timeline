@@ -230,15 +230,20 @@ export async function saveProfile(profile) {
     ...profile,
     updatedAt: new Date().toISOString(),
   });
-  if (next.visibility === 'public') {
-    if (next.handle.length < 3) {
-      const err = new Error('Pick a handle of at least 3 letters or numbers to be searchable.');
-      err.code = 'HANDLE_REQUIRED';
-      throw err;
-    }
-    await claimPublicProfile(uid, current.handle, next);
-  } else {
-    await releasePublicProfile(uid, current.handle);
+  if (next.visibility === 'public' && next.handle.length < 3) {
+    const err = new Error('Pick a username of at least 3 letters or numbers to be searchable.');
+    err.code = 'HANDLE_REQUIRED';
+    throw err;
+  }
+  if (uid && next.handle.length >= 3) {
+    await claimProfileHandle(uid, current.handle, next.handle);
+  } else if (uid && current.handle) {
+    await releaseProfileHandle(uid, current.handle);
+  }
+  if (uid && next.visibility === 'public') {
+    await publishPublicProfile(uid, next);
+  } else if (uid) {
+    await hidePublicProfile(uid);
   }
   await AsyncStorage.setItem(profileKey(uid), JSON.stringify(next));
   if (uid) {
@@ -251,48 +256,52 @@ export async function saveProfile(profile) {
   return next;
 }
 
-async function claimPublicProfile(uid, previousHandle, profile) {
-  if (!uid) throw new Error('Sign in to make your profile searchable.');
-  const handle = profile.handle;
+async function claimProfileHandle(uid, previousHandle, handle) {
+  if (!uid) throw new Error('Sign in to save a username.');
   const taken = await getDoc(doc(db, 'profileHandles', handle));
   if (taken.exists() && taken.data()?.uid && taken.data().uid !== uid) {
-    const err = new Error('That handle is already in use. Try another.');
+    const err = new Error('That username is already in use. Try another.');
     err.code = 'HANDLE_TAKEN';
     throw err;
   }
   if (previousHandle && previousHandle !== handle) {
-    try {
-      const old = await getDoc(doc(db, 'profileHandles', previousHandle));
-      if (old.exists() && old.data()?.uid === uid) {
-        await deleteDoc(doc(db, 'profileHandles', previousHandle));
-      }
-    } catch (e) {
-      console.warn('Could not free old handle', e);
-    }
+    await releaseProfileHandle(uid, previousHandle);
   }
+  await setDoc(doc(db, 'profileHandles', handle), {
+    uid,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function publishPublicProfile(uid, profile) {
   const publicRow = stripUndefined({
     uid,
-    handle,
-    displayName: profile.displayName || handle,
+    handle: profile.handle,
+    displayName: profile.displayName || profile.handle,
     visibility: 'public',
     updatedAt: profile.updatedAt || new Date().toISOString(),
   });
-  await setDoc(doc(db, 'profileHandles', handle), { uid, updatedAt: publicRow.updatedAt });
   await setDoc(doc(db, 'publicProfiles', uid), publicRow);
 }
 
-async function releasePublicProfile(uid, handle) {
+async function hidePublicProfile(uid) {
   if (!uid) return;
   try {
-    if (handle) {
-      const snap = await getDoc(doc(db, 'profileHandles', handle));
-      if (snap.exists() && snap.data()?.uid === uid) {
-        await deleteDoc(doc(db, 'profileHandles', handle));
-      }
-    }
     await deleteDoc(doc(db, 'publicProfiles', uid));
   } catch (e) {
     console.warn('Could not take profile private in the cloud', e);
+  }
+}
+
+async function releaseProfileHandle(uid, handle) {
+  if (!uid || !handle) return;
+  try {
+    const snap = await getDoc(doc(db, 'profileHandles', handle));
+    if (snap.exists() && snap.data()?.uid === uid) {
+      await deleteDoc(doc(db, 'profileHandles', handle));
+    }
+  } catch (e) {
+    console.warn('Could not free old username', e);
   }
 }
 

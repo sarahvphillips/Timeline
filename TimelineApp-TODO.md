@@ -173,7 +173,7 @@ Product map:
   **Heavier later (credits or subscription):** live Steam import; delivery doorbell clips; full Open Banking (provider fees); banking graphs / upcoming DD hub; video clip packs; whole-timeline share.
   **Admin:** gift 5 credits + thank-you stamp for testers.
 - [ ] Broader friend graph / whole-timeline link (later)
-- [ ] **Friend usernames (privacy)** - some people may not want to share emails with friends. Add optional usernames; prefer username over email in friend source labels when set. Until then, friend source uses email.
+- [x] **Friend usernames (5 Oct 2026):** Settings → Username. Optional, and it stays unique even when the profile is totally private. New shares, invites, suggestions and People join codes show `@username` instead of the email. Older shares that were sent before a username was saved still show the email. Searchable profiles still use the same username for the public QR link.
 - [ ] **Friend avatars on sharedEvents** - do not write local photoUri (data:/blob:/asref:) to participants; use Firebase Storage download URLs later. Until then friends view falls back to initial. (participantForCloud)
 - [ ] **Polish Events with friends timeline display** - first cut done 21 Sep (curves, friend filter, optional private). Avatars on lines / extra friends-view ideas still later. Remove TEMP Design button when it matches the sketch.
 - [ ] **TEMP: Design button on Events with friends** - top-right corner opens `assets/friends-design-target.jpg` modal preview. Remove when friends view polish matches the sketch.

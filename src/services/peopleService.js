@@ -10,6 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { getProfile, normalizeHandle } from './profileService';
 
 const PEOPLE_KEY_PREFIX = '@timeline_people_v1_';
 const WHEEL_STORE = '@timeline_date_circle_v2';
@@ -343,12 +344,16 @@ export async function createJoinInvite(person) {
   }
 
   const now = new Date().toISOString();
+  const profile = await getProfile().catch(() => ({}));
+  const handle = normalizeHandle(profile?.handle);
+  const hasHandle = handle.length >= 3;
   const payload = {
     code,
     type: 'join',
     fromUid: uid,
-    fromEmail: auth.currentUser?.email || '',
-    fromName: auth.currentUser?.displayName || '',
+    fromHandle: hasHandle ? handle : '',
+    fromEmail: hasHandle ? '' : auth.currentUser?.email || '',
+    fromName: profile?.displayName || (hasHandle ? `@${handle}` : auth.currentUser?.displayName || ''),
     personId: person.id,
     personName: person.name,
     personEmail: person.email || '',

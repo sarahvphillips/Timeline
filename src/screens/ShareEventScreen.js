@@ -25,6 +25,7 @@ import {
   countPendingSuggestions,
   approveEditSuggestion,
   declineEditSuggestion,
+  friendFacingWho,
 } from '../services/shareService';
 import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
@@ -289,10 +290,7 @@ export default function ShareEventScreen({ navigation, route }) {
           {pendingSuggestions.map((sug) => (
             <View key={sug.id} style={styles.sugCard}>
               <Text style={styles.sugFrom}>
-                From{' '}
-                {(sug.fromEmail && String(sug.fromEmail)) ||
-                  sug.fromDisplayName ||
-                  'friend'}
+                From {friendFacingWho(sug) || 'friend'}
               </Text>
               <Text style={styles.sugNote}>{sug.note}</Text>
               <View style={styles.sugActions}>

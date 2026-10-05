@@ -443,7 +443,7 @@ export default function SettingsScreen({ navigation }) {
             );
           })}
         </View>
-        <Text style={[styles.label, { color: colors.muted }]}>Public handle</Text>
+        <Text style={[styles.label, { color: colors.muted }]}>Username</Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
           value={handle}
@@ -454,7 +454,9 @@ export default function SettingsScreen({ navigation }) {
           placeholderTextColor={colors.faint}
         />
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Letters, numbers, dots. Needed if you want a QR or social link. Save profile after changing.
+          Friends see @username on shared events instead of your email. It can stay set while the
+          profile is totally private. Searchable is separate, and needs a username before the QR
+          link works. Save profile after changing it.
         </Text>
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder }]}

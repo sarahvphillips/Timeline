@@ -18,6 +18,7 @@ import {
   getSharedWordList,
   acceptInviteByCode,
   rejectInviteByCode,
+  friendFacingWho,
 } from '../services/shareService';
 import { parseInviteCodeFromScan } from '../utils/inviteCode';
 import { getJoinInvite, acceptJoinInvite } from '../services/peopleService';
@@ -35,6 +36,16 @@ if (Platform.OS !== 'web') {
     CameraView = null;
     useCameraPermissions = null;
   }
+}
+
+function inviteFromText(invite, extra, fallback) {
+  const who = friendFacingWho({
+    handle: invite?.fromHandle || extra?.createdByHandle,
+    email: invite?.fromEmail || extra?.createdByEmail,
+    name: invite?.fromName || extra?.createdByName,
+  });
+  if (!who) return fallback;
+  return who.startsWith('From ') ? who : `From ${who}`;
 }
 
 function useFallbackCameraPermissions() {
@@ -439,11 +450,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
         <View style={styles.preview}>
           <Text style={styles.previewTitle}>Join Timeline</Text>
           <Text style={styles.previewMeta}>
-            {preview.joinInvite.fromEmail
-              ? `From ${preview.joinInvite.fromEmail}`
-              : preview.joinInvite.fromName
-                ? `From ${preview.joinInvite.fromName}`
-                : 'People invite'}
+            {inviteFromText(preview.joinInvite, null, 'People invite')}
           </Text>
           <Text style={styles.previewDesc}>
             {preview.joinInvite.personName
@@ -457,11 +464,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
         <View style={styles.preview}>
           <Text style={styles.previewTitle}>{preview.graph.title || 'Word graph'}</Text>
           <Text style={styles.previewMeta}>
-            {preview.invite?.fromEmail
-              ? `From ${preview.invite.fromEmail}`
-              : preview.invite?.fromName
-                ? `From ${preview.invite.fromName}`
-                : 'Word graph share'}
+            {inviteFromText(preview.invite, preview.graph, 'Word graph share')}
           </Text>
           <Text style={styles.previewDesc}>
             {preview.graph.nodeCount || preview.invite?.nodeCount || 0} nodes, including the words, notes and positions. This is the graph data, not only a picture.
@@ -473,11 +476,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
         <View style={styles.preview}>
           <Text style={styles.previewTitle}>Whole timeline</Text>
           <Text style={styles.previewMeta}>
-            {preview.invite?.fromEmail
-              ? `From ${preview.invite.fromEmail}`
-              : preview.invite?.fromName
-                ? `From ${preview.invite.fromName}`
-                : 'Timeline share'}
+            {inviteFromText(preview.invite, null, 'Timeline share')}
           </Text>
           <Text style={styles.previewDesc}>
             {preview.eventCount || preview.invite?.eventCount || 0} events. Titles, dates and text are copied. Photos stay on their device. Only one person can accept this code.
@@ -489,11 +488,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
         <View style={styles.preview}>
           <Text style={styles.previewTitle}>{preview.wordList.title || 'Word list'}</Text>
           <Text style={styles.previewMeta}>
-            {preview.invite?.fromEmail
-              ? `From ${preview.invite.fromEmail}`
-              : preview.invite?.fromName
-                ? `From ${preview.invite.fromName}`
-                : 'Word to int share'}
+            {inviteFromText(preview.invite, preview.wordList, 'Word to int share')}
           </Text>
           <Text style={styles.previewDesc}>
             {(preview.wordList.words && preview.wordList.words.length) ||
@@ -511,13 +506,14 @@ export default function AcceptInviteScreen({ navigation, route }) {
           <Text style={styles.previewTitle}>{preview.shared.title}</Text>
           <Text style={styles.previewMeta}>
             {preview.shared.date ? new Date(preview.shared.date).toLocaleDateString() : ''}
-            {preview.invite?.fromEmail
-              ? ` - From friend - ${preview.invite.fromEmail}`
-              : preview.shared?.createdByEmail
-                ? ` - From friend - ${preview.shared.createdByEmail}`
-                : preview.invite?.fromName
-                  ? ` - from ${preview.invite.fromName}`
-                  : ''}
+            {(() => {
+              const who = friendFacingWho({
+                handle: preview.invite?.fromHandle || preview.shared?.createdByHandle,
+                email: preview.invite?.fromEmail || preview.shared?.createdByEmail,
+                name: preview.invite?.fromName,
+              });
+              return who ? ` - From friend - ${who.replace(/^From /, '')}` : '';
+            })()}
           </Text>
           {preview.shared.description ? (
             <Text style={styles.previewDesc} numberOfLines={4}>

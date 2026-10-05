@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { saveEvent, getEvents, deleteEvent } from './eventService';
-import { getProfile } from './profileService';
+import { getProfile, normalizeHandle } from './profileService';
 import { importSharedWords, getWordNumbers } from './wordToIntService';
 import { buildShareLink, parseInviteCodeFromScan } from '../utils/inviteCode';
 export { buildShareLink, parseInviteCodeFromScan };
@@ -69,6 +69,7 @@ const PARTICIPANT_CLOUD_KEYS = [
   'uid',
   'displayName',
   'email',
+  'handle',
   'initial',
   'colour',
   'status',
@@ -132,20 +133,41 @@ async function currentParticipantProfile(colour) {
   const uid = getUid();
   const user = auth.currentUser;
   const profile = await getProfile().catch(() => ({ displayName: '' }));
+  const handle = normalizeHandle(profile?.handle);
+  const hasHandle = handle.length >= 3;
   const displayName =
     (profile && profile.displayName) ||
+    (hasHandle ? `@${handle}` : '') ||
     (user && user.displayName) ||
     (user && user.email ? user.email.split('@')[0] : '') ||
     'Friend';
-  const initial = (displayName || user?.email || 'F').charAt(0).toUpperCase();
-  // Local/UI helper only — never put photoUri here for cloud writes (use participantForCloud).
+  const initial = (displayName || user?.email || 'F').replace(/^@/, '').charAt(0).toUpperCase();
+  // A username replaces the email on anything a friend can read.
   return stripUndefined({
     uid,
     displayName,
-    email: user?.email || undefined,
+    handle: hasHandle ? handle : undefined,
+    email: hasHandle ? undefined : user?.email || undefined,
     initial,
     colour: colour || FRIEND_COLOURS[0],
   });
+}
+
+/** What a friend should see: @username, otherwise the email, otherwise a name. */
+export function friendFacingWho(source = {}) {
+  const handle = normalizeHandle(
+    source.handle || source.fromHandle || source.createdByHandle || source.sharedFromHandle,
+  );
+  if (handle.length >= 3) return `@${handle}`;
+  const email = [
+    source.email,
+    source.fromEmail,
+    source.createdByEmail,
+    source.sharedFromEmail,
+  ].find((value) => typeof value === 'string' && value.includes('@'));
+  if (email) return email.trim();
+  const name = source.displayName || source.fromName || source.fromDisplayName || source.createdByName;
+  return name && String(name).trim() ? String(name).trim() : '';
 }
 
 /**
@@ -179,11 +201,11 @@ export function getEventFriendSourceLabel(event, myUid) {
     !!event.sharedFromEmail ||
     (event.sharedFrom && myUid && event.sharedFrom !== myUid);
   if (fromFriend) {
-    const email = event.sharedFromEmail || event.fromEmail;
-    if (typeof email === 'string' && email.includes('@')) {
-      return `From friend - ${email}`;
-    }
-    return 'From friend';
+    const who = friendFacingWho({
+      handle: event.sharedFromHandle,
+      email: event.sharedFromEmail || event.fromEmail,
+    });
+    return who ? `From friend - ${who}` : 'From friend';
   }
   if (event.isShared || event.shareId) return 'Shared event';
   return null;
@@ -239,6 +261,7 @@ export async function createEventShare(event) {
       category: event.category || 'personal',
       createdByUid: uid,
       createdByName: me.displayName,
+      createdByHandle: me.handle,
       createdByEmail: me.email,
       sourceEventId: event.id,
       participantUids: [uid],
@@ -257,6 +280,7 @@ export async function createEventShare(event) {
     shareId,
     fromUid: uid,
     fromName: me.displayName,
+    fromHandle: me.handle,
     fromEmail: me.email,
     code,
     status: 'pending',
@@ -315,6 +339,7 @@ export async function createWordListShare(items) {
     wordCount: words.length,
     createdByUid: uid,
     createdByName: me.displayName,
+    createdByHandle: me.handle,
     createdByEmail: me.email,
     participantUids: [uid],
     participants: { [uid]: participantForCloud(me) },
@@ -329,6 +354,7 @@ export async function createWordListShare(items) {
     shareId,
     fromUid: uid,
     fromName: me.displayName,
+    fromHandle: me.handle,
     fromEmail: me.email,
     code,
     status: 'pending',
@@ -411,6 +437,7 @@ export async function createGraphShare({ nodes, positions, methods }) {
     nodeCount,
     createdByUid: uid,
     createdByName: me.displayName,
+    createdByHandle: me.handle,
     createdByEmail: me.email,
     participantUids: [uid],
     participants: { [uid]: participantForCloud(me) },
@@ -425,6 +452,7 @@ export async function createGraphShare({ nodes, positions, methods }) {
     shareId,
     fromUid: uid,
     fromName: me.displayName,
+    fromHandle: me.handle,
     fromEmail: me.email,
     code,
     status: 'pending',
@@ -669,6 +697,7 @@ export async function createTimelineShare() {
       eventCount: events.length,
       createdByUid: uid,
       createdByName: me.displayName,
+      createdByHandle: me.handle,
       createdByEmail: me.email,
       participantUids: [uid],
       participants: { [uid]: participantForCloud(me) },
@@ -700,6 +729,7 @@ export async function createTimelineShare() {
       shareId,
       fromUid: uid,
       fromName: me.displayName,
+      fromHandle: me.handle,
       fromEmail: me.email,
       code,
       status: 'pending',
@@ -777,7 +807,11 @@ async function acceptTimelineInvite(invite, uid, code) {
         sourceEventId,
         isShared: true,
         sharedFrom: share.createdByUid,
-        sharedFromEmail: share.createdByEmail || invite.fromEmail,
+        sharedFromHandle: share.createdByHandle || invite.fromHandle,
+        sharedFromEmail:
+          share.createdByHandle || invite.fromHandle
+            ? undefined
+            : share.createdByEmail || invite.fromEmail,
         inviteCode: code,
       })
     );
@@ -851,6 +885,7 @@ export async function acceptInviteByCode(rawCode) {
 
 async function ensureLocalSharedEvent(shared, uid, invite = null) {
   const friendEmail = resolveInviterEmail({ shared, invite, fromUid: shared.createdByUid });
+  const friendHandle = normalizeHandle(shared.createdByHandle || invite?.fromHandle);
   const events = await getEvents();
   const existing = events.find(
     (e) => e.shareId === shared.id || (e.isShared && e.title === shared.title && e.date === shared.date),
@@ -862,7 +897,8 @@ async function ensureLocalSharedEvent(shared, uid, invite = null) {
       !existing.shareId ||
       (isInvitee && existing.source !== 'shared') ||
       !existing.sharedFrom ||
-      (friendEmail && !existing.sharedFromEmail) ||
+      (friendEmail && !friendHandle && !existing.sharedFromEmail) ||
+      (friendHandle && !existing.sharedFromHandle) ||
       (inviteCodeHint && !existing.inviteCode);
     if (needsMeta) {
       const inviteCode =
@@ -874,13 +910,17 @@ async function ensureLocalSharedEvent(shared, uid, invite = null) {
         shareId: shared.id,
         isShared: true,
         sharedFrom: existing.sharedFrom || shared.createdByUid,
-        sharedFromEmail: existing.sharedFromEmail || friendEmail,
+        sharedFromHandle: existing.sharedFromHandle || friendHandle || undefined,
+        sharedFromEmail: friendHandle ? undefined : existing.sharedFromEmail || friendEmail,
         inviteCode: inviteCode || existing.inviteCode,
       };
       if (isInvitee) {
         patched.source = 'shared';
         patched.sharedFrom = shared.createdByUid;
-        if (friendEmail) patched.sharedFromEmail = friendEmail;
+        if (friendHandle) {
+          patched.sharedFromHandle = friendHandle;
+          patched.sharedFromEmail = undefined;
+        } else if (friendEmail) patched.sharedFromEmail = friendEmail;
       }
       await saveEvent(patched);
       return patched;
@@ -898,7 +938,8 @@ async function ensureLocalSharedEvent(shared, uid, invite = null) {
     shareId: shared.id,
     isShared: true,
     sharedFrom: shared.createdByUid,
-    sharedFromEmail: friendEmail,
+    sharedFromHandle: friendHandle || undefined,
+    sharedFromEmail: friendHandle ? undefined : friendEmail,
     inviteCode: (invite && (invite.code || invite.id)) || undefined,
   });
   await saveEvent(payload);
@@ -1049,9 +1090,7 @@ export function isSharedEventInvitee(event, myUid) {
 }
 
 function leaveNoticeLabel(profile) {
-  const email = typeof profile?.email === 'string' && profile.email.includes('@') ? profile.email.trim() : '';
-  const name = (profile?.displayName || '').trim();
-  return email || name || 'A friend';
+  return friendFacingWho(profile) || 'A friend';
 }
 
 /**
@@ -1097,6 +1136,7 @@ export async function leaveSharedEvent(event, { action = 'left' } = {}) {
       recentLeft: stripUndefined({
         uid,
         email: me.email || undefined,
+        handle: me.handle || undefined,
         displayName: me.displayName || undefined,
         leftAt: nowIso,
         action: verb,
@@ -1185,6 +1225,7 @@ export async function rejectInviteByCode(rawCode) {
           recentLeft: {
             uid,
             email: me.email || undefined,
+            handle: me.handle || undefined,
             displayName: me.displayName || undefined,
             leftAt: nowIso,
             action: 'declined',
@@ -1224,10 +1265,7 @@ export function formatRecentLeftNotice(shared) {
   const rl = shared?.recentLeft;
   if (!rl) return null;
   if (typeof rl.notice === 'string' && rl.notice.trim()) return rl.notice.trim();
-  const who =
-    (typeof rl.email === 'string' && rl.email.includes('@') && rl.email.trim()) ||
-    (rl.displayName && String(rl.displayName).trim()) ||
-    'A friend';
+  const who = friendFacingWho(rl) || 'A friend';
   const verb = rl.action === 'declined' || rl.action === 'rejected' ? 'declined' : 'left';
   return `${who} ${verb} this shared event`;
 }
@@ -1249,10 +1287,7 @@ export function formatRecentSuggestionNotice(shared) {
   const rs = shared?.recentSuggestion;
   if (!rs) return null;
   if (typeof rs.notice === 'string' && rs.notice.trim()) return rs.notice.trim();
-  const who =
-    (typeof rs.fromEmail === 'string' && rs.fromEmail.includes('@') && rs.fromEmail.trim()) ||
-    (rs.fromDisplayName && String(rs.fromDisplayName).trim()) ||
-    'A friend';
+  const who = friendFacingWho(rs) || 'A friend';
   return `${who} suggested a note on this shared event`;
 }
 
@@ -1308,6 +1343,7 @@ export async function submitEditSuggestion(shareId, note) {
   const suggestion = stripUndefined({
     id: makeSuggestionId(),
     fromUid: uid,
+    fromHandle: me.handle || undefined,
     fromEmail: fromEmail || undefined,
     fromDisplayName: me.displayName || undefined,
     note: trimmed,
@@ -1327,6 +1363,7 @@ export async function submitEditSuggestion(shareId, note) {
       recentSuggestion: {
         suggestionId: suggestion.id,
         fromUid: uid,
+        fromHandle: me.handle || undefined,
         fromEmail: fromEmail || undefined,
         fromDisplayName: me.displayName || undefined,
         createdAt: nowIso,
@@ -1340,12 +1377,7 @@ export async function submitEditSuggestion(shareId, note) {
 }
 
 function attributedNoteBlock(suggestion) {
-  const who =
-    (typeof suggestion?.fromEmail === 'string' && suggestion.fromEmail.includes('@')
-      ? suggestion.fromEmail.trim()
-      : null) ||
-    (suggestion?.fromDisplayName && String(suggestion.fromDisplayName).trim()) ||
-    'friend';
+  const who = friendFacingWho(suggestion) || 'friend';
   return `\n\nNote from ${who}:\n${String(suggestion.note || '').trim()}`;
 }
 
