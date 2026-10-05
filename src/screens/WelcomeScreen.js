@@ -99,7 +99,7 @@ function screenStyles(c) {
   },
   subject: { color: c.text, fontSize: 24, fontWeight: '800', marginTop: 8, lineHeight: 30 },
   meta: { color: c.faint, fontSize: 13, marginTop: 8, marginBottom: 18 },
-  body: { color: '#e2e8f0', fontSize: 16, lineHeight: 24, marginBottom: 14 },
+  body: { color: c.text, fontSize: 16, lineHeight: 24, marginBottom: 14 },
   poemBox: {
     borderLeftWidth: 2,
     borderLeftColor: c.muted,
@@ -116,7 +116,7 @@ function screenStyles(c) {
     marginBottom: 10,
   },
   poem: {
-    color: '#f1f5f9',
+    color: c.text,
     fontSize: 16,
     lineHeight: 26,
     fontStyle: 'italic',
