@@ -1018,6 +1018,12 @@ export default function SettingsScreen({ navigation }) {
             <Text style={[styles.hint, { color: colors.faint }]}>
               Enter the current password, then a new one of at least 6 characters.
             </Text>
+            {Platform.OS === 'web' ? (
+              <View style={{ height: 0, overflow: 'hidden' }} pointerEvents="none">
+                <TextInput autoComplete="username" value="" />
+                <TextInput secureTextEntry autoComplete="current-password" value="" />
+              </View>
+            ) : null}
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.bg || '#0f1024' }]}
               value={currentPassword}
@@ -1025,6 +1031,8 @@ export default function SettingsScreen({ navigation }) {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="new-password"
+              textContentType="password"
               placeholder="Current password"
               placeholderTextColor={colors.faint}
             />
@@ -1035,6 +1043,8 @@ export default function SettingsScreen({ navigation }) {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="new-password"
+              textContentType="newPassword"
               placeholder="New password"
               placeholderTextColor={colors.faint}
             />
@@ -1045,6 +1055,8 @@ export default function SettingsScreen({ navigation }) {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="new-password"
+              textContentType="newPassword"
               placeholder="Confirm new password"
               placeholderTextColor={colors.faint}
             />
