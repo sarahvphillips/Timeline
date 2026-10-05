@@ -177,12 +177,13 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
       workingUri = `data:${mime};base64,${workingBase64}`;
     }
     const compressed = await compressImageUri(workingUri);
-    let finalUri = compressed || workingUri;
-    if (finalUri && finalUri.indexOf('blob:') === 0) {
+    let finalUri = tidyDataUrl(compressed || workingUri);
+    if (!finalUri || String(finalUri).indexOf('blob:') === 0) {
       try {
-        finalUri = await compressViaCanvas(finalUri);
+        finalUri = await durableImageUri(workingUri);
       } catch (e) {
         console.warn('persistPickedImage: blob→data failed', e);
+        finalUri = compressed || workingUri;
       }
     }
     return { uri: asImageUri(finalUri), filename: originalName.replace(/\.[a-zA-Z0-9]+$/i, '') + '.jpg' };
@@ -246,9 +247,56 @@ export async function persistPickedImage(uri, filename, base64, mimeType) {
   return { uri: workingUri, filename: originalName };
 }
 
+function tidyDataUrl(uri) {
+  const text = String(uri || '');
+  if (text.indexOf('data:') !== 0) return text;
+  const comma = text.indexOf(',');
+  if (comma < 0) return text;
+  return text.slice(0, comma + 1) + text.slice(comma + 1).replace(/\s/g, '');
+}
+
+function readBlobAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    if (!blob || typeof FileReader === 'undefined') {
+      reject(new Error('Could not read that photo.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(tidyDataUrl(reader.result));
+    reader.onerror = () => reject(reader.error || new Error('Could not read that photo.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Snapshot a picker result before the browser throws the temporary blob: link away. */
+async function durableImageUri(uri, file, base64, mimeType) {
+  if (file) {
+    try {
+      return await readBlobAsDataUrl(file);
+    } catch (e) {
+      console.warn('durableImageUri: file read failed', e);
+    }
+  }
+  if (base64 && String(uri || '').indexOf('data:') !== 0) {
+    return tidyDataUrl(`data:${mimeType || 'image/jpeg'};base64,${base64}`);
+  }
+  const text = String(uri || '');
+  if (text.indexOf('data:') === 0) return tidyDataUrl(text);
+  if (text.indexOf('blob:') === 0 && typeof fetch === 'function') {
+    const response = await fetch(text);
+    const blob = await response.blob();
+    return readBlobAsDataUrl(blob);
+  }
+  return text;
+}
+
 async function persistAsset(asset) {
   if (!asset || !asset.uri) return null;
   const name = asset.fileName || asset.filename || asset.name || null;
+  if (Platform.OS === 'web') {
+    const dataUrl = await durableImageUri(asset.uri, asset.file, asset.base64, asset.mimeType);
+    return persistPickedImage(dataUrl || asset.uri, name, null, asset.mimeType || 'image/jpeg');
+  }
   return persistPickedImage(asset.uri, name, asset.base64, asset.mimeType);
 }
 

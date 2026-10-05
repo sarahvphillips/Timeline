@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   Modal,
   Pressable,
@@ -20,6 +19,7 @@ import EventLinkPicker from '../components/EventLinkPicker';
 import { copyTextToClipboard } from '../services/shareService';
 import { normalizeSocialUrl } from '../services/socialService';
 import { formatFullDate, getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
+import PhotoView from '../components/PhotoView';
 import { asImageUri } from '../services/imagePicker';
 import { useTheme } from '../themeContext';
 import { eventsByIds, linkEventGroup, unlinkEvents, eventKindLabel } from '../services/eventLinkService';
@@ -168,9 +168,9 @@ export default function EventViewScreen({ navigation, route }) {
           onPress={() => setFullOpen(true)}
           accessibilityLabel="View full image"
         >
-          <Image
-            source={{ uri: photo }}
-            style={[styles.photo, { height: previewHeight }]}
+          <PhotoView
+            uri={photo}
+            style={[styles.photo, { height: previewHeight, width: '100%' }]}
             resizeMode="contain"
           />
           <Text style={styles.photoHint}>Tap image to view full size</Text>
@@ -286,8 +286,8 @@ export default function EventViewScreen({ navigation, route }) {
             contentContainerStyle={styles.fullScroll}
             centerContent
           >
-            <Image
-              source={{ uri: photo }}
+            <PhotoView
+              uri={photo}
               style={{ width: screenW, height: Math.max(screenH - 80, screenW * 1.8) }}
               resizeMode="contain"
             />

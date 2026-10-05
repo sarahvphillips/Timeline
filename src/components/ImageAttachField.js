@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import ImageSourceSheet from './ImageSourceSheet';
+import PhotoView from './PhotoView';
 import { asImageUri } from '../services/imagePicker';
 
 export default function ImageAttachField({
@@ -34,12 +35,7 @@ export default function ImageAttachField({
     <View style={styles.wrap}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       {src && !broken ? (
-        <Image
-          source={{ uri: src }}
-          style={styles.thumb}
-          resizeMode="cover"
-          onError={() => setBroken(true)}
-        />
+        <PhotoView uri={src} style={styles.thumb} resizeMode="cover" onError={() => setBroken(true)} />
       ) : null}
       {broken ? <Text style={styles.hint}>That photo could not be shown. Try taking it again or pick from the gallery.</Text> : null}
       <View style={styles.row}>
