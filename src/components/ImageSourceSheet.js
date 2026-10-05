@@ -46,7 +46,8 @@ export default function ImageSourceSheet({
 
   return (
     <Modal visible={!!visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <View style={styles.backdrop}>
+        <Pressable style={styles.dismiss} onPress={onClose} />
         <View style={styles.sheet}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.hint}>
@@ -71,10 +72,10 @@ export default function ImageSourceSheet({
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity style={styles.cancel} onPress={onClose} disabled={busy}>
-            <Text style={styles.cancelText}>{busy ? 'Working?' : 'Cancel'}</Text>
+            <Text style={styles.cancelText}>{busy ? 'Opening…' : 'Cancel'}</Text>
           </TouchableOpacity>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -85,11 +86,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
+  dismiss: {
+    ...StyleSheet.absoluteFillObject,
+  },
   sheet: {
     backgroundColor: '#1a1b36',
     padding: 20,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
+    zIndex: 2,
   },
   title: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginBottom: 6 },
   hint: { color: '#94a3b8', fontSize: 13, marginBottom: 10 },

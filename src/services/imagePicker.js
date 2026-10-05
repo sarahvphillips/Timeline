@@ -252,29 +252,44 @@ async function persistAsset(asset) {
   return persistPickedImage(asset.uri, name, asset.base64, asset.mimeType);
 }
 
+function tell(title, message) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(title + '\n\n' + message);
+    return;
+  }
+  Alert.alert(title, message);
+}
+
+async function launchLibrary() {
+  const options = {
+    allowsEditing: false,
+    quality: JPEG_QUALITY,
+    base64: Platform.OS !== 'web',
+  };
+  try {
+    return await ImagePicker.launchImageLibraryAsync({ ...options, mediaTypes: ['images'] });
+  } catch (first) {
+    try {
+      return await ImagePicker.launchImageLibraryAsync(options);
+    } catch (_) {
+      throw first;
+    }
+  }
+}
 export async function pickFromGallery() {
   try {
     if (Platform.OS !== 'web') {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert(
-          'Photos permission',
-          'Permission to access your photos is needed to choose a picture.'
-        );
+        tell('Photos permission', 'Permission to access your photos is needed to choose a picture.');
         return null;
       }
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: JPEG_QUALITY,
-      // base64 avoids Android File.copy READ permission errors
-      base64: true,
-    });
+    const result = await launchLibrary();
     if (result.canceled || !result.assets || !result.assets[0]) return null;
     return persistAsset(result.assets[0]);
   } catch (e) {
-    Alert.alert('Could not open gallery', e && e.message ? e.message : 'Please try again.');
+    tell('Could not open gallery', e && e.message ? e.message : 'Please try again.');
     return null;
   }
 }

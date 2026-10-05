@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet, Platform } from 'react-native';
-import ImageSourceSheet, { openImageSourcePicker } from './ImageSourceSheet';
+import { View, Text, Image, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import ImageSourceSheet from './ImageSourceSheet';
 import { asImageUri } from '../services/imagePicker';
 
 export default function ImageAttachField({
@@ -28,15 +28,7 @@ export default function ImageAttachField({
     }
   };
 
-  const openPicker = () => {
-    const usedNative = openImageSourcePicker({
-      title: label || 'Add photo',
-      onPicked: handlePicked,
-      showRemove: !!uri,
-      onRemove: () => onChange(null),
-    });
-    if (!usedNative) setSheetOpen(true);
-  };
+  const openPicker = () => setSheetOpen(true);
 
   return (
     <View style={styles.wrap}>
@@ -70,16 +62,14 @@ export default function ImageAttachField({
           onChangeText={onCaptionChange}
         />
       ) : null}
-      {Platform.OS === 'web' ? (
-        <ImageSourceSheet
-          visible={sheetOpen}
-          onClose={() => setSheetOpen(false)}
-          onPicked={handlePicked}
-          showRemove={!!uri}
-          onRemove={() => onChange(null)}
-          title={label || 'Add photo'}
-        />
-      ) : null}
+      <ImageSourceSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onPicked={handlePicked}
+        showRemove={!!uri}
+        onRemove={() => onChange(null)}
+        title={label || 'Add photo'}
+      />
     </View>
   );
 }
