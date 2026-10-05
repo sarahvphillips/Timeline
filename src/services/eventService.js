@@ -4,7 +4,7 @@ import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore'
 import { auth, db } from './firebase';
 import { isGuestUid } from './guestSession';
 import { uploadEventImage, deleteEventPhotos } from './photoStorage';
-import { asImageUri } from './imagePicker';
+import { asImageUri, compressImageUri } from './imagePicker';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
 const GUEST_EVENTS_KEY = '@timeline_events_guest';
@@ -358,14 +358,39 @@ function eventPayloadForCloud(event, uid) {
   return stripUndefined(payload);
 }
 
+function withTimeout(work, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timed out')), ms);
+    Promise.resolve()
+      .then(work)
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 async function attachCloudPhotos(event, uid) {
   if (!event?.id || !uid || isGuestUid(uid) || event.source === 'laundry') return event;
   let next = event;
   for (const field of ['imageUri', 'coverImageUri']) {
-    const uri = next[field];
+    let uri = next[field];
     if (!isLocalOnlyImageUri(uri)) continue;
+    if (typeof uri === 'string' && uri.startsWith('data:') && uri.length > 500000) {
+      try {
+        const smaller = await compressImageUri(uri);
+        if (smaller) {
+          uri = smaller;
+          next = { ...next, [field]: smaller };
+        }
+      } catch (_) {}
+    }
     try {
-      const remote = await uploadEventImage(uid, next.id, field, uri);
+      const remote = await withTimeout(() => uploadEventImage(uid, next.id, field, uri), 8000);
       if (remote && remote !== uri) next = { ...next, [field]: remote };
     } catch (e) {
       console.warn('Event photo stayed on this device', field, e?.message || e);

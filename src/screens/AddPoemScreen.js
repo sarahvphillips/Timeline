@@ -75,8 +75,8 @@ export default function AddPoemScreen({ navigation, route }) {
         nextAction: 'none',
       });
       navigation.goBack();
-    } catch {
-      Alert.alert('Error', 'Could not save the poem.');
+    } catch (e) {
+      Alert.alert('Could not save the poem', e?.message || 'Try again. If the photos are very large, remove one and save again.');
     } finally {
       setSaving(false);
     }
@@ -174,7 +174,7 @@ export default function AddPoemScreen({ navigation, route }) {
         />
 
         <TouchableOpacity style={styles.save} onPress={handleSave} disabled={saving}>
-          <Text style={styles.saveText}>{saving ? 'Saving?' : existing ? 'Update poem' : 'Add poem'}</Text>
+          <Text style={styles.saveText}>{saving ? 'Saving…' : existing ? 'Update poem' : 'Add poem'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
