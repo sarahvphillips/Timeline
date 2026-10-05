@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import DateField from '../components/DateField';
 import { useFocusEffect } from '@react-navigation/native';
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import HomeFab from '../components/HomeFab';
@@ -21,7 +22,6 @@ import { pickFromGallery, asImageUri } from '../services/imagePicker';
 import { copyTextToClipboard } from '../services/shareService';
 import { useTheme } from '../themeContext';
 import {
-import DateField from '../components/DateField';
   loadSocial,
   saveSocial,
   parseSocialLink,

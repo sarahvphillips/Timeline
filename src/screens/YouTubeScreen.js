@@ -12,12 +12,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import DateField from '../components/DateField';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeFab from '../components/HomeFab';
 import { saveEvent, deleteEvent } from '../services/eventService';
 import { useTheme } from '../themeContext';
 import {
-import DateField from '../components/DateField';
   loadYoutube,
   saveYoutube,
   parseYoutubeId,

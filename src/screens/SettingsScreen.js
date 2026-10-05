@@ -10,6 +10,7 @@ import {
   Platform,
   Switch,
 } from 'react-native';
+import DateField from '../components/DateField';
 import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useTheme } from '../themeContext';
@@ -47,7 +48,6 @@ import {
 import { syncAcceptedJoins } from '../services/peopleService';
 import { applyJoinRewards, perkLabel, getRewards, hasPerk, CREDITS_PAUSED } from '../services/rewardsService';
 import {
-import DateField from '../components/DateField';
   DATE_FORMAT_DMY,
   DATE_FORMAT_MDY,
   getDateFormat,
