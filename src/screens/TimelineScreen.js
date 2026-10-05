@@ -107,18 +107,21 @@ export default function TimelineScreen({ navigation, route }) {
               .map((e) => e.shareId),
           ),
         ].slice(0, 24);
-        await Promise.all(
-          creatorShareIds.map(async (sid) => {
-            try {
-              const shared = await getSharedEvent(sid);
-              if (!shared) return;
-              if (shared.createdByUid && shared.createdByUid !== myUid) return;
-              const left = !!formatRecentLeftNotice(shared);
-              const sug = countPendingSuggestions(shared) > 0;
-              if (left || sug) notices[sid] = { left, sug };
-            } catch (_) {}
-          }),
-        );
+        await Promise.race([
+          Promise.all(
+            creatorShareIds.map(async (sid) => {
+              try {
+                const shared = await getSharedEvent(sid);
+                if (!shared) return;
+                if (shared.createdByUid && shared.createdByUid !== myUid) return;
+                const left = !!formatRecentLeftNotice(shared);
+                const sug = countPendingSuggestions(shared) > 0;
+                if (left || sug) notices[sid] = { left, sug };
+              } catch (_) {}
+            }),
+          ),
+          new Promise((resolve) => setTimeout(resolve, 8000)),
+        ]);
       }
       setShareNotices(notices);
     } finally {

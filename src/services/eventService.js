@@ -422,7 +422,10 @@ async function promotePendingEventPhotos(events, uid, limit = 6) {
       if (!photoCanLeaveDevice(next[field])) continue;
       left -= 1;
       try {
-        const remote = await uploadEventImage(uid, next.id, field, next[field]);
+        const remote = await withTimeout(
+          () => uploadEventImage(uid, next.id, field, next[field]),
+          8000,
+        );
         if (remote && remote !== next[field]) {
           next = { ...next, [field]: remote };
           changed = true;
@@ -567,7 +570,7 @@ export async function syncEventsFromCloud(uid) {
   }
 
   try {
-    const snap = await getDocs(eventsCollection(uid));
+    const snap = await withTimeout(() => getDocs(eventsCollection(uid)), 12000);
     if (!isScopeCurrent(uid, epoch)) return [];
 
     const cloudEvents = [];
@@ -656,13 +659,11 @@ export async function syncEventsFromCloud(uid) {
     }
 
     if (!isScopeCurrent(uid, epoch)) return Object.values(byId);
-    let merged = sortEvents(Object.values(byId));
-    try {
-      merged = await promotePendingEventPhotos(merged, uid, 6);
-    } catch (e) {
-      console.warn('Pending photo upload skipped', e);
-    }
-    await writeCache(merged, uid);
+    const merged = sortEvents(Object.values(byId));
+    promotePendingEventPhotos(merged, uid, 6)
+      .then((next) => writeCache(next, uid))
+      .catch((e) => console.warn('Pending photo upload skipped', e));
+    writeCache(merged, uid).catch((e) => console.warn('Could not store events on this device', e));
     return merged;
   } catch (e) {
     warnCloud(
