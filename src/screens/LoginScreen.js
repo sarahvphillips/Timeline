@@ -42,6 +42,27 @@ export default function LoginScreen({ onEnterGuest }) {
   const [remember, setRemember] = useState(true);
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const id = 'timeline-login-autofill';
+    let node = document.getElementById(id);
+    if (!node) {
+      node = document.createElement('style');
+      node.id = id;
+      document.head.appendChild(node);
+    }
+    node.textContent = `
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus {
+        -webkit-text-fill-color: ${colors.text};
+        caret-color: ${colors.text};
+        box-shadow: 0 0 0 1000px ${colors.bg} inset;
+      }
+    `;
+    return undefined;
+  }, [colors.text, colors.bg]);
+
+  useEffect(() => {
     let alive = true;
     (async () => {
       const on = await loadRememberMe();
@@ -220,7 +241,7 @@ export default function LoginScreen({ onEnterGuest }) {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.faint}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -234,7 +255,7 @@ export default function LoginScreen({ onEnterGuest }) {
             <TextInput
               style={styles.input}
               placeholder="Username"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.faint}
               autoCapitalize="none"
               autoCorrect={false}
               value={username}
@@ -251,7 +272,7 @@ export default function LoginScreen({ onEnterGuest }) {
           <TextInput
             style={styles.passwordInput}
             placeholder="Password (min 6 characters)"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.faint}
             secureTextEntry={!showPassword}
             value={password}
             onChangeText={setPassword}
@@ -389,7 +410,9 @@ function screenStyles(c) {
     marginBottom: 28,
   },
   input: {
-    backgroundColor: '#334155',
+    backgroundColor: c.bg,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -407,7 +430,9 @@ function screenStyles(c) {
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#334155',
+    backgroundColor: c.bg,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
     borderRadius: 10,
     marginBottom: 14,
   },
