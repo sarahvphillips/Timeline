@@ -175,8 +175,8 @@ Product map:
 - [ ] Broader friend graph / whole-timeline link (later)
 - [x] **Friend usernames (5 Oct 2026):** Chosen on Create account and then locked. Settings shows it and will not edit it. An older account with no username can set one once in Settings, then it locks. New shares show `@username` instead of the email. Older shares keep the name they were sent with. Searchable profiles use the same username for the public link.
 - [ ] **Friend avatars on sharedEvents** - do not write local photoUri (data:/blob:/asref:) to participants; use Firebase Storage download URLs later. Until then friends view falls back to initial. (participantForCloud)
-- [ ] **Polish Events with friends timeline display** - first cut done 21 Sep (curves, friend filter, optional private). Avatars on lines / extra friends-view ideas still later. Remove TEMP Design button when it matches the sketch.
-- [ ] **TEMP: Design button on Events with friends** - top-right corner opens `assets/friends-design-target.jpg` modal preview. Remove when friends view polish matches the sketch.
+- [x] **Events with friends layout (5 Oct 2026):** cards sit left and right of the centre axis, with a curve into the line. Year, month and week labels sit on the axis. A shared card shows the event mark, title, date, and “You · KD” rather than an email. Private items stay off unless Show private is ticked. The temporary design-sketch button is not on this screen.
+- [x] **TEMP design button removed** from Events with friends. It was not in the screen. Do not put the sketch button back.
 - [x] User specify date of birth (Settings, local for now)
 
 ### Account & setup

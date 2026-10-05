@@ -122,20 +122,6 @@ function cardGlyph(ev) {
   return '◆';
 }
 
-function uniqueNames(parts) {
-  const seen = new Set();
-  const out = [];
-  parts.forEach((p) => {
-    const n = (p || '').trim();
-    if (!n) return;
-    const k = n.toLowerCase();
-    if (seen.has(k)) return;
-    seen.add(k);
-    out.push(n);
-  });
-  return out;
-}
-
 function Avatar({ name, photoUri, colour, size = 52 }) {
   const initial = (name || 'Y').charAt(0).toUpperCase();
   return (
@@ -199,27 +185,18 @@ function navigateToEvent(navigation, event) {
   else navigation.navigate('AddEvent', { event });
 }
 
-function SharedCard({ item, meLabel, myEmail, colour, onPress }) {
+function shortWho(person) {
+  const name = String(person?.displayName || '').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
+  if (name.length >= 2 && name.length <= 4 && name === name.toUpperCase()) return name;
+  return person?.initial || name.charAt(0).toUpperCase() || 'F';
+}
+
+function SharedCard({ item, colour, onPress }) {
   const shared = item.shared;
   const friends = item.friends || [];
-  const names = uniqueNames([
-    meLabel,
-    ...friends.map((f) => f.initial || (f.displayName || '').charAt(0)),
-  ]);
-  const withLabel =
-    names.length > 1 ? `With ${names.join(' and ')}` : names.length === 1 ? `With ${names[0]}` : 'Shared event';
-
-  const creatorEmail = (
-    shared.createdByEmail ||
-    (shared.participants &&
-      shared.createdByUid &&
-      shared.participants[shared.createdByUid] &&
-      shared.participants[shared.createdByUid].email) ||
-    ''
-  ).toLowerCase();
-  const mine = (myEmail || '').toLowerCase();
-  const fromOther = creatorEmail && mine && creatorEmail !== mine;
-
+  const who = ['You', ...friends.map(shortWho)].join(' · ');
   const time = formatTime(shared.date);
   const dateBit = formatDateLabel(shared.date);
 
@@ -227,10 +204,10 @@ function SharedCard({ item, meLabel, myEmail, colour, onPress }) {
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={onPress}
-      style={[styles.personalCard, { borderColor: colour + '99' }]}
+      style={[styles.personalCard, { borderColor: colour }]}
     >
       <View style={styles.personalHead}>
-        <Text style={{ color: colour, fontSize: 16 }}>👥</Text>
+        <Text style={{ color: colour, fontSize: 16 }}>{cardGlyph(shared)}</Text>
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle} numberOfLines={2}>
             {shared.title || 'Shared event'}
@@ -241,17 +218,11 @@ function SharedCard({ item, meLabel, myEmail, colour, onPress }) {
           </Text>
         </View>
       </View>
-      <Text style={styles.cardSub} numberOfLines={1}>
-        {withLabel}
-      </Text>
-      {fromOther ? (
-        <Text style={[styles.fromFriend, { textAlign: 'left' }]} numberOfLines={1}>
-          From friend
-        </Text>
-      ) : null}
       <View style={styles.cardFooter}>
         <Text style={{ fontSize: 11, color: colour }}>🔒</Text>
-        <Text style={[styles.cardFooterText, { color: colour }]}>Shared</Text>
+        <Text style={[styles.cardFooterText, { color: colour }]} numberOfLines={1}>
+          {who}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -621,8 +592,6 @@ export default function EventsWithFriendsScreen({ navigation }) {
                 ) : (
                   <SharedCard
                     item={row.item}
-                    meLabel={me.initial}
-                    myEmail={me.email}
                     colour={row.colour}
                     onPress={() => openShared(row.item)}
                   />
@@ -673,12 +642,13 @@ export default function EventsWithFriendsScreen({ navigation }) {
 
 function screenStyles(c) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a12' },
+  container: { flex: 1, backgroundColor: c.bg },
   center: {
     flex: 1,
-    backgroundColor: '#0a0a12',
+    backgroundColor: c.bg,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
   scroll: { paddingHorizontal: 10, paddingBottom: 110, paddingTop: 16 },
   headerBlock: { alignItems: 'center', marginBottom: 10 },
@@ -777,7 +747,7 @@ function screenStyles(c) {
     borderRadius: 5,
     borderWidth: 2,
     borderColor: SPINE_COLOUR,
-    backgroundColor: '#0a0a12',
+    backgroundColor: c.bg,
     zIndex: 2,
   },
   spineCapBottom: {
@@ -790,7 +760,7 @@ function screenStyles(c) {
     borderRadius: 5,
     borderWidth: 2,
     borderColor: SPINE_COLOUR,
-    backgroundColor: '#0a0a12',
+    backgroundColor: c.bg,
     zIndex: 2,
   },
   pairRow: {
@@ -818,7 +788,7 @@ function screenStyles(c) {
     zIndex: 6,
   },
   yearBox: {
-    backgroundColor: '#0a0a12',
+    backgroundColor: c.bg,
     borderWidth: 1.5,
     borderColor: c.faint,
     borderRadius: 10,
@@ -827,19 +797,19 @@ function screenStyles(c) {
   },
   yearText: { color: c.text, fontSize: 18, fontWeight: '800' },
   monthBox: {
-    backgroundColor: '#0a0a12',
+    backgroundColor: c.bg,
     borderWidth: 1,
     borderColor: c.faint,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  monthText: { color: '#e2e8f0', fontSize: 14, fontWeight: '700' },
+  monthText: { color: c.text, fontSize: 14, fontWeight: '700' },
   weekText: {
     color: c.faint,
     fontSize: 11,
     fontWeight: '600',
-    backgroundColor: '#0a0a12',
+    backgroundColor: c.bg,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
@@ -865,9 +835,9 @@ function screenStyles(c) {
     zIndex: 2,
   },
   personalCard: {
-    backgroundColor: '#16182a',
+    backgroundColor: c.card,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     paddingVertical: 10,
     paddingHorizontal: 10,
     width: CARD_W,
@@ -875,7 +845,7 @@ function screenStyles(c) {
   },
   personalHead: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   sharedCard: {
-    backgroundColor: '#16182a',
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.faint,
@@ -922,12 +892,12 @@ function screenStyles(c) {
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#12131f',
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
     marginHorizontal: 8,
     marginTop: 24,
   },
-  emptyTitle: { color: '#e2e8f0', fontWeight: '700', fontSize: 16, marginBottom: 8 },
+  emptyTitle: { color: c.text, fontWeight: '700', fontSize: 16, marginBottom: 8 },
   emptyBody: { color: c.faint, lineHeight: 20, fontSize: 14 },
   button: {
     backgroundColor: c.blue,
