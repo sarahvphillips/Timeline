@@ -621,20 +621,31 @@ async function syncListFromCloud(uid, docId, storageKey, localList) {
 }
 
 async function syncThemeFromCloud(uid) {
-  const local = await loadThemePrefs();
+  const local = await loadThemePrefs(uid);
+  let guestMode = null;
+  if (uid) {
+    try {
+      const guest = await loadThemePrefs(null);
+      if (guest.mode === 'light' || guest.mode === 'dark') guestMode = guest.mode;
+    } catch (_) {}
+  }
+  const mode = local.mode === 'system' && guestMode ? guestMode : local.mode;
   const snap = await getDoc(settingsDoc(uid, 'theme'));
   if (!snap.exists()) {
-    if (local.mode || local.palette) {
+    if (mode || local.palette) {
       await setDoc(
         settingsDoc(uid, 'theme'),
         stripUndefined({
-          mode: local.mode,
+          mode,
           palette: local.palette,
           updatedAt: new Date().toISOString(),
         }),
       );
     }
-    return local;
+    if (mode !== local.mode) {
+      return writeThemePrefsLocalOnly({ mode, palette: local.palette }, uid);
+    }
+    return { ...local, mode };
   }
   const data = snap.data() || {};
   const cloudMode = data.mode;
@@ -643,16 +654,19 @@ async function syncThemeFromCloud(uid) {
     await setDoc(
       settingsDoc(uid, 'theme'),
       stripUndefined({
-        mode: local.mode,
+        mode,
         palette: local.palette,
         updatedAt: new Date().toISOString(),
       }),
     );
-    return local;
+    if (mode !== local.mode) {
+      return writeThemePrefsLocalOnly({ mode, palette: local.palette }, uid);
+    }
+    return { ...local, mode };
   }
   // Cloud wins — write local only (do not re-upload)
   return writeThemePrefsLocalOnly({
-    mode: cloudMode || local.mode,
+    mode: cloudMode || mode,
     palette: cloudPalette || local.palette,
   });
 }

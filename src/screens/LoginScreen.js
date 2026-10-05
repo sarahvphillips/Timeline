@@ -30,7 +30,7 @@ import { useTheme } from '../themeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen({ onEnterGuest }) {
-  const { colors } = useTheme();
+  const { colors, scheme, setMode } = useTheme();
   const styles = useMemo(() => screenStyles(colors), [colors]);
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -235,6 +235,19 @@ export default function LoginScreen({ onEnterGuest }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.themeButton}
+          onPress={() => setMode(scheme === 'dark' ? 'light' : 'dark')}
+          accessibilityLabel={scheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          disabled={loading || resetLoading}
+        >
+          <Ionicons
+            name={scheme === 'dark' ? 'sunny-outline' : 'moon-outline'}
+            size={18}
+            color={colors.text}
+          />
+          <Text style={styles.themeText}>{scheme === 'dark' ? 'Light mode' : 'Dark mode'}</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Timeline</Text>
         <Text style={styles.subtitle}>
           {isRegisterMode ? 'Create an account' : 'Sign in to continue'}
@@ -397,6 +410,20 @@ function screenStyles(c) {
     backgroundColor: c.card,
     borderRadius: 16,
     padding: 28,
+  },
+  themeButton: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  themeText: {
+    color: c.text,
+    fontSize: 14,
+    fontWeight: '700',
   },
   title: {
     fontSize: 32,
