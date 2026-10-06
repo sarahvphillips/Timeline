@@ -40,6 +40,7 @@ export default function LoginScreen({ onEnterGuest }) {
   const [resetLoading, setResetLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
