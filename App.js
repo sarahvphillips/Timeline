@@ -10,7 +10,7 @@ import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY, beginAuthScope, EVE
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncWordNumbersFromCloud, beginAuthScope as beginWordNumbersAuthScope, WORD_NUMBERS_FIRESTORE_SYNC_ENABLED } from './src/services/wordToIntService';
 import { beginAuthScope as beginSpansAuthScope } from './src/services/dateSpanService';
-import { syncSettingsFromCloud } from './src/services/profileService';
+import { syncSettingsFromCloud, normalizeHandle } from './src/services/profileService';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from './src/theme';
 import { registerThisDevice } from './src/services/deviceSession';
 import { buildAppLinking } from './src/services/appLinking';
@@ -66,6 +66,7 @@ import AcceptInviteScreen from './src/screens/AcceptInviteScreen';
 import ShareProfileScreen from './src/screens/ShareProfileScreen';
 import PublicProfileScreen from './src/screens/PublicProfileScreen';
 import WelcomeScreen from './src/screens/WelcomeScreen';
+import ChooseUsernameScreen from './src/screens/ChooseUsernameScreen';
 import AddLocationScreen from './src/screens/AddLocationScreen';
 import AddLifeEventScreen from './src/screens/AddLifeEventScreen';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
@@ -87,6 +88,7 @@ function AppShell() {
   const [initializing, setInitializing] = useState(true);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [welcomePending, setWelcomePending] = useState(false);
+  const [needUsername, setNeedUsername] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -112,6 +114,7 @@ function AppShell() {
         beginSpansAuthScope(GUEST_UID);
         setUser(GUEST_USER);
         setWelcomePending(false);
+        setNeedUsername(false);
         setCloudSyncing(false);
         setInitializing(false);
         readLocalEvents(GUEST_UID).catch(() => {});
@@ -130,6 +133,7 @@ function AppShell() {
           beginSpansAuthScope(GUEST_UID);
           setCloudSyncing(false);
           setWelcomePending(false);
+          setNeedUsername(false);
           setInitializing(false);
           return;
         }
@@ -155,6 +159,7 @@ function AppShell() {
             EVENTS_FIRESTORE_SYNC_ENABLED || WORD_NUMBERS_FIRESTORE_SYNC_ENABLED;
           if (waitForCloud) setCloudSyncing(true);
           setInitializing(false);
+          let settings = null;
           Promise.all([
             syncEventsFromCloud(uid).catch((err) => {
               console.warn(
@@ -172,14 +177,20 @@ function AppShell() {
                 err,
               );
             }),
-            syncSettingsFromCloud(uid).catch((err) => {
-              console.warn('Settings cloud sync failed', err);
-            }),
+            syncSettingsFromCloud(uid)
+              .then((value) => {
+                settings = value;
+              })
+              .catch((err) => {
+                console.warn('Settings cloud sync failed', err);
+              }),
             registerThisDevice(uid).catch((err) => {
               console.warn('Device session register failed', err);
             }),
           ]).finally(() => {
             AsyncStorage.setItem(LAST_UID_KEY, uid).catch(() => {});
+            const handle = normalizeHandle(settings?.profile?.handle);
+            setNeedUsername(!!settings && handle.length < 3);
             setCloudSyncing(false);
           });
         } else {
@@ -188,6 +199,7 @@ function AppShell() {
           beginSpansAuthScope(null);
           setCloudSyncing(false);
           setWelcomePending(false);
+          setNeedUsername(false);
           setInitializing(false);
           readLocalEvents(null).catch(() => {});
           syncWordNumbersFromCloud(null).catch(() => {});
@@ -217,6 +229,7 @@ function AppShell() {
       beginWordNumbersAuthScope(GUEST_UID);
       beginSpansAuthScope(GUEST_UID);
       setWelcomePending(false);
+      setNeedUsername(false);
       setCloudSyncing(false);
       setUser(GUEST_USER);
       readLocalEvents(GUEST_UID).catch(() => {});
@@ -235,6 +248,7 @@ function AppShell() {
       console.warn('Logout error:', e);
     }
     setUser(null);
+    setNeedUsername(false);
   };
 
   if (error) {
@@ -266,8 +280,16 @@ function AppShell() {
       <NavigationContainer ref={navigationRef} linking={shareLinking}>
         <ThemedStatusBar />
         <ThemedNavigator
-          navKey={`${user?.uid || 'logged-out'}-${welcomePending ? 'welcome' : 'app'}`}
-          initialRouteName={!user ? 'Login' : welcomePending ? 'Welcome' : 'Home'}
+          navKey={`${user?.uid || 'logged-out'}-${needUsername ? 'username' : welcomePending ? 'welcome' : 'app'}`}
+          initialRouteName={
+            !user
+              ? 'Login'
+              : needUsername
+                ? 'ChooseUsername'
+                : welcomePending
+                  ? 'Welcome'
+                  : 'Home'
+          }
         >
           {!user ? (
             <Stack.Screen
@@ -278,6 +300,18 @@ function AppShell() {
             </Stack.Screen>
           ) : (
             <>
+              <Stack.Screen
+                name="ChooseUsername"
+                options={{ title: 'Username', headerBackVisible: false }}
+              >
+                {(props) => (
+                  <ChooseUsernameScreen
+                    {...props}
+                    onChosen={() => setNeedUsername(false)}
+                    onSignOut={handleLogout}
+                  />
+                )}
+              </Stack.Screen>
               <Stack.Screen
                 name="Welcome"
                 options={{ title: 'Welcome', headerBackVisible: false }}
