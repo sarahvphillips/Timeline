@@ -144,16 +144,26 @@ function AppShell() {
           beginAuthScope(uid);
           beginWordNumbersAuthScope(uid);
           beginSpansAuthScope(uid);
+          const createdAt = Date.parse(firebaseUser.metadata?.creationTime || '');
+          const justCreated =
+            isBrandNewUser(uid) ||
+            (Number.isFinite(createdAt) && Date.now() - createdAt < 30 * 60 * 1000);
           AsyncStorage.multiGet([welcomePendingKey(uid), WELCOME_NEXT_KEY])
             .then((pairs) => {
               const map = Object.fromEntries(pairs || []);
-              const pending =
-                map[welcomePendingKey(uid)] === '1' || map[WELCOME_NEXT_KEY] === '1';
-              if (map[WELCOME_NEXT_KEY] === '1') {
+              const own = map[welcomePendingKey(uid)] === '1';
+              const globalNext = map[WELCOME_NEXT_KEY] === '1';
+              if (!justCreated) {
+                if (own) AsyncStorage.removeItem(welcomePendingKey(uid)).catch(() => {});
+                if (globalNext) AsyncStorage.removeItem(WELCOME_NEXT_KEY).catch(() => {});
+                setWelcomePending(false);
+                return;
+              }
+              if (globalNext) {
                 AsyncStorage.setItem(welcomePendingKey(uid), '1').catch(() => {});
                 AsyncStorage.removeItem(WELCOME_NEXT_KEY).catch(() => {});
               }
-              setWelcomePending(pending);
+              setWelcomePending(own || globalNext);
             })
             .catch(() => setWelcomePending(false));
           const waitForCloud =

@@ -7,7 +7,7 @@ import {
   signInWithPopup,
 } from 'firebase/auth';
 import { auth, prepareSignIn, saveRememberedEmail } from './firebase';
-import { WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
+import { WELCOME_NEXT_KEY, welcomePendingKey } from '../legal/welcomeEmail';
 
 const pendingNewUsers = new Set();
 
@@ -56,6 +56,7 @@ export async function signInWithGoogle(remember) {
   if (info && info.isNewUser && uid) {
     noteBrandNewUser(uid);
     await AsyncStorage.setItem(needUsernameKey(uid), '1').catch(() => {});
+    await AsyncStorage.setItem(welcomePendingKey(uid), '1').catch(() => {});
     await AsyncStorage.setItem(WELCOME_NEXT_KEY, '1').catch(() => {});
   }
   const email = result?.user?.email || '';
