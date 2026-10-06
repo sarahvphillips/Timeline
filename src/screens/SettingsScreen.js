@@ -37,6 +37,7 @@ import {
 import { getShowWorkshop, saveShowWorkshop } from '../services/workshopPrefs';
 import { clearThisAccountLocalCache } from '../services/localCache';
 import { accountNeedsPassword, changeSignedInPassword, deleteSignedInAccount } from '../services/accountDelete';
+import { googleProviderLinked, googleSignInMessage, linkGoogleAccount } from '../services/googleSignIn';
 import { auth } from '../services/firebase';
 import {
   getOrCreateDeviceId,
@@ -102,6 +103,8 @@ export default function SettingsScreen({ navigation }) {
   const [nextPassword, setNextPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [linkingGoogle, setLinkingGoogle] = useState(false);
+  const [googleLinked, setGoogleLinked] = useState(() => googleProviderLinked(auth.currentUser));
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [thisDeviceId, setThisDeviceId] = useState(null);
@@ -323,6 +326,21 @@ export default function SettingsScreen({ navigation }) {
       notify('Could not clear', fail);
     } finally {
       setClearingCache(false);
+    }
+  };
+
+  const handleLinkGoogle = async () => {
+    if (linkingGoogle) return;
+    setLinkingGoogle(true);
+    try {
+      await linkGoogleAccount();
+      setGoogleLinked(true);
+      notify('Google linked', 'You can sign in with Google or with your password.');
+    } catch (e) {
+      if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') return;
+      notify('Google', googleSignInMessage(e));
+    } finally {
+      setLinkingGoogle(false);
     }
   };
 
@@ -1064,6 +1082,25 @@ export default function SettingsScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         )}
+
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder, marginTop: 14 }]}
+          onPress={handleLinkGoogle}
+          disabled={linkingGoogle || googleLinked || !auth.currentUser}
+        >
+          <Text style={[styles.saveBtnText, { color: colors.text }]}>
+            {!auth.currentUser
+              ? 'Sign in to link Google'
+              : googleLinked
+                ? 'Google is linked'
+                : linkingGoogle
+                  ? 'Opening Google…'
+                  : 'Link Google'}
+          </Text>
+        </TouchableOpacity>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Use this after signing in with email, if Continue with Google says the email already has a password. It works in the laptop browser.
+        </Text>
 
         <Text style={[styles.section, { color: colors.muted }]}>Account</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>

@@ -26,7 +26,7 @@ import {
 import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 import { PRIVACY_URL, DELETE_ACCOUNT_URL, DELETE_DATA_URL } from '../legal/docs';
 import { normalizeHandle, saveProfile } from '../services/profileService';
-import { useTheme } from '../themeContext';
+import { googleSignInMessage, signInWithGoogle } from '../services/googleSignIn';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen({ onEnterGuest }) {
@@ -39,7 +39,7 @@ export default function LoginScreen({ onEnterGuest }) {
   const [resetLoading, setResetLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
@@ -170,6 +170,20 @@ export default function LoginScreen({ onEnterGuest }) {
       showMessage(isRegisterMode ? 'Registration failed' : 'Login failed', message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle(remember);
+    } catch (error) {
+      const message = googleSignInMessage(error);
+      if (error?.code !== 'auth/popup-closed-by-user' && error?.code !== 'auth/cancelled-popup-request') {
+        showMessage('Google', message);
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -354,6 +368,18 @@ export default function LoginScreen({ onEnterGuest }) {
             <Text style={styles.buttonText}>
               {isRegisterMode ? 'Create Account' : 'Log In'}
             </Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.googleButton, (loading || resetLoading || googleLoading) && styles.buttonDisabled]}
+          onPress={handleGoogle}
+          disabled={loading || resetLoading || googleLoading}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color={colors.text} />
+          ) : (
+            <Text style={styles.googleText}>Continue with Google</Text>
           )}
         </TouchableOpacity>
 
@@ -543,6 +569,16 @@ function screenStyles(c) {
     fontSize: 17,
     fontWeight: '600',
   },
+  googleButton: {
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    backgroundColor: c.bg,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  googleText: { color: c.text, fontSize: 16, fontWeight: '700' },
   switchMode: {
     marginTop: 20,
     alignItems: 'center',
