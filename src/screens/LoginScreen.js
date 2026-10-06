@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import {
 } from '../services/firebase';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 import { PRIVACY_URL, DELETE_ACCOUNT_URL, DELETE_DATA_URL } from '../legal/docs';
-import { normalizeHandle, saveProfile } from '../services/profileService';
+import { normalizeHandle, saveProfile, suggestFreeHandle } from '../services/profileService';
 import { googleSignInMessage, signInWithGoogle } from '../services/googleSignIn';
 import { useTheme } from '../themeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +42,7 @@ export default function LoginScreen({ onEnterGuest }) {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const takenNames = useRef(new Set());
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
@@ -160,7 +161,14 @@ export default function LoginScreen({ onEnterGuest }) {
           message = 'Network error. Check your internet connection.';
           break;
         case 'HANDLE_TAKEN':
+          takenNames.current.add(normalizeHandle(username));
           message = 'That username is already in use. Try another.';
+          if (takenNames.current.size >= 5) {
+            const idea = await suggestFreeHandle(username);
+            message = idea
+              ? `That username is already in use. A free one is @${idea}. You can change the box to that and try again.`
+              : 'Those usernames are taken, and no free variation was found. Try a different word.';
+          }
           break;
         case 'HANDLE_REQUIRED':
           message = 'Choose a username of at least 3 letters or numbers.';

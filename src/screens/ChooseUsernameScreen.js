@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { getProfile, normalizeHandle, saveProfile } from '../services/profileService';
+import { getProfile, normalizeHandle, saveProfile, suggestFreeHandle } from '../services/profileService';
 import { useTheme } from '../themeContext';
 
 export default function ChooseUsernameScreen({ onChosen, onSignOut }) {
@@ -18,6 +18,8 @@ export default function ChooseUsernameScreen({ onChosen, onSignOut }) {
   const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [suggestion, setSuggestion] = useState('');
+  const takenNames = useRef(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -45,11 +47,17 @@ export default function ChooseUsernameScreen({ onChosen, onSignOut }) {
       onChosen();
     } catch (e) {
       const code = e?.code || '';
-      setError(
-        code === 'HANDLE_TAKEN'
-          ? 'That username is already in use. Try another.'
-          : e?.message || 'Could not save that username.',
-      );
+      if (code === 'HANDLE_TAKEN') {
+        takenNames.current.add(chosen);
+        setError('That username is already in use. Try another.');
+        if (takenNames.current.size >= 5) {
+          const idea = await suggestFreeHandle(chosen);
+          setSuggestion(idea || '');
+          if (!idea) setError('Those usernames are taken, and no free variation was found. Try a different word.');
+        }
+      } else {
+        setError(e?.message || 'Could not save that username.');
+      }
     } finally {
       setSaving(false);
     }
@@ -80,6 +88,18 @@ export default function ChooseUsernameScreen({ onChosen, onSignOut }) {
           onSubmitEditing={save}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {suggestion ? (
+          <TouchableOpacity
+            style={styles.suggest}
+            onPress={() => {
+              setUsername(suggestion);
+              setError('');
+            }}
+            disabled={saving}
+          >
+            <Text style={styles.suggestText}>Try @{suggestion}</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           style={[styles.button, saving && styles.buttonDisabled]}
           onPress={save}
@@ -127,6 +147,16 @@ function screenStyles(c) {
       fontSize: 16,
     },
     error: { color: c.danger || '#dc2626', marginTop: 10, fontSize: 14 },
+    suggest: {
+      marginTop: 12,
+      alignSelf: 'flex-start',
+      borderWidth: 1,
+      borderColor: c.blue,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    suggestText: { color: c.blue, fontSize: 15, fontWeight: '700' },
     button: {
       backgroundColor: c.blue,
       borderRadius: 10,

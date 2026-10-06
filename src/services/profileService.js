@@ -310,6 +310,34 @@ async function releaseProfileHandle(uid, handle) {
   }
 }
 
+export async function handleIsTaken(handle) {
+  const name = normalizeHandle(handle);
+  if (name.length < 3) return false;
+  const snap = await getDoc(doc(db, 'profileHandles', name));
+  const uid = getUid();
+  return !!(snap.exists() && snap.data()?.uid && snap.data().uid !== uid);
+}
+
+/** A free variant of a taken name, such as sarah2. Empty if none is free. */
+export async function suggestFreeHandle(base) {
+  const stem = normalizeHandle(base).replace(/\d+$/, '').slice(0, 20) || 'user';
+  const candidates = [];
+  for (let n = 2; n <= 30; n += 1) candidates.push(`${stem}${n}`);
+  const uid = getUid();
+  const tail = String(uid || '').replace(/[^a-z0-9]/gi, '').slice(-4).toLowerCase();
+  if (tail) candidates.push(`${stem}${tail}`);
+  for (const candidate of candidates) {
+    const name = normalizeHandle(candidate);
+    if (name.length < 3 || name === normalizeHandle(base)) continue;
+    try {
+      if (!(await handleIsTaken(name))) return name;
+    } catch (_) {
+      return '';
+    }
+  }
+  return '';
+}
+
 export async function lookupPublicProfile(handleOrLink) {
   const handle = normalizeHandle(
     String(handleOrLink || '').replace(/^profile:/i, '').replace(/^.*profile\//i, ''),
