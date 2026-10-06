@@ -239,6 +239,29 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           </View>
         </View>
 
+        <Text style={styles.sectionTitle}>WIDGETS</Text>
+        <View style={styles.widgetRow}>
+          <TouchableOpacity
+            style={[styles.widget, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+            onPress={() => navigation.navigate('AddQr')}
+          >
+            <Ionicons name="qr-code-outline" size={28} color={colors.blue} />
+            <Text style={[styles.widgetLabel, { color: colors.text }]}>Scan QR</Text>
+          </TouchableOpacity>
+          {showAddEvent ? (
+            <TouchableOpacity
+              style={[styles.widget, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+              onPress={() => navigation.navigate('AddEvent')}
+            >
+              <Ionicons name="add-circle-outline" size={28} color={colors.blue} />
+              <Text style={[styles.widgetLabel, { color: colors.text }]}>New event</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <Text style={[styles.widgetNote, { color: colors.faint }]}>
+          These open inside Timeline. A tile on the phone’s own home screen is in the Play Store build. Expo Go cannot place one.
+        </Text>
+
         <Text style={styles.sectionTitle}>STAMPS</Text>
         <StampsRow
           stamps={stamps}
@@ -401,6 +424,18 @@ const styles = StyleSheet.create({
   },
   statNum: { fontSize: 20, fontWeight: '800' },
   statLabel: { fontSize: 11, marginTop: 2, fontWeight: '600' },
+  widgetRow: { flexDirection: 'row', gap: 10 },
+  widget: {
+    flex: 1,
+    minHeight: 92,
+    borderWidth: 1,
+    borderRadius: 16,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    padding: 14,
+  },
+  widgetLabel: { fontSize: 15, fontWeight: '700', marginTop: 12 },
+  widgetNote: { fontSize: 12, lineHeight: 17, marginTop: 8 },
   sectionTitle: {
     color: '#7c6ee6',
     fontSize: 11,

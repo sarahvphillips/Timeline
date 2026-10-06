@@ -54,6 +54,14 @@ export function buildAppLinking() {
           ],
         };
       }
+      const widget = String(path || '').match(/(?:^|\/)widget\/(scan|add)\/?$/i);
+      if (widget) {
+        return {
+          routes: [
+            { name: widget[1].toLowerCase() === 'scan' ? 'AddQr' : 'AddEvent' },
+          ],
+        };
+      }
       return defaultGetStateFromPath(path, options);
     },
   };

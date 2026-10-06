@@ -907,7 +907,25 @@ export default function SettingsScreen({ navigation }) {
             />
           </View>
         </View>
-        {renderSoonRow("Widgets", "Home screen widgets")}
+        <TouchableOpacity
+          style={[
+            styles.menuRow,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card },
+          ]}
+          onPress={() =>
+            Alert.alert(
+              'Home screen widgets',
+              'Scan QR and New event are on the Home screen. A tile on the phone’s own home screen is in the Play Store build. Expo Go cannot place one.',
+            )
+          }
+        >
+          <View style={styles.menuRowText}>
+            <Text style={[styles.menuRowLabel, { color: colors.text }]}>Widgets</Text>
+            <Text style={[styles.hint, { color: colors.faint, marginBottom: 0, marginTop: 4 }]}>
+              Scan QR and New event, on Home. The phone home screen tile waits for the Play Store build.
+            </Text>
+          </View>
+        </TouchableOpacity>
         <View
           style={[
             styles.menuRow,

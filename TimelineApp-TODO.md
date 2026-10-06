@@ -189,8 +189,8 @@ Product map:
 
 ## Home screen widgets (later)
 
-- [ ] Widgets for new events (needs a development build)
-- [ ] Quick QR code scan widget (Add QR screen exists; home-screen widget does not)
+- [x] **In-app widgets (6 Oct 2026):** Home shows Scan QR and New event. They open the existing screens. `timelineapp://widget/scan` and `timelineapp://widget/add` open the same screens.
+- [ ] A tile on the phone’s own home screen (Android app widget). Expo’s widget library is iOS only, and Expo Go cannot install an Android widget. This waits for the Play Store build.
 
 ---
 
