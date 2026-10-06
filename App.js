@@ -10,7 +10,7 @@ import { syncEventsFromCloud, readLocalEvents, LAST_UID_KEY, beginAuthScope, EVE
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncWordNumbersFromCloud, beginAuthScope as beginWordNumbersAuthScope, WORD_NUMBERS_FIRESTORE_SYNC_ENABLED } from './src/services/wordToIntService';
 import { beginAuthScope as beginSpansAuthScope } from './src/services/dateSpanService';
-import { syncSettingsFromCloud, normalizeHandle } from './src/services/profileService';
+import { syncSettingsFromCloud } from './src/services/profileService';
 import { loadThemePrefs, writeThemePrefsLocalOnly } from './src/theme';
 import { registerThisDevice } from './src/services/deviceSession';
 import { buildAppLinking } from './src/services/appLinking';
@@ -71,6 +71,7 @@ import AddLocationScreen from './src/screens/AddLocationScreen';
 import AddLifeEventScreen from './src/screens/AddLifeEventScreen';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
 import { ThemeProvider, useTheme } from './src/themeContext';
+import { isBrandNewUser, needUsernameKey } from './src/services/googleSignIn';
 import {
   GUEST_UID,
   GUEST_USER,
@@ -159,7 +160,6 @@ function AppShell() {
             EVENTS_FIRESTORE_SYNC_ENABLED || WORD_NUMBERS_FIRESTORE_SYNC_ENABLED;
           if (waitForCloud) setCloudSyncing(true);
           setInitializing(false);
-          let settings = null;
           Promise.all([
             syncEventsFromCloud(uid).catch((err) => {
               console.warn(
@@ -177,20 +177,23 @@ function AppShell() {
                 err,
               );
             }),
-            syncSettingsFromCloud(uid)
-              .then((value) => {
-                settings = value;
-              })
-              .catch((err) => {
-                console.warn('Settings cloud sync failed', err);
-              }),
+            syncSettingsFromCloud(uid).catch((err) => {
+              console.warn('Settings cloud sync failed', err);
+            }),
             registerThisDevice(uid).catch((err) => {
               console.warn('Device session register failed', err);
             }),
-          ]).finally(() => {
+          ]).finally(async () => {
             AsyncStorage.setItem(LAST_UID_KEY, uid).catch(() => {});
-            const handle = normalizeHandle(settings?.profile?.handle);
-            setNeedUsername(!!settings && handle.length < 3);
+            let flagged = isBrandNewUser(uid);
+            if (!flagged) {
+              try {
+                flagged = (await AsyncStorage.getItem(needUsernameKey(uid))) === '1';
+              } catch (_) {
+                flagged = false;
+              }
+            }
+            setNeedUsername(flagged);
             setCloudSyncing(false);
           });
         } else {

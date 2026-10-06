@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { getProfile, normalizeHandle, saveProfile, suggestFreeHandle } from '../services/profileService';
+import { clearUsernamePrompt } from '../services/googleSignIn';
+import { auth } from '../services/firebase';
 import { useTheme } from '../themeContext';
 
 export default function ChooseUsernameScreen({ onChosen, onSignOut }) {
@@ -44,6 +46,7 @@ export default function ChooseUsernameScreen({ onChosen, onSignOut }) {
     setError('');
     try {
       await saveProfile({ handle: chosen, visibility: 'private' });
+      await clearUsernamePrompt(auth.currentUser?.uid);
       onChosen();
     } catch (e) {
       const code = e?.code || '';

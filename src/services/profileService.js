@@ -589,7 +589,7 @@ async function syncWashPrefsFromCloud(uid, localShow) {
 async function syncProfileFromCloud(uid, local) {
   const snap = await getDoc(settingsDoc(uid, 'profile'));
   if (!snap.exists()) {
-    if (local.displayName || local.dateOfBirth) {
+    if (local.displayName || local.dateOfBirth || local.handle) {
       await setDoc(
         settingsDoc(uid, 'profile'),
         stripUndefined({
@@ -604,10 +604,21 @@ async function syncProfileFromCloud(uid, local) {
   const cloud = normalizeProfile({
     displayName: data.displayName || '',
     dateOfBirth: data.dateOfBirth || '',
-    handle: data.handle || '',
+    handle: data.handle || local.handle || '',
     visibility: data.visibility,
     updatedAt: toIso(data.updatedAt) || new Date().toISOString(),
   });
+  if (!normalizeHandle(data.handle) && normalizeHandle(local.handle)) {
+    try {
+      await setDoc(
+        settingsDoc(uid, 'profile'),
+        stripUndefined({ ...cloud, updatedAt: new Date().toISOString() }),
+        { merge: true },
+      );
+    } catch (e) {
+      console.warn('Could not keep the existing username in the cloud', e);
+    }
+  }
   await AsyncStorage.setItem(profileKey(uid), JSON.stringify(cloud));
   return cloud;
 }

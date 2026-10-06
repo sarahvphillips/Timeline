@@ -9,6 +9,26 @@ import {
 import { auth, prepareSignIn, saveRememberedEmail } from './firebase';
 import { WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 
+const pendingNewUsers = new Set();
+
+export function needUsernameKey(uid) {
+  return uid ? `@timeline_need_username_${uid}` : '';
+}
+
+export function noteBrandNewUser(uid) {
+  if (uid) pendingNewUsers.add(uid);
+}
+
+export function isBrandNewUser(uid) {
+  return !!(uid && pendingNewUsers.has(uid));
+}
+
+export async function clearUsernamePrompt(uid) {
+  if (uid) pendingNewUsers.delete(uid);
+  const key = needUsernameKey(uid);
+  if (key) await AsyncStorage.removeItem(key).catch(() => {});
+}
+
 function googleProvider() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
@@ -32,7 +52,10 @@ export async function signInWithGoogle(remember) {
   await prepareSignIn(remember !== false);
   const result = await signInWithPopup(auth, googleProvider());
   const info = getAdditionalUserInfo(result);
-  if (info && info.isNewUser) {
+  const uid = result?.user?.uid;
+  if (info && info.isNewUser && uid) {
+    noteBrandNewUser(uid);
+    await AsyncStorage.setItem(needUsernameKey(uid), '1').catch(() => {});
     await AsyncStorage.setItem(WELCOME_NEXT_KEY, '1').catch(() => {});
   }
   const email = result?.user?.email || '';
