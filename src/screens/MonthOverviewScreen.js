@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -87,6 +87,10 @@ export default function MonthOverviewScreen({ navigation, route }) {
   const [activeFilter, setActiveFilter] = useState(() => buildBubbleFilterFromParams(route.params));
   const [filterLabel, setFilterLabel] = useState(() => route.params?.label || '');
   const [preview, setPreview] = useState(null);
+  const scroller = useRef(null);
+  const stageY = useRef(0);
+  const blockY = useRef({});
+  const focusMonth = route.params?.focusMonth;
 
   useEffect(() => {
     setActiveFilter(buildBubbleFilterFromParams(route.params));
@@ -141,6 +145,15 @@ export default function MonthOverviewScreen({ navigation, route }) {
 
   const chipText = filterLabel || activeFilter?.kind || 'Filter';
   const filtered = !!activeFilter;
+
+  useEffect(() => {
+    if (loading || focusMonth == null || focusMonth < 0 || focusMonth > 11) return undefined;
+    const timer = setTimeout(() => {
+      const y = (stageY.current || 0) + (blockY.current[focusMonth] || focusMonth * 66);
+      scroller.current?.scrollTo({ y: Math.max(0, y - 12), animated: false });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [loading, focusMonth, months, filtered]);
   const chipIcon =
     /poem/i.test(chipText) || activeFilter?.hobbyType === 'poetry' || activeFilter?.kind === 'poem'
       ? '📖'
@@ -219,7 +232,12 @@ export default function MonthOverviewScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scroll, filtered && styles.scrollFiltered]} directionalLockEnabled nestedScrollEnabled>
+      <ScrollView
+        ref={scroller}
+        contentContainerStyle={[styles.scroll, filtered && styles.scrollFiltered]}
+        directionalLockEnabled
+        nestedScrollEnabled
+      >
         <Text style={[styles.yearHeading, filtered && styles.yearHeadingFiltered]}>
           {filtered ? `${startYear} Months` : String(startYear)}
         </Text>
@@ -243,6 +261,11 @@ export default function MonthOverviewScreen({ navigation, route }) {
           </View>
         ) : null}
         {filtered ? (
+          <View
+            onLayout={(e) => {
+              stageY.current = e.nativeEvent.layout.y;
+            }}
+          >
           <FilteredMonthSpine
             months={months}
             year={startYear}
@@ -250,7 +273,13 @@ export default function MonthOverviewScreen({ navigation, route }) {
             filterLabel={chipText}
             onOpenMonth={openMonth}
           />
+          </View>
         ) : (
+          <View
+            onLayout={(e) => {
+              stageY.current = e.nativeEvent.layout.y;
+            }}
+          >
           <SpineStage>
             <View style={styles.spine} />
             {months.map((m, index) => (
@@ -263,11 +292,15 @@ export default function MonthOverviewScreen({ navigation, route }) {
                 blockIndex={index}
                 glowKey={glowKey}
                 boxedLabel
+                onLayout={(e) => {
+                  blockY.current[m.month] = e.nativeEvent.layout.y;
+                }}
                 onOpenLabel={() => openMonth(m.month)}
                 onOpenBubble={(bubble) => openBubble(m, bubble)}
               />
             ))}
           </SpineStage>
+          </View>
         )}
       </ScrollView>
 

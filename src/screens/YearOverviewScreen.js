@@ -95,6 +95,17 @@ export default function YearOverviewScreen({ navigation, route }) {
     navigation.navigate('MonthOverview', { year });
   };
 
+  const openMonth = (year, month) => {
+    const params = { year, focusMonth: month };
+    if (filterId && filterId !== 'all') {
+      params.kind = filterId === 'poems' ? 'poem' : activeFilter.id;
+      params.label = activeFilter.label;
+      params.source = filterId === 'poems' ? undefined : filterId;
+      params.hobbyType = filterId === 'poems' ? 'poetry' : undefined;
+    }
+    navigation.navigate('MonthOverview', params);
+  };
+
   const openBubble = (year, bubble) => {
     if (bubble?.event) {
       const e = bubble.event;
@@ -258,10 +269,12 @@ export default function YearOverviewScreen({ navigation, route }) {
                 id={item.year}
                 label={String(item.year)}
                 bubbles={item.bubbles}
+                months={item.months}
                 blockIndex={index}
                 glowKey={itemView ? null : glowKey}
                 boxedLabel
                 onOpenLabel={() => openYear(item.year)}
+                onOpenMonth={(month) => openMonth(item.year, month)}
                 onOpenBubble={(bubble) => openBubble(item.year, bubble)}
               />
             ))}

@@ -45,7 +45,7 @@ Leave SMS reading, call-log access, and live Open Banking out of this version.
 - [x] Add poem â own screen (`AddPoemScreen`)
 - [x] Home â simple menu (profile initial, Timeline, Add from email, Starlink, Word to Int, Days between dates, Share / Settings / Add account / Logout rows)
 - [x] Year overview timeline (centre line, count bubbles, tap year â months)
-- [x] Year overview kind-bubbles (8 Sep 2026): purple spine; per-year coloured Poem/Event/Email/QR/Family/Food/category bubbles on dotted spokes (alternating L/R); `getYearBubbleSummaries` + tap bubble → MonthOverview with kind filter params (filter UI deferred)
+- [x] Year overview month letters (6 Oct 2026): under each year, J–D. Months with events are bright and open that month. Empty months stay faint.
 - [x] TEMP Design mock preview buttons removed (24 Sep 2026) from Home, Years, Months, Timeline, Add event, Settings, and Days between. Sketch images stay in `assets/`. The button component is gone.
 - [x] Settings UI rename (8 Sep 2026): **Poem categories** → **Poem types** / placeholder **New poem type**. Labels unchanged. Data keys (`poemCategories`, `@timeline_poem_categories_*`) kept so existing lists still load.
 - [x] Settings: Enter/Return in Labels and Poem types add fields adds the item (same as Add button) (8 Sep 2026)

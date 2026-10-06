@@ -1178,6 +1178,7 @@ export function getYearBubbleSummaries(events) {
       year,
       count: list.length,
       bubbles,
+      months: monthMarksForEvents(list),
     };
   });
 }
@@ -1203,6 +1204,26 @@ export function eventMatchesBubbleFilter(event, filter) {
     const got = String(meta.filter?.[k] || '').toLowerCase();
     return got === want;
   });
+}
+
+export function monthMarksForEvents(events) {
+  const counts = Array(12).fill(0);
+  (events || []).forEach((event) => {
+    const raw = String(event?.date || '');
+    const match = raw.match(/\d{4}-(\d{2})/);
+    let month = -1;
+    if (match) month = Number(match[1]) - 1;
+    else {
+      const d = new Date(event?.date);
+      if (!Number.isNaN(d.getTime())) month = d.getMonth();
+    }
+    if (month >= 0 && month <= 11) counts[month] += 1;
+  });
+  return counts.map((count, month) => ({
+    month,
+    letter: MONTH_LETTERS[month],
+    count,
+  }));
 }
 
 const PREVIEW_MONTH_SHORT = [
@@ -1817,5 +1838,9 @@ export function getItemBubblesByYear(events, filterId, dateFormat = 'dmy') {
   return Object.keys(byYear)
     .map(Number)
     .sort((a, b) => a - b)
-    .map((year) => ({ year, bubbles: byYear[year] }));
+    .map((year) => ({
+      year,
+      bubbles: byYear[year],
+      months: monthMarksForEvents(byYear[year].map((row) => row.event)),
+    }));
 }

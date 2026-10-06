@@ -156,6 +156,41 @@ function KindBubble({ bubble, glow, onPress, style }) {
   );
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function MonthLetterRow({ months, top, onOpenMonth }) {
+  if (!Array.isArray(months) || months.length !== 12) return null;
+  return (
+    <View pointerEvents="box-none" style={[styles.monthRow, { top }]}>
+      {months.map((mark) => {
+        const on = (mark.count || 0) > 0;
+        const name = MONTH_NAMES[mark.month] || mark.letter;
+        if (!on) {
+          return (
+            <Text key={mark.month} style={styles.monthLetterOff}>
+              {mark.letter}
+            </Text>
+          );
+        }
+        return (
+          <TouchableOpacity
+            key={mark.month}
+            onPress={() => onOpenMonth && onOpenMonth(mark.month)}
+            hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
+            accessibilityLabel={`${name}, ${mark.count} ${mark.count === 1 ? 'event' : 'events'}`}
+          >
+            <Text style={styles.monthLetterOn}>{mark.letter}</Text>
+            <View style={styles.monthDot} />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 function staggerOffset(seed, bubbleIndex) {
   const hash = (seedNumber(seed) + bubbleIndex * 3) % OFFSETS.length;
   return OFFSETS[hash];
@@ -172,7 +207,10 @@ export default function SpineKindBlock({
   glowKey,
   onOpenLabel,
   onOpenBubble,
+  onOpenMonth,
+  months,
   boxedLabel = false,
+  onLayout,
 }) {
   const { width: screenW } = useWindowDimensions();
   const list = bubbles || [];
@@ -181,7 +219,10 @@ export default function SpineKindBlock({
   const crowded = n >= 5;
   const vertGap = crowded ? BUBBLE_SIZE + 12 : VERT_GAP;
   const twoLine = boxedLabel && !!sublabel;
-  const stackHeight = n === 0 ? (twoLine ? 112 : 96) : Math.max(twoLine ? 112 : 96, (n - 1) * vertGap + BUBBLE_SIZE + 28);
+  const showMonths = Array.isArray(months) && months.length === 12;
+  const stackHeight =
+    (n === 0 ? (twoLine ? 112 : 96) : Math.max(twoLine ? 112 : 96, (n - 1) * vertGap + BUBBLE_SIZE + 28)) +
+    (showMonths ? 18 : 0);
   const spineY = stackHeight / 2;
   const seed = id ?? blockIndex;
   const maxDistance = Math.max(
@@ -203,7 +244,10 @@ export default function SpineKindBlock({
   const labelTop = twoLine ? spineY - 44 : boxedLabel ? spineY - 34 : spineY - 28;
 
   return (
-    <View style={[styles.block, { height: stackHeight, marginBottom: 40 }, muted && styles.blockMuted]}>
+    <View
+      onLayout={onLayout}
+      style={[styles.block, { height: stackHeight, marginBottom: 40 }, muted && styles.blockMuted]}
+    >
       {placements.map((p) => (
         <CurvedDashedSpoke
           key={`spoke-${p.bubble.kind}`}
@@ -228,6 +272,10 @@ export default function SpineKindBlock({
           {current ? <Text style={styles.nowMark}>★</Text> : null}
         </View>
       </TouchableOpacity>
+
+      {showMonths ? (
+        <MonthLetterRow months={months} top={labelTop + (twoLine ? 58 : 46)} onOpenMonth={onOpenMonth} />
+      ) : null}
 
       {placements.map((p) => {
         const half = BUBBLE_SIZE / 2;
@@ -317,6 +365,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginTop: 2,
+  },
+  monthRow: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -96,
+    width: 192,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    zIndex: 6,
+  },
+  monthLetterOn: {
+    color: '#f5f3ff',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+    width: 14,
+  },
+  monthLetterOff: {
+    color: '#4b4568',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    width: 14,
+  },
+  monthDot: {
+    alignSelf: 'center',
+    marginTop: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#c4b5fd',
   },
   bubbleAbs: {
     position: 'absolute',
