@@ -27,6 +27,7 @@ import { welcomePendingKey, WELCOME_NEXT_KEY } from '../legal/welcomeEmail';
 import { PRIVACY_URL, DELETE_ACCOUNT_URL, DELETE_DATA_URL } from '../legal/docs';
 import { normalizeHandle, saveProfile } from '../services/profileService';
 import { googleSignInMessage, signInWithGoogle } from '../services/googleSignIn';
+import { useTheme } from '../themeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen({ onEnterGuest }) {
