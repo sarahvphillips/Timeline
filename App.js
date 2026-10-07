@@ -69,6 +69,7 @@ import WelcomeScreen from './src/screens/WelcomeScreen';
 import ChooseUsernameScreen from './src/screens/ChooseUsernameScreen';
 import AddLocationScreen from './src/screens/AddLocationScreen';
 import AddLifeEventScreen from './src/screens/AddLifeEventScreen';
+import TodoListScreen from './src/screens/TodoListScreen';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
 import { ThemeProvider, useTheme } from './src/themeContext';
 import { isBrandNewUser, needUsernameKey } from './src/services/googleSignIn';
@@ -642,6 +643,12 @@ function AppShell() {
                 name="PublicProfile"
                 component={PublicProfileScreen}
                 options={{ title: 'Public profile' }}
+              />
+
+              <Stack.Screen
+                name="TodoList"
+                component={TodoListScreen}
+                options={{ title: 'To do' }}
               />
 
               <Stack.Screen

@@ -287,6 +287,12 @@ export default function HomeScreen({ navigation, user, onLogout }) {
             />
             <MenuRow
               colors={colors}
+              icon="checkbox-outline"
+              label="To do"
+              onPress={() => navigation.navigate('TodoList')}
+            />
+            <MenuRow
+              colors={colors}
               icon="people-outline"
               label="Events with friends"
               last
