@@ -52,7 +52,7 @@ function useFallbackCameraPermissions() {
   return [null, async () => ({ granted: false })];
 }
 
-function NativeScanButton({ onScanned }) {
+function NativeScanButton({ onScanned, styles }) {
   const usePerms = useCameraPermissions || useFallbackCameraPermissions;
   const [permission, requestPermission] = usePerms();
   const [open, setOpen] = useState(false);
@@ -127,7 +127,7 @@ function NativeScanButton({ onScanned }) {
   );
 }
 
-function WebScanNote() {
+function WebScanNote({ styles }) {
   return (
     <View style={styles.webNote}>
       <Text style={styles.webNoteTitle}>Scan QR</Text>
@@ -436,9 +436,9 @@ export default function AcceptInviteScreen({ navigation, route }) {
       />
 
       {Platform.OS === 'web' ? (
-        <WebScanNote />
+        <WebScanNote styles={styles} />
       ) : (
-        <NativeScanButton onScanned={applyScannedCode} />
+        <NativeScanButton styles={styles} onScanned={applyScannedCode} />
       )}
 
       <TouchableOpacity style={styles.secondary} onPress={() => lookup(code)} disabled={loadingPreview}>
