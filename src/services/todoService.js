@@ -124,6 +124,7 @@ export async function completeTodo(todo) {
     date: row.date,
     category: row.category || 'personal',
     source: 'todo',
+    fromTodo: true,
     nextAction: 'none',
   });
   const saved = (events || []).find((event) => event.id === eventId) || null;

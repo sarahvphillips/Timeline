@@ -161,6 +161,9 @@ export default function EventViewScreen({ navigation, route }) {
       </View>
       <Text style={styles.title}>{event.title || 'Untitled'}</Text>
       <Text style={styles.when}>{formatWhen(event.date, dateFormat)}</Text>
+      {event.source === 'todo' || event.fromTodo ? (
+        <Text style={styles.meta}>Started on the to-do list</Text>
+      ) : null}
 
       {photo ? (
         <TouchableOpacity

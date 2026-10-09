@@ -281,6 +281,9 @@ export default function TimelineScreen({ navigation, route }) {
         <Text style={styles.title} numberOfLines={expanded ? 4 : 2}>
           {item.title}
         </Text>
+        {item.source === 'todo' || item.fromTodo ? (
+          <Text style={styles.hobbyMeta}>To-do list</Text>
+        ) : null}
         {item.shareId && shareNotices[item.shareId] ? (
           <View style={styles.noticeFlagRow}>
             {shareNotices[item.shareId].left ? (

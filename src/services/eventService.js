@@ -927,6 +927,7 @@ export const YEAR_BUBBLE_KIND_COLORS = {
   watched: '#f472b6',
   location: '#2dd4bf',
   life: '#e879f9',
+  todo: '#a78bfa',
 };
 
 const YEAR_BUBBLE_KIND_ORDER = [
@@ -947,6 +948,7 @@ const YEAR_BUBBLE_KIND_ORDER = [
   'watched',
   'location',
   'life',
+  'todo',
 ];
 
 /**
@@ -958,6 +960,14 @@ export function classifyYearBubbleKind(event) {
   const hobbyType = String(event?.hobbyType || '').toLowerCase();
   const category = String(event?.category || '').toLowerCase();
   const title = String(event?.title || '');
+  if (source === 'todo' || event?.fromTodo) {
+    return {
+      kind: 'todo',
+      label: 'To do',
+      color: YEAR_BUBBLE_KIND_COLORS.todo,
+      filter: { source: 'todo' },
+    };
+  }
   const hasQr =
     source === 'qr' ||
     !!event?.qrLink ||

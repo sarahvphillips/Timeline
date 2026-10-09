@@ -41,6 +41,7 @@ export async function unlinkEvents(leftId, rightId) {
 
 export function eventKindLabel(event) {
   if (!event) return 'Event';
+  if (event.source === 'todo' || event.fromTodo) return 'To do';
   if (event.hobbyType === 'poetry' || event.source === 'poem') return 'Poem';
   if (event.source === 'youtube') return 'YouTube';
   if (event.source === 'social') return 'Social';
