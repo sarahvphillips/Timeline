@@ -1,0 +1,70 @@
+/**
+ * Poem text read from the poem card images (test run: cards 001 to 003).
+ * writtenAt is the London local time printed on the card, not the day the image was made.
+ * driveUrl is a private link; it only opens for the account that owns the file.
+ */
+export const POEM_CARD_TEXTS = [
+  {
+    number: '001',
+    slug: 'waiting-for-good-things',
+    title: 'Waiting for Good Things',
+    writtenAt: '2025-09-17T03:44:00',
+    text: [
+      'Sometimes it can feel',
+      'Like life is a spinning wheel',
+      'The best things you want',
+      'Can make you wonder',
+      'How long until plans are cast asunder',
+      "Happiness isn't meant to be so long awaited",
+      'But maybe without time to wait',
+      'The bad things wont abate',
+      "Time to plan isn't always a bore",
+      'Taking too long can feel like a chore',
+      'Eventually the good things in life',
+      "Don't have to come with a heavy price?",
+    ].join('\n'),
+    driveFileId: '1pWG2WPmdWsv0KMY9STMJIpaVsHjtM_e4',
+    driveUrl: 'https://drive.google.com/file/d/1pWG2WPmdWsv0KMY9STMJIpaVsHjtM_e4/view',
+  },
+  {
+    number: '002',
+    slug: 'falling-in-love',
+    title: 'Falling in Love',
+    writtenAt: '2025-09-17T03:15:00',
+    text: [
+      'It can be scary,',
+      'Like a leaf falling onto a fairy,',
+      'Something delicate,',
+      'Making you want to hesitate,',
+      'Fearing it might run away,',
+      'Your thoughts might fray,',
+      'He might find someone else with',
+      'Better fashion sense,',
+      'A sweeter smile,',
+      'A brighter mind,',
+      'Or a better way to be kind.',
+    ].join('\n'),
+    driveFileId: '1l19_hINTQZfKOvwENb5_r72A-xwldE0w',
+    driveUrl: 'https://drive.google.com/file/d/1l19_hINTQZfKOvwENb5_r72A-xwldE0w/view',
+  },
+  {
+    number: '003',
+    slug: 'figaro-flew-ragnarok',
+    title: 'Figaro Flew Ragnarok',
+    writtenAt: '2025-09-17T04:38:00',
+    text: [
+      'Figaro was a tune',
+      'For a woman who loved Elune',
+      'Ragnarok was the ship',
+      'That let her love a high paced life',
+      'Her troubles could be less like strife',
+      'Figaro in love',
+      'For a ship that flew above',
+      'Heights that could be reached',
+      'With or without a crew',
+      'A ship manned by two',
+    ].join('\n'),
+    driveFileId: '16UrccwGDsT3C8QfaTuMB8ecRhWuC0QFM',
+    driveUrl: 'https://drive.google.com/file/d/16UrccwGDsT3C8QfaTuMB8ecRhWuC0QFM/view',
+  },
+];

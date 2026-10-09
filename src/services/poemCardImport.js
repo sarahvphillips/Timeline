@@ -5,6 +5,7 @@ import { auth } from './firebase';
 import { getEvents, saveEvent } from './eventService';
 import { persistPickedImage } from './imagePicker';
 import { POEM_CARD_SEED } from '../data/poemCardSeed';
+import { POEM_CARD_TEXTS } from '../data/poemCardTexts';
 
 const BULK_KEY = '@timeline_poem_cards_bulk_written_day';
 
@@ -130,4 +131,39 @@ export async function importPoemCards() {
   const done = added + updated + skipped >= POEM_CARD_SEED.length;
   if (done) await AsyncStorage.setItem(BULK_KEY, '1');
   return { added, updated, skipped, total: POEM_CARD_SEED.length, matched: added + updated + skipped, cancelled: false };
+}
+
+/** Saves the poem text, written time and private Drive link from POEM_CARD_TEXTS. Keeps any card image already saved. */
+export async function importPoemCardTexts() {
+  if (!auth.currentUser) {
+    const err = new Error('Sign in first. These poem cards save on your account.');
+    err.code = 'SIGNED_OUT';
+    throw err;
+  }
+  const existing = await getEvents();
+  const have = new Map((existing || []).map((event) => [event.id, event]));
+  let added = 0;
+  let updated = 0;
+  for (const card of POEM_CARD_TEXTS) {
+    const id = `poem-card-${card.slug}`;
+    const prev = have.get(id);
+    await saveEvent({
+      ...(prev || {}),
+      id,
+      title: card.title,
+      description: card.text,
+      date: card.writtenAt,
+      category: 'hobby',
+      source: 'hobby',
+      hobbyType: 'poetry',
+      collectionName: 'Poem Compilation',
+      labels: ['Poem', '#poem'],
+      cardNumber: card.number,
+      driveUrl: card.driveUrl,
+      nextAction: (prev && prev.nextAction) || 'none',
+    });
+    if (prev) updated += 1;
+    else added += 1;
+  }
+  return { added, updated, total: POEM_CARD_TEXTS.length };
 }

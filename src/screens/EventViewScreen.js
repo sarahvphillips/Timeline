@@ -237,6 +237,15 @@ export default function EventViewScreen({ navigation, route }) {
         <Text style={styles.meta}>Next: Done</Text>
       ) : null}
 
+      {event.driveUrl ? (
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(event.driveUrl)}>
+            <Ionicons name="open-outline" size={16} color="#7dd3fc" />
+            <Text style={styles.actionText}>Open card in Drive</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {postLink ? (
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(postLink)}>

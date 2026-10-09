@@ -39,6 +39,7 @@ import { clearThisAccountLocalCache } from '../services/localCache';
 import { accountNeedsPassword, changeSignedInPassword, deleteSignedInAccount } from '../services/accountDelete';
 import { googleProviderLinked, googleSignInMessage, linkGoogleAccount } from '../services/googleSignIn';
 import { auth } from '../services/firebase';
+import { importPoemCardTexts } from '../services/poemCardImport';
 import {
   getOrCreateDeviceId,
   listSessions,
@@ -95,6 +96,7 @@ export default function SettingsScreen({ navigation }) {
   const [canCustomCats, setCanCustomCats] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [poemTextsBusy, setPoemTextsBusy] = useState(false);
   const [cacheNotice, setCacheNotice] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteWord, setDeleteWord] = useState('');
@@ -226,6 +228,19 @@ export default function SettingsScreen({ navigation }) {
       return;
     }
     Alert.alert(title, message);
+  };
+
+  const handleImportPoemCardTexts = async () => {
+    if (poemTextsBusy) return;
+    setPoemTextsBusy(true);
+    try {
+      const result = await importPoemCardTexts();
+      notify('Poem card texts', `${result.added} added · ${result.updated} updated (of ${result.total}).`);
+    } catch (e) {
+      notify('Could not import poem card texts', e?.message || 'Try again.');
+    } finally {
+      setPoemTextsBusy(false);
+    }
   };
 
   const handleExportBackup = async () => {
@@ -683,6 +698,13 @@ export default function SettingsScreen({ navigation }) {
             <Text style={styles.saveBtnText}>Add</Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder, opacity: poemTextsBusy ? 0.6 : 1 }]}
+          onPress={handleImportPoemCardTexts}
+          disabled={poemTextsBusy}
+        >
+          <Text style={[styles.saveBtnText, { color: colors.text }]}>{poemTextsBusy ? 'Working…' : 'Import poem card texts (test: 3)'}</Text>
+        </TouchableOpacity>
 
         <Text style={[styles.section, { color: colors.muted }]}>Event categories</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
