@@ -83,11 +83,12 @@ export default function StarlinkCheckScreen() {
 
             {status && (
               <View style={styles.details}>
-                <DetailRow label="Network connected" value={status.isConnected ? 'Yes' : 'No'} />
-                <DetailRow label="Connection type" value={status.connectionType || 'Unknown'} />
-                <DetailRow label="Public IP" value={status.publicIp || '—'} />
-                <DetailRow label="ASN / Org" value={status.org || status.asn || '—'} />
+                <DetailRow styles={styles} label="Network connected" value={status.isConnected ? 'Yes' : 'No'} />
+                <DetailRow styles={styles} label="Connection type" value={status.connectionType || 'Unknown'} />
+                <DetailRow styles={styles} label="Public IP" value={status.publicIp || '—'} />
+                <DetailRow styles={styles} label="ASN / Org" value={status.org || status.asn || '—'} />
                 <DetailRow
+                  styles={styles}
                   label="Local dish reachable"
                   value={
                     status.localDishReachable === true
@@ -98,6 +99,7 @@ export default function StarlinkCheckScreen() {
                   }
                 />
                 <DetailRow
+                  styles={styles}
                   label="Detection method"
                   value={status.detectionMethod || '—'}
                 />
@@ -127,7 +129,7 @@ export default function StarlinkCheckScreen() {
   );
 }
 
-function DetailRow({ label, value }) {
+function DetailRow({ styles, label, value }) {
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
