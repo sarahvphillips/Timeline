@@ -284,6 +284,10 @@ export default function LoginScreen({ onEnterGuest }) {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          spellCheck={false}
+          autoComplete="email"
+          textContentType="emailAddress"
+          importantForAutofill="yes"
           value={email}
           onChangeText={setEmail}
           editable={!loading && !resetLoading}
@@ -297,6 +301,9 @@ export default function LoginScreen({ onEnterGuest }) {
               placeholderTextColor={colors.faint}
               autoCapitalize="none"
               autoCorrect={false}
+              spellCheck={false}
+              autoComplete="username"
+              textContentType="username"
               value={username}
               onChangeText={(t) => setUsername(normalizeHandle(t))}
               editable={!loading && !resetLoading}
@@ -313,11 +320,16 @@ export default function LoginScreen({ onEnterGuest }) {
             placeholder="Password (min 6 characters)"
             placeholderTextColor={colors.faint}
             secureTextEntry={!showPassword}
+            keyboardType={showPassword && Platform.OS === 'android' ? 'visible-password' : 'default'}
             value={password}
             onChangeText={setPassword}
             editable={!loading && !resetLoading}
             autoCapitalize="none"
             autoCorrect={false}
+            spellCheck={false}
+            autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
+            textContentType={isRegisterMode ? 'newPassword' : 'password'}
+            importantForAutofill="yes"
           />
           <TouchableOpacity
             style={styles.eyeButton}
