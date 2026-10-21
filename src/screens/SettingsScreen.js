@@ -87,6 +87,7 @@ export default function SettingsScreen({ navigation }) {
   const [handle, setHandle] = useState('');
   const [handleLocked, setHandleLocked] = useState(false);
   const [visibility, setVisibility] = useState('private');
+  const [findHandle, setFindHandle] = useState('');
   const [labels, setLabels] = useState([]);
   const [poemCats, setPoemCats] = useState([]);
   const [eventCats, setEventCats] = useState([]);
@@ -470,8 +471,9 @@ export default function SettingsScreen({ navigation }) {
 
         <Text style={[styles.section, { color: colors.muted }]}>Who can find you</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Private is the default. Searchable lets other Timeline users open your profile without
-          adding you as a friend first. Events stay private unless you share them.
+          Private is the default. Searchable means someone who already knows your username can look
+          you up and open your profile without adding you as a friend first. It is not a list of
+          every user. Events stay private unless you share them.
         </Text>
         <View style={styles.row}>
           {[
@@ -494,6 +496,32 @@ export default function SettingsScreen({ navigation }) {
             );
           })}
         </View>
+        <Text style={[styles.label, { color: colors.muted }]}>Look up a username</Text>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          Type the exact username of someone who chose Searchable. Private profiles will not appear.
+        </Text>
+        <TextInput
+          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.cardBorder, color: colors.text }]}
+          value={findHandle}
+          onChangeText={setFindHandle}
+          placeholder="@username"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholderTextColor={colors.faint}
+        />
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.blue }]}
+          onPress={() => {
+            const h = String(findHandle || '').replace(/^@/, '').trim();
+            if (h.length < 3) {
+              Alert.alert('Username', 'Type a username of at least 3 characters.');
+              return;
+            }
+            navigation.navigate('PublicProfile', { handle: h });
+          }}
+        >
+          <Text style={styles.saveBtnText}>Look up</Text>
+        </TouchableOpacity>
         <Text style={[styles.label, { color: colors.muted }]}>Username</Text>
         {handleLocked ? (
           <Text style={[styles.hint, { color: colors.text }]}>@{handle}</Text>
