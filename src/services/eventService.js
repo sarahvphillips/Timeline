@@ -7,6 +7,7 @@ import { uploadEventImage, deleteEventPhotos } from './photoStorage';
 import { asImageUri, compressImageUri } from './imagePicker';
 import { settleEventDate } from './eventClock';
 import { noteRead, noteWrite, noteDelete, heavySyncPaused, flushUsage } from './usageService';
+import { cancelReminder } from './eventReminder';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
 const GUEST_EVENTS_KEY = '@timeline_events_guest';
@@ -901,6 +902,9 @@ export async function deleteEvent(id) {
   const removed = events.filter((e) => e.id === id);
   const filtered = events.filter((e) => e.id !== id);
   await removeImageKeysForEvents(removed);
+  removed.forEach((ev) => {
+    if (ev?.reminderId) cancelReminder(ev.reminderId).catch(() => {});
+  });
   await writeCache(filtered, uid);
   sessionEvents = filtered;
   sessionEventsUid = uid || null;

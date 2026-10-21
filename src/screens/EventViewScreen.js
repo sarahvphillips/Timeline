@@ -19,6 +19,7 @@ import EventLinkPicker from '../components/EventLinkPicker';
 import { copyTextToClipboard, getSharedEvent } from '../services/shareService';
 import { normalizeSocialUrl } from '../services/socialService';
 import { formatFullDate, getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
+import { reminderLabel } from '../services/eventReminder';
 import PhotoView from '../components/PhotoView';
 import ClipVideo from '../components/ClipVideo';
 import { asImageUri } from '../services/imagePicker';
@@ -254,6 +255,7 @@ export default function EventViewScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <Meta styles={styles} label="From" value={event.emailFrom} />
+      <Meta styles={styles} label="Reminder" value={event.remindOn ? reminderLabel(event.remindAt) : ''} />
       <Meta styles={styles} label="Contact" value={event.smsContact} />
       <Meta styles={styles} label="Direction" value={event.smsDirection || event.callDirection} />
       <Meta styles={styles} label="Length" value={callLength} />

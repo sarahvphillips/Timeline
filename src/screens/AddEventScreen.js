@@ -20,6 +20,7 @@ import {
   HOBBY_TYPES,
   buildGrokReplyPrompt,
 } from '../services/eventService';
+import { applyEventReminder, reminderWhen, splitReminder } from '../services/eventReminder';
 import ImageAttachField from '../components/ImageAttachField';
 import LabelPicker from '../components/LabelPicker';
 import {
@@ -90,6 +91,10 @@ export default function AddEventScreen({ navigation, route }) {
     existing?.category || (fromHobby ? 'hobby' : 'personal')
   );
   const [nextAction, setNextAction] = useState(existing?.nextAction || 'none');
+  const openedReminder = splitReminder(existing?.remindOn ? existing.remindAt : '');
+  const [remindOn, setRemindOn] = useState(existing?.remindOn === true);
+  const [remindDate, setRemindDate] = useState(openedReminder.date);
+  const [remindTime, setRemindTime] = useState(openedReminder.time);
   const [source, setSource] = useState(initialSource);
   const [hobbyType, setHobbyType] = useState(existing?.hobbyType || 'poetry');
   const [audioNote, setAudioNote] = useState(existing?.audioNote || '');
@@ -300,10 +305,34 @@ export default function AddEventScreen({ navigation, route }) {
         sharedFrom: existing?.sharedFrom,
         sharedFromEmail: existing?.sharedFromEmail,
         inviteCode: existing?.inviteCode,
+        remindOn: false,
+        reminderId: existing?.reminderId || null,
       };
-      await saveEvent(saved);
+      const when = remindOn ? reminderWhen(remindDate, remindTime) : null;
+      if (remindOn && !when) {
+        notify('Reminder', 'Use a date as YYYY-MM-DD and a time as HH:MM. It stays off until those are filled in.');
+        setSaving(false);
+        return;
+      }
+      const list = await saveEvent(saved);
+      const stored = (Array.isArray(list) ? list : [])
+        .filter((row) => (saved.id ? row.id === saved.id : row.title === saved.title))
+        .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || saved;
+      try {
+        const withReminder = await applyEventReminder(stored, { on: remindOn, when });
+        if (withReminder.reminderId !== stored.reminderId || withReminder.remindOn !== stored.remindOn) {
+          await saveEvent(withReminder);
+        }
+      } catch (reminderError) {
+        notify(isEditing ? 'Updated' : 'Saved', reminderError?.message || 'The event was saved, but the reminder was not set.');
+        setSaving(false);
+        return;
+      }
 
       let notice = isEditing ? 'Updated.' : 'Saved.';
+      if (remindOn && Platform.OS === 'web') {
+        notice = `${notice} The reminder time is saved. The notification appears on the phone app.`;
+      }
       if (nextAction === 'ask_grok_reply') {
         const prompt = buildGrokReplyPrompt(saved);
         if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -923,6 +952,55 @@ export default function AddEventScreen({ navigation, route }) {
             );
           })}
         </View>
+
+        <Text style={styles.label}>Reminder</Text>
+        <TouchableOpacity
+          style={[styles.catChip, remindOn && styles.actionSelected]}
+          onPress={() => {
+            if (coreReadOnly) return;
+            setRemindOn((on) => {
+              const next = !on;
+              if (next) {
+                if (!remindDate) setRemindDate(date);
+                if (!remindTime) setRemindTime('09:00');
+              }
+              return next;
+            });
+          }}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: remindOn }}
+        >
+          <Text style={[styles.catText, remindOn && styles.actionTextSelected]}>
+            {remindOn ? 'Reminder on' : 'Reminder off'}
+          </Text>
+        </TouchableOpacity>
+        {remindOn ? (
+          <>
+            <Text style={styles.fieldHint}>
+              Off until you turn this on. The phone shows a notification at the time below. Nothing is set until you save.
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={remindDate}
+              onChangeText={setRemindDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#64748b"
+              autoCapitalize="none"
+              editable={!coreReadOnly}
+            />
+            <TextInput
+              style={styles.input}
+              value={remindTime}
+              onChangeText={setRemindTime}
+              placeholder="HH:MM"
+              placeholderTextColor="#64748b"
+              autoCapitalize="none"
+              editable={!coreReadOnly}
+            />
+          </>
+        ) : (
+          <Text style={styles.fieldHint}>No notification is set. Turn this on only if you want one.</Text>
+        )}
 
         <Text style={styles.label}>
           {source === 'hobby' && hobbyType === 'poetry'
