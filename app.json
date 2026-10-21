@@ -3,7 +3,7 @@
     "name": "TimelineApp",
     "slug": "TimelineApp",
     "scheme": "timelineapp",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "platforms": [
@@ -40,7 +40,7 @@
         "android.permission.POST_NOTIFICATIONS",
         "com.google.android.gms.permission.AD_ID"
       ],
-      "versionCode": 9,
+      "versionCode": 10,
       "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
