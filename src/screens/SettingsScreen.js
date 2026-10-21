@@ -51,6 +51,7 @@ import { applyJoinRewards, perkLabel, getRewards, hasPerk, CREDITS_PAUSED } from
 import {
   DATE_FORMAT_DMY,
   DATE_FORMAT_MDY,
+  formatFullDate,
   getDateFormat,
   saveDateFormat,
 } from '../services/dateFormat';
@@ -570,12 +571,24 @@ export default function SettingsScreen({ navigation }) {
 
         <Text style={[styles.section, { color: colors.muted }]}>Date format</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Used on year bubbles and on full dates such as life events and Event view. Default is day first (28/06/1971).
+          {dateOfBirth && formatFullDate(dateOfBirth, DATE_FORMAT_DMY)
+            ? `Used on year bubbles and on full dates such as life events and Event view. Default is day first (${formatFullDate(dateOfBirth, DATE_FORMAT_DMY)}).`
+            : 'Used on year bubbles and on full dates such as life events and Event view. Add your date of birth above and this example will use it. Default is day first.'}
         </Text>
         <View style={styles.row}>
           {[
-            { id: DATE_FORMAT_DMY, label: '28/06/1971  day first' },
-            { id: DATE_FORMAT_MDY, label: '06/28/1971  month first' },
+            {
+              id: DATE_FORMAT_DMY,
+              label: formatFullDate(dateOfBirth, DATE_FORMAT_DMY)
+                ? `${formatFullDate(dateOfBirth, DATE_FORMAT_DMY)}  day first`
+                : 'Day first',
+            },
+            {
+              id: DATE_FORMAT_MDY,
+              label: formatFullDate(dateOfBirth, DATE_FORMAT_MDY)
+                ? `${formatFullDate(dateOfBirth, DATE_FORMAT_MDY)}  month first`
+                : 'Month first',
+            },
           ].map((item) => {
             const on = dateFormat === item.id;
             return (
