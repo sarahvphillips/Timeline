@@ -522,6 +522,15 @@ export default function SettingsScreen({ navigation }) {
         >
           <Text style={styles.saveBtnText}>Look up</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder }]}
+          onPress={() => navigation.navigate('People')}
+        >
+          <Text style={[styles.saveBtnText, { color: colors.text }]}>Open People</Text>
+        </TouchableOpacity>
+        <Text style={[styles.hint, { color: colors.faint }]}>
+          People is for everyone, not only admins. The same list is under Add event → Person, and further down this screen under Sharing & mail.
+        </Text>
         <Text style={[styles.label, { color: colors.muted }]}>Username</Text>
         {handleLocked ? (
           <Text style={[styles.hint, { color: colors.text }]}>@{handle}</Text>
