@@ -1076,8 +1076,8 @@ export default function SettingsScreen({ navigation }) {
             </Text>
             {Platform.OS === 'web' ? (
               <View style={{ height: 0, overflow: 'hidden' }} pointerEvents="none">
-                <TextInput autoComplete="username" value="" />
-                <TextInput secureTextEntry autoComplete="current-password" value="" />
+                <TextInput autoComplete="off" value="" />
+                <TextInput secureTextEntry autoComplete="off" value="" />
               </View>
             ) : null}
             <TextInput
@@ -1087,8 +1087,10 @@ export default function SettingsScreen({ navigation }) {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete="new-password"
-              textContentType="password"
+              spellCheck={false}
+              autoComplete="off"
+              textContentType="none"
+              importantForAutofill="no"
               placeholder="Current password"
               placeholderTextColor={colors.faint}
             />
@@ -1099,8 +1101,10 @@ export default function SettingsScreen({ navigation }) {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete="new-password"
-              textContentType="newPassword"
+              spellCheck={false}
+              autoComplete="off"
+              textContentType="none"
+              importantForAutofill="no"
               placeholder="New password"
               placeholderTextColor={colors.faint}
             />
@@ -1111,8 +1115,10 @@ export default function SettingsScreen({ navigation }) {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete="new-password"
-              textContentType="newPassword"
+              spellCheck={false}
+              autoComplete="off"
+              textContentType="none"
+              importantForAutofill="no"
               placeholder="Confirm new password"
               placeholderTextColor={colors.faint}
             />
@@ -1178,6 +1184,12 @@ export default function SettingsScreen({ navigation }) {
                 value={deletePassword}
                 onChangeText={setDeletePassword}
                 secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
                 placeholder="Password"
                 placeholderTextColor={colors.faint}
               />

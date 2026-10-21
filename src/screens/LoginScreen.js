@@ -327,9 +327,9 @@ export default function LoginScreen({ onEnterGuest }) {
             autoCapitalize="none"
             autoCorrect={false}
             spellCheck={false}
-            autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
-            textContentType={isRegisterMode ? 'newPassword' : 'password'}
-            importantForAutofill="yes"
+            autoComplete="off"
+            textContentType="none"
+            importantForAutofill="no"
           />
           <TouchableOpacity
             style={styles.eyeButton}
