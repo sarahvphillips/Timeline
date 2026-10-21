@@ -82,6 +82,6 @@ export function buildWelcomeEmail({ displayName = '', email = '' } = {}) {
     poem: WELCOME_POEM,
     paragraphs: [...beforePoem, WELCOME_POEM, ...afterPoem],
     body,
-    text: `From: ${WELCOME_FROM}\nSubject: ${WELCOME_SUBJECT}\n\n${body}\n\n#kern2622`,
+    text: `From: ${WELCOME_FROM}\nSubject: ${WELCOME_SUBJECT}\n\n${body}`,
   };
 }

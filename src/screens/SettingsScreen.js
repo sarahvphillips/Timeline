@@ -1062,7 +1062,6 @@ export default function SettingsScreen({ navigation }) {
           <Text style={[styles.aboutName, { color: colors.text }]}>{about.name}</Text>
           <Text style={[styles.aboutLine, { color: colors.muted }]}>{versionLine()}</Text>
           <Text style={[styles.aboutLine, { color: colors.muted }]}>Expo SDK {about.sdkVersion}</Text>
-          <Text style={[styles.aboutLine, { color: colors.muted }]}>#kern2622</Text>
         </View>
 
         <Text style={[styles.section, { color: colors.muted }]}>Password</Text>

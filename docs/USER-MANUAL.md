@@ -6,7 +6,7 @@ Same text as Settings → User manual in the app.
 
 ## What it is
 
-A private timeline of your life. Expo Go while we build; Google Play later. #kern2622.
+A private timeline of your life. Expo Go while we build; Google Play later.
 
 ## Sign in
 

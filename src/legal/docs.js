@@ -72,7 +72,7 @@ export const MANUAL_META = {
 export const MANUAL_SECTIONS = [
   {
     heading: 'What Timeline is',
-    body: 'A private timeline of your life: notes, people, household, media, and numbers. Open it in Expo Go while we build, then later from Google Play. Tag: #kern2622.',
+    body: 'A private timeline of your life: notes, people, household, media, and numbers. Open it in Expo Go while we build, then later from Google Play.',
   },
   {
     heading: 'Sign in',
