@@ -133,7 +133,6 @@
 
 ## Security / device (separate from app features)
 
-- [ ] Laptop security checks (remote apps, mic permissions, Windows password)
 - [ ] Prefer throwaway password for Timeline until device feels safer
 
 ---

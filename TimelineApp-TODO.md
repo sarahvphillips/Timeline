@@ -232,7 +232,6 @@ Product map:
 
 ## Security / device (separate from app features)
 
-- [ ] Laptop security checks (remote apps, mic permissions, Windows password)
 - [ ] Prefer throwaway password for Timeline until device feels safer
 - [ ] **Two-factor authentication** (after the Play Store release). A second check after the email password, such as a code by email or an authenticator app. Not required for the first closed test.
 - [ ] **Biometric unlock** (after the Play Store release). Fingerprint or face on the phone, so the app can open without typing the password again. This needs a Play Store build. Expo Go cannot do it. It does not replace the password or two-factor sign-in.
