@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import TurnPhotoButton from '../components/TurnPhotoButton';
 import {
   daysUntilNext,
   daysBetweenBirthdays,
@@ -778,6 +779,9 @@ export default function DateCircleScreen({ navigation }) {
           <Text style={styles.ghostText}>Add screenshot (optional)</Text>
         </TouchableOpacity>
         {eventImage ? <Image source={{ uri: eventImage }} style={styles.extraImg} /> : null}
+        {eventImage ? (
+          <TurnPhotoButton uri={eventImage} onTurned={(next) => setEventImage(next)} />
+        ) : null}
         <TouchableOpacity style={styles.button} onPress={addWheelEvent} disabled={saving}>
           <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Add wheel of dates event'}</Text>
         </TouchableOpacity>

@@ -745,3 +745,82 @@ export async function pickClipFromGallery() {
     return null;
   }
 }
+
+
+/**
+ * Turn a photo 90 degrees clockwise and return a stored URI.
+ * Works for a local file, a data URL, or an https photo already on the event.
+ * Tap again for another quarter turn (twice turns it the right way up).
+ */
+export async function rotateImageQuarter(uri) {
+  const src = asImageUri(uri);
+  if (!src) return '';
+  if (Platform.OS === 'web') {
+    const turned = await rotateQuarterOnWeb(src);
+    return tidyDataUrl(turned);
+  }
+  let local = src;
+  if (/^https?:/i.test(src)) {
+    const FileSystem = require('expo-file-system/legacy');
+    const dest = FileSystem.cacheDirectory + 'turn_' + Date.now() + '.jpg';
+    const downloaded = await FileSystem.downloadAsync(src, dest);
+    local = (downloaded && downloaded.uri) || src;
+  }
+  const result = await ImageManipulator.manipulateAsync(
+    local,
+    [{ rotate: 90 }],
+    { compress: JPEG_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
+  );
+  const stored = await persistPickedImage(result && result.uri ? result.uri : local, 'turned.jpg', null, 'image/jpeg');
+  return asImageUri(stored) || (result && result.uri) || '';
+}
+
+function rotateQuarterOnWeb(uri) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+      reject(new Error('Could not turn that photo in this browser.'));
+      return;
+    }
+    const img = new window.Image();
+    if (/^https?:/i.test(String(uri))) img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        if (!w || !h) {
+          reject(new Error('Could not read that photo.'));
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = h;
+        canvas.height = w;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not turn that photo.'));
+          return;
+        }
+        ctx.translate(canvas.width, 0);
+        ctx.rotate(Math.PI / 2);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error('Could not read that photo.'));
+    const start = async () => {
+      try {
+        if (/^https?:/i.test(String(uri))) {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          img.src = await readBlobAsDataUrl(blob);
+          return;
+        }
+        img.src = uri;
+      } catch (e) {
+        reject(e);
+      }
+    };
+    start();
+  });
+}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, Modal, Pressable } from 'react-native';
 import { isCameraAvailable, pickWashFromSource } from '../services/imagePicker';
+import TurnPhotoButton from './TurnPhotoButton';
 
 export default function WashMediaField({
   imageUri,
@@ -44,6 +45,9 @@ export default function WashMediaField({
             {imageUri || videoUri ? 'Change media' : 'Add photo or video'}
           </Text>
         </TouchableOpacity>
+        {imageUri ? (
+          <TurnPhotoButton uri={imageUri} onTurned={(next) => onImage(next)} />
+        ) : null}
         {imageUri ? (
           <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={() => onImage('')}>
             <Text style={styles.ghostText}>Remove photo</Text>

@@ -21,6 +21,7 @@ import { normalizeSocialUrl } from '../services/socialService';
 import { formatFullDate, getDateFormat, DATE_FORMAT_DMY } from '../services/dateFormat';
 import { reminderLabel } from '../services/eventReminder';
 import PhotoView from '../components/PhotoView';
+import TurnPhotoButton from '../components/TurnPhotoButton';
 import ClipVideo from '../components/ClipVideo';
 import { asImageUri } from '../services/imagePicker';
 import { useTheme } from '../themeContext';
@@ -190,6 +191,20 @@ export default function EventViewScreen({ navigation, route }) {
     Linking.openURL(f.url).catch(() => Alert.alert('Could not open file', 'Try again when you are online.'));
   const previewHeight = poem ? Math.min(560, Math.round(screenW * 1.45)) : 240;
 
+  const turnPhoto = async (next) => {
+    const field = asImageUri(event.coverImageUri) ? 'coverImageUri' : 'imageUri';
+    const updated = { ...event, [field]: next };
+    setEvent(updated);
+    try {
+      await saveEvent(updated);
+      const all = await getEvents();
+      const live = all.find((row) => String(row.id) === String(updated.id));
+      if (live) setEvent(live);
+    } catch (e) {
+      Alert.alert('Turned on this device', e?.message || 'The new angle is showing here.');
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={[styles.kind, { borderColor: kind.color || '#8b5cf6' }]}>
@@ -223,6 +238,7 @@ export default function EventViewScreen({ navigation, route }) {
             resizeMode="contain"
           />
           <Text style={styles.photoHint}>Tap image to view full size</Text>
+          <TurnPhotoButton uri={photo} onTurned={(next) => turnPhoto(next)} />
         </TouchableOpacity>
       ) : null}
 
@@ -394,6 +410,7 @@ export default function EventViewScreen({ navigation, route }) {
           <Pressable style={styles.fullCloseHit} onPress={() => setFullOpen(false)}>
             <Text style={styles.fullClose}>Close</Text>
           </Pressable>
+          <TurnPhotoButton uri={photo} onTurned={(next) => turnPhoto(next)} />
           <ScrollView
             maximumZoomScale={4}
             minimumZoomScale={1}

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import DateField from '../components/DateField';
 import PhotoView from '../components/PhotoView';
+import TurnPhotoButton from '../components/TurnPhotoButton';
 import ClipVideo from '../components/ClipVideo';
 import { pickClipFromGallery } from '../services/imagePicker';
 import { saveEvent } from '../services/eventService';
@@ -178,7 +179,15 @@ export default function AddGalleryClipScreen({ navigation, route }) {
       {files.map((file) => (
         <View key={file.id} style={styles.card}>
           {file.kind === 'image' && file.uri ? (
-            <PhotoView uri={file.uri} style={styles.thumb} resizeMode="cover" />
+            <View>
+              <PhotoView uri={file.uri} style={styles.thumb} resizeMode="cover" />
+              <TurnPhotoButton
+                uri={file.uri}
+                onTurned={(next) =>
+                  setFiles((list) => list.map((row) => (row.id === file.id ? { ...row, uri: next } : row)))
+                }
+              />
+            </View>
           ) : (
             <ClipVideo uri={file.uri} />
           )}

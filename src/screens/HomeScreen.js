@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, Pla
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSourceSheet';
+import TurnPhotoButton from '../components/TurnPhotoButton';
 import { MenuCard, MenuRow, MenuSection } from '../components/MenuGroup';
 import StampsRow from '../components/StampsRow';
 import AdBanner from '../components/AdBanner';
@@ -232,6 +233,15 @@ export default function HomeScreen({ navigation, user, onLogout }) {
             <Text style={[styles.email, { color: colors.faint }]} numberOfLines={1}>
               {guest ? 'Guest · this device only' : user?.email || 'Signed in'}
             </Text>
+            {photoUri ? (
+              <TurnPhotoButton
+                uri={photoUri}
+                onTurned={async (next) => {
+                  await saveProfilePhotoUri(next);
+                  setPhotoUri(next);
+                }}
+              />
+            ) : null}
           </View>
         </View>
         {allowanceNote ? (

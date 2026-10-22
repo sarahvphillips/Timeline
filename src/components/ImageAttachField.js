@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import ImageSourceSheet from './ImageSourceSheet';
 import PhotoView from './PhotoView';
+import TurnPhotoButton from './TurnPhotoButton';
 import { asImageUri } from '../services/imagePicker';
 
 export default function ImageAttachField({
@@ -42,6 +43,15 @@ export default function ImageAttachField({
         <TouchableOpacity style={styles.btn} onPress={openPicker} activeOpacity={0.8}>
           <Text style={styles.btnText}>{uri ? 'Change photo' : 'Add photo'}</Text>
         </TouchableOpacity>
+        {src ? (
+          <TurnPhotoButton
+            uri={src}
+            onTurned={(next) => {
+              setBroken(false);
+              onChange({ uri: next, filename: 'turned.jpg' });
+            }}
+          />
+        ) : null}
         {src ? (
           <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={() => onChange(null)}>
             <Text style={styles.ghostText}>Remove</Text>

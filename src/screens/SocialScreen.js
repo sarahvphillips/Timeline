@@ -19,6 +19,7 @@ import HomeFab from '../components/HomeFab';
 import LabelPicker from '../components/LabelPicker';
 import { saveEvent, deleteEvent, getEvents } from '../services/eventService';
 import { pickFromGallery, asImageUri } from '../services/imagePicker';
+import TurnPhotoButton from '../components/TurnPhotoButton';
 import { copyTextToClipboard } from '../services/shareService';
 import { useTheme } from '../themeContext';
 import {
@@ -340,6 +341,9 @@ export default function SocialScreen({ navigation, route }) {
             >
               <Text style={styles.chipText}>{photo ? 'Change photo' : 'Add photo'}</Text>
             </TouchableOpacity>
+            {photo ? (
+              <TurnPhotoButton uri={photo} onTurned={(next) => setPhoto(next)} />
+            ) : null}
             {photo ? (
               <TouchableOpacity style={styles.chip} onPress={() => setPhoto('')}>
                 <Text style={styles.chipText}>Remove</Text>

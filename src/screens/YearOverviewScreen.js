@@ -26,6 +26,7 @@ import {
 import { getEventCategories } from '../services/profileService';
 import { getDateFormat, formatDayMonth } from '../services/dateFormat';
 import { pickFromGallery, asImageUri } from '../services/imagePicker';
+import TurnPhotoButton from '../components/TurnPhotoButton';
 import HomeFab from '../components/HomeFab';
 import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
 import EventLabelChips from '../components/EventLabelChips';
@@ -383,9 +384,34 @@ export default function YearOverviewScreen({ navigation, route }) {
                       <Image source={{ uri: asImageUri(b.imageUri) }} style={styles.blurbImage} />
                     ) : null}
                     <EventLabelChips labels={b.labels} />
-                    <TouchableOpacity onPress={() => addPhotoToPreview(b)}>
-                      <Text style={styles.addPhoto}>{b.imageUri ? 'Change photo' : 'Add photo'}</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      <TouchableOpacity onPress={() => addPhotoToPreview(b)}>
+                        <Text style={styles.addPhoto}>{b.imageUri ? 'Change photo' : 'Add photo'}</Text>
+                      </TouchableOpacity>
+                      {asImageUri(b.imageUri) ? (
+                        <TurnPhotoButton
+                          uri={b.imageUri}
+                          onTurned={async (next) => {
+                            const ev =
+                              (b?.id && events.find((e) => e.id === b.id)) || preview?.item || null;
+                            if (!ev) return;
+                            await saveEvent({ ...ev, imageUri: next });
+                            setPreview((cur) =>
+                              cur
+                                ? {
+                                    ...cur,
+                                    item: cur.item?.id === ev.id ? { ...cur.item, imageUri: next } : cur.item,
+                                    blurbs: (cur.blurbs || []).map((row) =>
+                                      row.id === ev.id ? { ...row, imageUri: next } : row
+                                    ),
+                                  }
+                                : cur
+                            );
+                            load();
+                          }}
+                        />
+                      ) : null}
+                    </View>
                   </TouchableOpacity>
                 ))
               )}

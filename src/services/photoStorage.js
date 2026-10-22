@@ -52,7 +52,9 @@ export async function uploadEventImage(uid, eventId, field, uri) {
   if (!PHOTO_FIELDS.includes(field)) return uri;
   const storageRef = ref(getStorage(getApp()), storagePath(uid, eventId, field));
   await putImage(storageRef, uri);
-  return getDownloadURL(storageRef);
+  const url = await getDownloadURL(storageRef);
+  // New address so the phone does not keep showing the previous angle.
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
 }
 
 export async function deleteEventPhotos(uid, eventId) {
