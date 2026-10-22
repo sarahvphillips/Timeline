@@ -824,3 +824,19 @@ function rotateQuarterOnWeb(uri) {
     start();
   });
 }
+
+/** Next quarter turn. 0, 90, 180, 270. Two taps turns an upside-down photo the right way up. */
+export function quarterTurn(current) {
+  const n = Number(current);
+  const base = Number.isFinite(n) ? n : 0;
+  return (((Math.round(base / 90) * 90) % 360) + 360 + 90) % 360;
+}
+
+/** RN style for a stored quarter turn. Null when the photo is already upright. */
+export function photoTurnStyle(degrees) {
+  const n = Number(degrees);
+  if (!Number.isFinite(n)) return null;
+  const turn = ((Math.round(n / 90) * 90) % 360 + 360) % 360;
+  if (!turn) return null;
+  return { transform: [{ rotate: turn + 'deg' }] };
+}

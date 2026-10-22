@@ -38,6 +38,12 @@ export function eventShareImage(event) {
   return event?.coverImageUri || event?.imageUri || '';
 }
 
+export function eventShareTurn(event) {
+  if (!event) return 0;
+  if (event.coverImageUri) return Number(event.coverImageRotation) || 0;
+  return Number(event.imageRotation) || 0;
+}
+
 export async function shareTextAndImage({ title, message, imageUri }) {
   const text = String(message || '').trim();
   if (imageUri) {

@@ -4,11 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSourceSheet';
 import TurnPhotoButton from '../components/TurnPhotoButton';
+import { photoTurnStyle } from '../services/imagePicker';
 import { MenuCard, MenuRow, MenuSection } from '../components/MenuGroup';
 import StampsRow from '../components/StampsRow';
 import AdBanner from '../components/AdBanner';
 import { useTheme } from '../themeContext';
-import { getProfilePhotoUri, saveProfilePhotoUri } from '../services/profileService';
+import { getProfilePhotoUri, saveProfilePhotoUri, getProfilePhotoTurn, saveProfilePhotoTurn } from '../services/profileService';
 import { getEvents } from '../services/eventService';
 import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
 import { syncAcceptedJoins } from '../services/peopleService';
@@ -40,6 +41,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
   const guest = !!(user?.isGuest || user?.uid === 'guest-local');
   const initial = (user?.email || (guest ? 'G' : 'S')).charAt(0).toUpperCase();
   const [photoUri, setPhotoUri] = useState(null);
+  const [photoTurn, setPhotoTurn] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [allowanceNote, setAllowanceNote] = useState('');
   const [showAddEvent, setShowAddEvent] = useState(true);
@@ -147,6 +149,11 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         if (!cancelled && uri) setPhotoUri(uri);
       })
       .catch(() => {});
+    getProfilePhotoTurn()
+      .then((turn) => {
+        if (!cancelled) setPhotoTurn(turn || 0);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -175,6 +182,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     try {
       await saveProfilePhotoUri(picked.uri);
       setPhotoUri(picked.uri);
+      setPhotoTurn(0);
     } catch {
       Alert.alert('Could not save photo', 'Please try again.');
     }
@@ -185,6 +193,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
       await saveProfilePhotoUri(null);
     } catch (_) {}
     setPhotoUri(null);
+    setPhotoTurn(0);
   };
 
   const handlePhoto = () => {
@@ -223,7 +232,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
             activeOpacity={0.8}
           >
             {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+              <Image source={{ uri: photoUri }} style={[styles.avatarImage, photoTurnStyle(photoTurn)]} />
             ) : (
               <Text style={[styles.avatarText, { color: colors.blueSoft }]}>{initial}</Text>
             )}
@@ -236,9 +245,10 @@ export default function HomeScreen({ navigation, user, onLogout }) {
             {photoUri ? (
               <TurnPhotoButton
                 uri={photoUri}
-                onTurned={async (next) => {
-                  await saveProfilePhotoUri(next);
-                  setPhotoUri(next);
+                turn={photoTurn}
+                onTurned={async (degrees) => {
+                  await saveProfilePhotoTurn(degrees);
+                  setPhotoTurn(degrees);
                 }}
               />
             ) : null}

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getEvents, eventClockDate } from '../services/eventService';
+import { photoTurnStyle } from '../services/imagePicker';
 import {
   CREDITS_PAUSED,
   MEAL_SKYLINE_COST,
@@ -197,7 +198,10 @@ function Progress({ cards, unlocked, busy, onUnlock }) {
           return (
             <View key={i} style={[styles.emptyPlate, row && styles.filledPlate]}>
               {row?.event?.imageUri ? (
-                <Image source={{ uri: row.event.imageUri }} style={styles.platePhoto} />
+                <Image
+                  source={{ uri: row.event.imageUri }}
+                  style={[styles.platePhoto, photoTurnStyle(row.event.imageRotation)]}
+                />
               ) : (
                 <Text style={styles.plateMark}>{i + 1}</Text>
               )}
@@ -312,7 +316,10 @@ function Skyline({ cards, counts, width, height, pickedId, onPick }) {
               onPress={() => onPick(point)}
               accessibilityLabel={`${point.event.recipeName || point.event.title} ${timeLabel(point.clock)}`}
             >
-              <Image source={{ uri: point.event.imageUri }} style={styles.platePhoto} />
+              <Image
+                source={{ uri: point.event.imageUri }}
+                style={[styles.platePhoto, photoTurnStyle(point.event.imageRotation)]}
+              />
               {times > 1 ? <Text style={styles.repeat}>×{times}</Text> : null}
             </TouchableOpacity>
           );

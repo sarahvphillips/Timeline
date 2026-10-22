@@ -25,7 +25,7 @@ import {
 } from '../services/eventService';
 import { getEventCategories } from '../services/profileService';
 import { getDateFormat, formatDayMonth } from '../services/dateFormat';
-import { pickFromGallery, asImageUri } from '../services/imagePicker';
+import { pickFromGallery, asImageUri, photoTurnStyle } from '../services/imagePicker';
 import TurnPhotoButton from '../components/TurnPhotoButton';
 import HomeFab from '../components/HomeFab';
 import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
@@ -147,6 +147,7 @@ export default function YearOverviewScreen({ navigation, route }) {
             dateLabel: Number.isNaN(d.getTime()) ? '' : `${formatDayMonth(d, dateFormat)} ${d.getFullYear()}`,
             labels: e.labels || [],
             imageUri: e.imageUri || '',
+            imageRotation: e.imageRotation || 0,
             event: e,
           },
         ],
@@ -173,14 +174,21 @@ export default function YearOverviewScreen({ navigation, route }) {
     const ev =
       (blurb?.id && events.find((e) => e.id === blurb.id)) || preview?.item || null;
     if (!ev) return;
-    await saveEvent({ ...ev, imageUri: uri });
+    await saveEvent({ ...ev, imageUri: uri, imageRotation: 0 });
     setPreview((cur) =>
       cur
         ? {
             ...cur,
-            item: cur.item?.id === ev.id ? { ...cur.item, imageUri: uri } : cur.item,
+            item: cur.item?.id === ev.id ? { ...cur.item, imageUri: uri, imageRotation: 0 } : cur.item,
             blurbs: (cur.blurbs || []).map((b) =>
-              b.id === ev.id ? { ...b, imageUri: uri } : b
+              b.id === ev.id
+                ? {
+                    ...b,
+                    imageUri: uri,
+                    imageRotation: 0,
+                    event: b.event ? { ...b.event, imageUri: uri, imageRotation: 0 } : b.event,
+                  }
+                : b
             ),
           }
         : cur
@@ -366,13 +374,14 @@ export default function YearOverviewScreen({ navigation, route }) {
               {(preview?.blurbs || []).length === 0 ? (
                 <Text style={styles.blurbEmpty}>No events in this bubble yet.</Text>
               ) : (
-                (preview?.blurbs || []).map((b) => (
-                  <TouchableOpacity
+                (preview?.blurbs || []).map((b) => {
+                  const turn = (b.event && b.event.imageRotation) || b.imageRotation || 0;
+                  return (
+                  <View
                     key={b.id || `${b.title}-${b.dateLabel}`}
                     style={styles.blurbRow}
-                    onPress={() => openBlurb(b)}
-                    activeOpacity={0.85}
                   >
+                    <TouchableOpacity onPress={() => openBlurb(b)} activeOpacity={0.85}>
                     <View style={styles.blurbTop}>
                       <Text style={styles.blurbTitle} numberOfLines={1}>
                         {b.title}
@@ -381,9 +390,13 @@ export default function YearOverviewScreen({ navigation, route }) {
                     </View>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
                     {asImageUri(b.imageUri) ? (
-                      <Image source={{ uri: asImageUri(b.imageUri) }} style={styles.blurbImage} />
+                      <Image
+                        source={{ uri: asImageUri(b.imageUri) }}
+                        style={[styles.blurbImage, photoTurnStyle(turn)]}
+                      />
                     ) : null}
                     <EventLabelChips labels={b.labels} />
+                    </TouchableOpacity>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       <TouchableOpacity onPress={() => addPhotoToPreview(b)}>
                         <Text style={styles.addPhoto}>{b.imageUri ? 'Change photo' : 'Add photo'}</Text>
@@ -391,18 +404,25 @@ export default function YearOverviewScreen({ navigation, route }) {
                       {asImageUri(b.imageUri) ? (
                         <TurnPhotoButton
                           uri={b.imageUri}
-                          onTurned={async (next) => {
+                          turn={turn}
+                          onTurned={async (degrees) => {
                             const ev =
                               (b?.id && events.find((e) => e.id === b.id)) || preview?.item || null;
                             if (!ev) return;
-                            await saveEvent({ ...ev, imageUri: next });
+                            await saveEvent({ ...ev, imageRotation: degrees });
                             setPreview((cur) =>
                               cur
                                 ? {
                                     ...cur,
-                                    item: cur.item?.id === ev.id ? { ...cur.item, imageUri: next } : cur.item,
+                                    item: cur.item?.id === ev.id ? { ...cur.item, imageRotation: degrees } : cur.item,
                                     blurbs: (cur.blurbs || []).map((row) =>
-                                      row.id === ev.id ? { ...row, imageUri: next } : row
+                                      row.id === ev.id
+                                        ? {
+                                            ...row,
+                                            imageRotation: degrees,
+                                            event: row.event ? { ...row.event, imageRotation: degrees } : row.event,
+                                          }
+                                        : row
                                     ),
                                   }
                                 : cur
@@ -412,8 +432,9 @@ export default function YearOverviewScreen({ navigation, route }) {
                         />
                       ) : null}
                     </View>
-                  </TouchableOpacity>
-                ))
+                  </View>
+                  );
+                })
               )}
             </ScrollView>
             <TouchableOpacity

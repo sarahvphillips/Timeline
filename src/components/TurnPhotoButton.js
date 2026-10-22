@@ -1,39 +1,26 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Alert, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { asImageUri, rotateImageQuarter } from '../services/imagePicker';
+import { asImageUri, quarterTurn } from '../services/imagePicker';
 
-/** One tap turns the photo 90 degrees clockwise. Tap again if it is still the wrong way up. */
-export default function TurnPhotoButton({ uri, onTurned, label = 'Turn' }) {
-  const [busy, setBusy] = useState(false);
-  const src = asImageUri(uri);
-  if (!src) return null;
+/** One tap adds 90 degrees. The photo file stays as it is; the screen turns it. Tap again if it is still upside down. */
+export default function TurnPhotoButton({ uri, turn = 0, onTurned, label = 'Turn' }) {
+  if (uri != null && uri !== '' && !asImageUri(uri)) return null;
 
-  const press = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const next = await rotateImageQuarter(src);
-      if (!next) {
-        Alert.alert('Could not turn photo', 'Try again.');
-        return;
-      }
-      await onTurned(next);
-    } catch (e) {
+  const press = () => {
+    const next = quarterTurn(turn);
+    Promise.resolve(onTurned && onTurned(next)).catch((e) => {
       Alert.alert('Could not turn photo', e?.message || 'Try again.');
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   return (
     <TouchableOpacity
       style={styles.btn}
       onPress={press}
-      disabled={busy}
       accessibilityLabel="Turn photo"
       activeOpacity={0.8}
     >
-      <Text style={styles.text}>{busy ? 'Turning…' : label}</Text>
+      <Text style={styles.text}>{label}</Text>
     </TouchableOpacity>
   );
 }

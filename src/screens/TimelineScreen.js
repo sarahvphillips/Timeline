@@ -18,6 +18,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { photoTurnStyle } from '../services/imagePicker';
 import {
   getEvents,
   deleteEvent,
@@ -354,13 +355,21 @@ export default function TimelineScreen({ navigation, route }) {
               <Text style={styles.meta}>From: {item.emailFrom}</Text>
             ) : null}
             {item.coverImageUri ? (
-              <Image source={{ uri: item.coverImageUri }} style={styles.eventImage} resizeMode="cover" />
+              <Image
+                source={{ uri: item.coverImageUri }}
+                style={[styles.eventImage, photoTurnStyle(item.coverImageRotation)]}
+                resizeMode="cover"
+              />
             ) : null}
             {item.coverPhotoNote ? (
               <Text style={styles.meta}>Cover: {item.coverPhotoNote}</Text>
             ) : null}
             {item.imageUri ? (
-              <Image source={{ uri: item.imageUri }} style={styles.eventImage} resizeMode="cover" />
+              <Image
+                source={{ uri: item.imageUri }}
+                style={[styles.eventImage, photoTurnStyle(item.imageRotation)]}
+                resizeMode="cover"
+              />
             ) : null}
             {item.videoUri ? (
               <Text style={styles.meta}>Video saved on this device</Text>

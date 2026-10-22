@@ -13,9 +13,11 @@ import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import { saveEvent } from '../services/eventService';
 import { copyTextToClipboard } from '../services/shareService';
 import { useTheme } from '../themeContext';
+import { photoTurnStyle } from '../services/imagePicker';
 import {
   defaultShareCaption,
   eventShareImage,
+  eventShareTurn,
   shareTextAndImage,
   openXCompose,
   openEmailCompose,
@@ -30,6 +32,7 @@ export default function SharePostScreen({ navigation, route }) {
   const styles = useMemo(() => screenStyles(colors), [colors]);
   const event = route.params?.event;
   const photo = eventShareImage(event);
+  const photoTurn = eventShareTurn(event);
   const [caption, setCaption] = useState(defaultShareCaption(event));
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -160,7 +163,7 @@ export default function SharePostScreen({ navigation, route }) {
         cannot log in to those apps for you — the share sheet or X compose window opens, then you post.
       </Text>
 
-      {photo ? <Image source={{ uri: photo }} style={styles.photo} resizeMode="contain" /> : (
+      {photo ? <Image source={{ uri: photo }} style={[styles.photo, photoTurnStyle(photoTurn)]} resizeMode="contain" /> : (
         <Text style={styles.noPhoto}>No image on this event. The post will be text only.</Text>
       )}
 

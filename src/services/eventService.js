@@ -509,6 +509,21 @@ function normalizeEvent(data, fallbackId) {
   return event;
 }
 
+/** Keep a stored quarter-turn. A cloud copy that has not heard about the turn yet must not snap the photo back. */
+function keptAngle(next, prev) {
+  const pick = (value) => {
+    if (value === 0 || value === 90 || value === 180 || value === 270) return value;
+    if (value == null || value === '') return null;
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    return ((Math.round(n / 90) * 90) % 360 + 360) % 360;
+  };
+  const fromNext = pick(next);
+  if (fromNext != null) return fromNext || undefined;
+  const fromPrev = pick(prev);
+  return fromPrev || undefined;
+}
+
 function sortEvents(events) {
   return events.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
@@ -678,6 +693,8 @@ export async function syncEventsFromCloud(uid) {
           videoUri: ev.videoUri || prev?.videoUri || undefined,
           audioUri: ev.audioUri || prev?.audioUri || undefined,
           audioName: ev.audioName || prev?.audioName || undefined,
+          imageRotation: keptAngle(ev.imageRotation, prev && prev.imageRotation),
+          coverImageRotation: keptAngle(ev.coverImageRotation, prev && prev.coverImageRotation),
         };
       });
       const mergedDelta = sortEvents(Object.values(byId));
@@ -766,6 +783,8 @@ export async function syncEventsFromCloud(uid) {
         videoUri: ev.videoUri || (prev && prev.videoUri) || undefined,
         audioUri: ev.audioUri || (prev && prev.audioUri) || undefined,
         audioName: ev.audioName || (prev && prev.audioName) || undefined,
+        imageRotation: keptAngle(ev.imageRotation, prev && prev.imageRotation),
+        coverImageRotation: keptAngle(ev.coverImageRotation, prev && prev.coverImageRotation),
         photoSkip: (prev && prev.photoSkip) || undefined,
       };
     });
@@ -1475,6 +1494,7 @@ export function getYearBubblePreviewBlurbs(events, year, filter, limit) {
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],
       imageUri: e.imageUri || '',
+      imageRotation: e.imageRotation || 0,
     };
   });
 }
@@ -1591,6 +1611,7 @@ export function getMonthBubblePreviewBlurbs(events, year, month, filter, limit) 
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],
       imageUri: e.imageUri || '',
+      imageRotation: e.imageRotation || 0,
     };
   });
 }
@@ -1700,6 +1721,7 @@ export function getDayHourPreviewBlurbs(events, date, filter, hour, limit = 8) {
       dateLabel: `${d.getDate()} ${PREVIEW_MONTH_SHORT[d.getMonth()]}${time ? ` · ${time}` : ''}`,
       labels: Array.isArray(e.labels) ? e.labels : [],
       imageUri: e.imageUri || '',
+      imageRotation: e.imageRotation || 0,
     };
   });
 }
@@ -1717,6 +1739,7 @@ export function getDayBubblePreviewBlurbs(events, date, filter, limit = 6) {
       dateLabel: String(d.getDate()) + ' ' + PREVIEW_MONTH_SHORT[d.getMonth()],
       labels: Array.isArray(e.labels) ? e.labels : [],
       imageUri: e.imageUri || '',
+      imageRotation: e.imageRotation || 0,
     };
   });
 }

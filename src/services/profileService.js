@@ -28,6 +28,9 @@ function washPrefsKey(uid) {
 function profilePhotoKey(uid) {
   return uid ? `@profile_photo_${uid}` : '@profile_photo_guest';
 }
+function profilePhotoTurnKey(uid) {
+  return profilePhotoKey(uid) + '_turn';
+}
 
 const LEGACY_PROFILE_PHOTO_KEY = '@profile_photo';
 const LAST_UID_KEY = '@timeline_last_uid';
@@ -728,11 +731,30 @@ export async function getProfilePhotoUri(uid = getUid()) {
 export async function saveProfilePhotoUri(uri, uid = getUid()) {
   if (!uri) {
     await AsyncStorage.removeItem(profilePhotoKey(uid));
+    await AsyncStorage.removeItem(profilePhotoTurnKey(uid));
     return null;
   }
   if (uid) await migrateLegacySettingsOnce(uid);
   await AsyncStorage.setItem(profilePhotoKey(uid), uri);
+  await AsyncStorage.setItem(profilePhotoTurnKey(uid), '0');
   return uri;
+}
+
+export async function getProfilePhotoTurn(uid = getUid()) {
+  try {
+    const raw = await AsyncStorage.getItem(profilePhotoTurnKey(uid));
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 0;
+    return ((n % 360) + 360) % 360;
+  } catch (_) {
+    return 0;
+  }
+}
+
+export async function saveProfilePhotoTurn(degrees, uid = getUid()) {
+  const n = ((Number(degrees) || 0) % 360 + 360) % 360;
+  await AsyncStorage.setItem(profilePhotoTurnKey(uid), String(n));
+  return n;
 }
 
 /** Clear only this uid's local profile photo (not other accounts). */

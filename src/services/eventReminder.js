@@ -1,15 +1,33 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 
-if (Platform.OS !== 'web') {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
+let NotificationsMod = null;
+let notificationsFailed = false;
+
+/** Load only when a reminder is actually set. Expo Go has no topic module, and importing this at startup crashes the phone. */
+async function loadNotifications() {
+  if (Platform.OS === 'web' || notificationsFailed) return null;
+  if (NotificationsMod) return NotificationsMod;
+  try {
+    const mod = await import('expo-notifications');
+    const Notifications = mod && mod.setNotificationHandler ? mod : mod.default;
+    if (!Notifications || !Notifications.setNotificationHandler) {
+      throw new Error('Notifications are not in this app build.');
+    }
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+    NotificationsMod = Notifications;
+    return NotificationsMod;
+  } catch (e) {
+    notificationsFailed = true;
+    console.warn('Notifications are not in this app build.', e && e.message ? e.message : e);
+    return null;
+  }
 }
 
 let channelReady = false;
@@ -45,6 +63,8 @@ export function reminderLabel(iso) {
 
 async function ensureReady() {
   if (Platform.OS === 'web') return false;
+  const Notifications = await loadNotifications();
+  if (!Notifications) return false;
   if (Platform.OS === 'android' && !channelReady) {
     await Notifications.setNotificationChannelAsync('event-reminders', {
       name: 'Event reminders',
@@ -62,6 +82,8 @@ async function ensureReady() {
 export async function cancelReminder(id) {
   if (!id || Platform.OS === 'web') return;
   try {
+    const Notifications = await loadNotifications();
+    if (!Notifications) return;
     await Notifications.cancelScheduledNotificationAsync(id);
   } catch (_) {}
 }
@@ -78,6 +100,10 @@ export async function applyEventReminder(event, { on, when }) {
     throw error;
   }
   if (Platform.OS === 'web') {
+    return { ...event, remindOn: true, remindAt: when.toISOString(), reminderId: null };
+  }
+  const Notifications = await loadNotifications();
+  if (!Notifications) {
     return { ...event, remindOn: true, remindAt: when.toISOString(), reminderId: null };
   }
   const allowed = await ensureReady();

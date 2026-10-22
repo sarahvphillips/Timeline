@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, Modal, Pressable } from 'react-native';
 import { isCameraAvailable, pickWashFromSource } from '../services/imagePicker';
 import TurnPhotoButton from './TurnPhotoButton';
+import { photoTurnStyle } from '../services/imagePicker';
 
 export default function WashMediaField({
   imageUri,
   videoUri,
   onImage,
   onVideo,
+  turn = 0,
+  onTurn,
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -32,7 +35,7 @@ export default function WashMediaField({
       <Text style={styles.label}>While loading</Text>
       <Text style={styles.hint}>Photo or video stays on this device — not uploaded to Firestore.</Text>
       {imageUri ? (
-        <Image source={{ uri: imageUri }} style={styles.thumb} resizeMode="cover" />
+        <Image source={{ uri: imageUri }} style={[styles.thumb, photoTurnStyle(turn)]} resizeMode="cover" />
       ) : null}
       {videoUri ? (
         <View style={styles.videoBox}>
@@ -46,7 +49,11 @@ export default function WashMediaField({
           </Text>
         </TouchableOpacity>
         {imageUri ? (
-          <TurnPhotoButton uri={imageUri} onTurned={(next) => onImage(next)} />
+          <TurnPhotoButton
+            uri={imageUri}
+            turn={turn}
+            onTurned={(degrees) => (onTurn ? onTurn(degrees) : null)}
+          />
         ) : null}
         {imageUri ? (
           <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={() => onImage('')}>

@@ -69,6 +69,7 @@ export default function AddWashLoadScreen({ navigation, route }) {
       : []
   );
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
+  const [imageRotation, setImageRotation] = useState(Number(existing?.imageRotation) || 0);
   const [videoUri, setVideoUri] = useState(existing?.videoUri || '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -133,6 +134,7 @@ export default function AddWashLoadScreen({ navigation, route }) {
         washSongNote: washSang ? washSongNote.trim() || undefined : undefined,
         washCodes: codes.length ? codes : undefined,
         imageUri: imageUri || undefined,
+        imageRotation: Number(imageRotation) || 0,
         videoUri: videoUri || undefined,
         nextAction: 'none',
       });
@@ -185,7 +187,12 @@ export default function AddWashLoadScreen({ navigation, route }) {
         <WashMediaField
           imageUri={imageUri}
           videoUri={videoUri}
-          onImage={setImageUri}
+          turn={imageRotation}
+          onImage={(uri) => {
+            setImageUri(uri || '');
+            setImageRotation(0);
+          }}
+          onTurn={setImageRotation}
           onVideo={setVideoUri}
         />
 

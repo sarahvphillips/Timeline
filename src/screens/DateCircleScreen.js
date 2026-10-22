@@ -15,6 +15,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import TurnPhotoButton from '../components/TurnPhotoButton';
+import { photoTurnStyle } from '../services/imagePicker';
 import {
   daysUntilNext,
   daysBetweenBirthdays,
@@ -133,6 +134,7 @@ export default function DateCircleScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [eventDate, setEventDate] = useState(todayIso());
   const [eventImage, setEventImage] = useState('');
+  const [eventTurn, setEventTurn] = useState(0);
   const [useToday, setUseToday] = useState(true);
   const [saving, setSaving] = useState(false);
   const [wheelSize, setWheelSize] = useState(320);
@@ -420,6 +422,7 @@ export default function DateCircleScreen({ navigation }) {
       });
       if (res.canceled || !res.assets?.[0]?.uri) return;
       setEventImage(res.assets[0].uri);
+      setEventTurn(0);
     } catch {
       Alert.alert('Could not open photos');
     }
@@ -449,6 +452,7 @@ export default function DateCircleScreen({ navigation }) {
         source: 'date_circle',
         labels: ['Wheel of dates'],
         imageUri: eventImage || undefined,
+        imageRotation: eventImage ? Number(eventTurn) || 0 : undefined,
       });
       setEvents((list) => [
         { id: `${Date.now()}`, title, date, imageUri: eventImage },
@@ -778,9 +782,11 @@ export default function DateCircleScreen({ navigation }) {
         <TouchableOpacity style={styles.ghostBtn} onPress={pickExtraImage}>
           <Text style={styles.ghostText}>Add screenshot (optional)</Text>
         </TouchableOpacity>
-        {eventImage ? <Image source={{ uri: eventImage }} style={styles.extraImg} /> : null}
         {eventImage ? (
-          <TurnPhotoButton uri={eventImage} onTurned={(next) => setEventImage(next)} />
+          <Image source={{ uri: eventImage }} style={[styles.extraImg, photoTurnStyle(eventTurn)]} />
+        ) : null}
+        {eventImage ? (
+          <TurnPhotoButton uri={eventImage} turn={eventTurn} onTurned={setEventTurn} />
         ) : null}
         <TouchableOpacity style={styles.button} onPress={addWheelEvent} disabled={saving}>
           <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Add wheel of dates event'}</Text>

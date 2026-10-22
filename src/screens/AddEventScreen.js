@@ -104,6 +104,8 @@ export default function AddEventScreen({ navigation, route }) {
   const [photoNote, setPhotoNote] = useState(existing?.photoNote || route.params?.photoNote || '');
   const [imageUri, setImageUri] = useState(existing?.imageUri || route.params?.imageUri || '');
   const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
+  const [imageRotation, setImageRotation] = useState(Number(existing?.imageRotation) || 0);
+  const [coverImageRotation, setCoverImageRotation] = useState(Number(existing?.coverImageRotation) || 0);
   const [labels, setLabels] = useState(Array.isArray(existing?.labels) ? existing.labels : []);
   const [location, setLocation] = useState(existing?.location || route.params?.location || '');
   const [saving, setSaving] = useState(false);
@@ -167,7 +169,10 @@ export default function AddEventScreen({ navigation, route }) {
     if (typeof p.emailFrom === 'string') setEmailFrom(p.emailFrom);
     if (p.date) setDate(String(p.date).slice(0, 10));
     if (p.source) setSource(p.source);
-    if (typeof p.imageUri === 'string' && p.imageUri) setImageUri(p.imageUri);
+    if (typeof p.imageUri === 'string' && p.imageUri) {
+      setImageUri(p.imageUri);
+      setImageRotation(0);
+    }
     if (typeof p.photoNote === 'string') setPhotoNote(p.photoNote);
   }, [route.params?.shareKey, route.params?.title, route.params?.description, route.params?.emailFrom, route.params?.date, route.params?.imageUri]);
 
@@ -292,11 +297,16 @@ export default function AddEventScreen({ navigation, route }) {
           source === 'hobby' && hobbyType === 'poetry'
             ? coverImageUri || undefined
             : undefined,
+        coverImageRotation:
+          source === 'hobby' && hobbyType === 'poetry'
+            ? Number(coverImageRotation) || 0
+            : undefined,
         coverPhotoNote:
           source === 'hobby' && hobbyType === 'poetry'
             ? coverPhotoNote.trim() || undefined
             : undefined,
         imageUri: imageUri || undefined,
+        imageRotation: Number(imageRotation) || 0,
         photoNote: photoNote.trim() || undefined,
         labels,
         location: location.trim() || undefined,
@@ -874,7 +884,11 @@ export default function AddEventScreen({ navigation, route }) {
             <ImageAttachField
               label="Cover photo"
               uri={coverImageUri}
-              onChange={(picked) => setCoverImageUri(picked && picked.uri ? picked.uri : '')}
+              turn={coverImageRotation}
+              onChange={(picked) => {
+                setCoverImageUri(picked && picked.uri ? picked.uri : '');
+                setCoverImageRotation(picked && picked.rotation ? Number(picked.rotation) : 0);
+              }}
               caption={coverPhotoNote}
               onCaptionChange={setCoverPhotoNote}
               captionPlaceholder="Optional cover caption"
@@ -884,7 +898,11 @@ export default function AddEventScreen({ navigation, route }) {
             <ImageAttachField
               label="Photo for this poem"
               uri={imageUri}
-              onChange={(picked) => setImageUri(picked && picked.uri ? picked.uri : '')}
+              turn={imageRotation}
+              onChange={(picked) => {
+                setImageUri(picked && picked.uri ? picked.uri : '');
+                setImageRotation(picked && picked.rotation ? Number(picked.rotation) : 0);
+              }}
               caption={photoNote}
               onCaptionChange={setPhotoNote}
               captionPlaceholder="Optional caption"
@@ -896,7 +914,11 @@ export default function AddEventScreen({ navigation, route }) {
           <ImageAttachField
             label="Photo"
             uri={imageUri}
-            onChange={(picked) => setImageUri(picked && picked.uri ? picked.uri : '')}
+            turn={imageRotation}
+            onChange={(picked) => {
+              setImageUri(picked && picked.uri ? picked.uri : '');
+              setImageRotation(picked && picked.rotation ? Number(picked.rotation) : 0);
+            }}
             caption={photoNote}
             onCaptionChange={setPhotoNote}
             captionPlaceholder="Optional caption"

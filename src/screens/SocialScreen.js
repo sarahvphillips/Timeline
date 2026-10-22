@@ -18,7 +18,7 @@ import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import HomeFab from '../components/HomeFab';
 import LabelPicker from '../components/LabelPicker';
 import { saveEvent, deleteEvent, getEvents } from '../services/eventService';
-import { pickFromGallery, asImageUri } from '../services/imagePicker';
+import { pickFromGallery, asImageUri, photoTurnStyle } from '../services/imagePicker';
 import TurnPhotoButton from '../components/TurnPhotoButton';
 import { copyTextToClipboard } from '../services/shareService';
 import { useTheme } from '../themeContext';
@@ -80,6 +80,7 @@ function eventFromSocial(p) {
     socialAction: p.action,
     socialNote: p.note,
     imageUri: asImageUri(p.imageUri) || undefined,
+    imageRotation: Number(p.imageRotation) || 0,
   };
 }
 
@@ -105,6 +106,7 @@ export default function SocialScreen({ navigation, route }) {
   const [editingId, setEditingId] = useState(existing?.id || null);
   const [saving, setSaving] = useState(false);
   const [photo, setPhoto] = useState(asImageUri(existing?.imageUri));
+  const [photoTurn, setPhotoTurn] = useState(Number(existing?.imageRotation) || 0);
 
   const parsed = useMemo(() => parseSocialLink(url), [url]);
 
@@ -129,6 +131,7 @@ export default function SocialScreen({ navigation, route }) {
     setAddToTimeline(true);
     setEditingId(null);
     setPhoto('');
+    setPhotoTurn(0);
   }
 
   async function persistTimeline(row) {
@@ -154,6 +157,7 @@ export default function SocialScreen({ navigation, route }) {
       socialAction: row.action,
       socialNote: row.note,
       imageUri: asImageUri(row.imageUri) || undefined,
+      imageRotation: Number(row.imageRotation) || 0,
     });
   }
 
@@ -176,6 +180,7 @@ export default function SocialScreen({ navigation, route }) {
       labels,
       addToTimeline,
       imageUri: asImageUri(photo) || undefined,
+      imageRotation: Number(photoTurn) || 0,
     };
     setSaving(true);
     try {
@@ -202,6 +207,7 @@ export default function SocialScreen({ navigation, route }) {
     setLabels(row.labels || []);
     setAddToTimeline(row.addToTimeline !== false);
     setPhoto(asImageUri(row.imageUri));
+    setPhotoTurn(Number(row.imageRotation) || 0);
   }
 
   async function openEventView(row) {
@@ -329,23 +335,28 @@ export default function SocialScreen({ navigation, route }) {
           <LabelPicker value={labels} onChange={setLabels} />
 
           <Text style={styles.label}>Screenshot or photo</Text>
-          {asImageUri(photo) ? <Image source={{ uri: asImageUri(photo) }} style={styles.art} /> : null}
+          {asImageUri(photo) ? (
+            <Image source={{ uri: asImageUri(photo) }} style={[styles.art, photoTurnStyle(photoTurn)]} />
+          ) : null}
           <View style={styles.row}>
             <TouchableOpacity
               style={styles.chip}
               onPress={async () => {
                 const picked = await pickFromGallery();
                 const uri = asImageUri(picked);
-                if (uri) setPhoto(uri);
+                if (uri) {
+                  setPhoto(uri);
+                  setPhotoTurn(0);
+                }
               }}
             >
               <Text style={styles.chipText}>{photo ? 'Change photo' : 'Add photo'}</Text>
             </TouchableOpacity>
             {photo ? (
-              <TurnPhotoButton uri={photo} onTurned={(next) => setPhoto(next)} />
+              <TurnPhotoButton uri={photo} turn={photoTurn} onTurned={setPhotoTurn} />
             ) : null}
             {photo ? (
-              <TouchableOpacity style={styles.chip} onPress={() => setPhoto('')}>
+              <TouchableOpacity style={styles.chip} onPress={() => { setPhoto(''); setPhotoTurn(0); }}>
                 <Text style={styles.chipText}>Remove</Text>
               </TouchableOpacity>
             ) : null}
@@ -377,7 +388,9 @@ export default function SocialScreen({ navigation, route }) {
                 {p.platform} · {p.action}
               </Text>
               <Text style={styles.logTitle}>{p.title}</Text>
-              {asImageUri(p.imageUri) ? <Image source={{ uri: asImageUri(p.imageUri) }} style={styles.art} /> : null}
+              {asImageUri(p.imageUri) ? (
+                <Image source={{ uri: asImageUri(p.imageUri) }} style={[styles.art, photoTurnStyle(p.imageRotation)]} />
+              ) : null}
               <Text style={styles.hint}>{formatUk(p.date)}</Text>
               {p.note ? <Text style={styles.note}>{p.note}</Text> : null}
               <View style={styles.actions}>

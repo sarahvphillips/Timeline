@@ -61,6 +61,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
   const [place, setPlace] = useState(existing?.location || existing?.lifePlace || '');
   const [note, setNote] = useState(existing?.description || existing?.lifeNote || '');
   const [imageUri, setImageUri] = useState(asImageUri(existing?.imageUri));
+  const [imageRotation, setImageRotation] = useState(Number(existing?.imageRotation) || 0);
   const [labels, setLabels] = useState(
     Array.isArray(existing?.labels) ? existing.labels.filter((l) => l !== 'Life') : [],
   );
@@ -95,6 +96,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
     setPlace('');
     setNote('');
     setImageUri('');
+    setImageRotation(0);
     setLabels([]);
   };
 
@@ -135,6 +137,7 @@ export default function AddLifeEventScreen({ navigation, route }) {
         lifeNote: note.trim(),
         personId: personId || '',
         imageUri: asImageUri(imageUri) || undefined,
+        imageRotation: Number(imageRotation) || 0,
       });
       await load();
       if (!existing) reset();
@@ -316,7 +319,11 @@ export default function AddLifeEventScreen({ navigation, route }) {
         <ImageAttachField
           label="Photo"
           uri={imageUri}
-          onChange={(picked) => setImageUri(asImageUri(picked))}
+          turn={imageRotation}
+          onChange={(picked) => {
+            setImageUri(picked && picked.uri ? asImageUri(picked.uri) : '');
+            setImageRotation(picked && picked.rotation ? Number(picked.rotation) : 0);
+          }}
         />
         <LabelPicker value={labels} onChange={setLabels} />
 

@@ -13,20 +13,24 @@ export default function ImageAttachField({
   onCaptionChange,
   captionPlaceholder = 'Optional caption',
   hint,
+  turn = 0,
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [broken, setBroken] = useState(false);
+  const [angle, setAngle] = useState(Number(turn) || 0);
   const src = asImageUri(uri);
 
   useEffect(() => {
     setBroken(false);
-  }, [src]);
+    setAngle(Number(turn) || 0);
+  }, [src, turn]);
 
   const handlePicked = (picked) => {
     const next = asImageUri(picked);
     if (next) {
       setBroken(false);
-      onChange({ uri: next, filename: picked?.filename });
+      setAngle(0);
+      onChange({ uri: next, filename: picked?.filename, rotation: 0 });
     }
   };
 
@@ -36,7 +40,7 @@ export default function ImageAttachField({
     <View style={styles.wrap}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       {src && !broken ? (
-        <PhotoView uri={src} style={styles.thumb} resizeMode="cover" onError={() => setBroken(true)} />
+        <PhotoView uri={src} turn={angle} style={styles.thumb} resizeMode="cover" onError={() => setBroken(true)} />
       ) : null}
       {broken ? <Text style={styles.hint}>That photo could not be shown. Try taking it again or pick from the gallery.</Text> : null}
       <View style={styles.row}>
@@ -46,14 +50,16 @@ export default function ImageAttachField({
         {src ? (
           <TurnPhotoButton
             uri={src}
-            onTurned={(next) => {
+            turn={angle}
+            onTurned={(degrees) => {
               setBroken(false);
-              onChange({ uri: next, filename: 'turned.jpg' });
+              setAngle(degrees);
+              onChange({ uri: src, filename: 'photo.jpg', rotation: degrees });
             }}
           />
         ) : null}
         {src ? (
-          <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={() => onChange(null)}>
+          <TouchableOpacity style={[styles.btn, styles.ghost]} onPress={() => { setAngle(0); onChange(null); }}>
             <Text style={styles.ghostText}>Remove</Text>
           </TouchableOpacity>
         ) : null}

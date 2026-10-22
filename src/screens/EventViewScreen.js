@@ -152,7 +152,9 @@ export default function EventViewScreen({ navigation, route }) {
 
   const kind = classifyYearBubbleKind(event);
   const poem = kind.kind === 'poem';
-  const photo = asImageUri(event.coverImageUri || event.imageUri);
+  const usingCover = !!asImageUri(event.coverImageUri);
+  const photo = asImageUri(usingCover ? event.coverImageUri : event.imageUri);
+  const photoTurn = usingCover ? Number(event.coverImageRotation) || 0 : Number(event.imageRotation) || 0;
   const body = String(event.description || event.smsBody || '').trim();
   const storedItems = String(event.foodItems || '').trim();
   let ingredientLines = splitIngredientList(storedItems);
@@ -191,15 +193,12 @@ export default function EventViewScreen({ navigation, route }) {
     Linking.openURL(f.url).catch(() => Alert.alert('Could not open file', 'Try again when you are online.'));
   const previewHeight = poem ? Math.min(560, Math.round(screenW * 1.45)) : 240;
 
-  const turnPhoto = async (next) => {
-    const field = asImageUri(event.coverImageUri) ? 'coverImageUri' : 'imageUri';
-    const updated = { ...event, [field]: next };
+  const turnPhoto = async (degrees) => {
+    const field = usingCover ? 'coverImageRotation' : 'imageRotation';
+    const updated = { ...event, [field]: degrees };
     setEvent(updated);
     try {
       await saveEvent(updated);
-      const all = await getEvents();
-      const live = all.find((row) => String(row.id) === String(updated.id));
-      if (live) setEvent(live);
     } catch (e) {
       Alert.alert('Turned on this device', e?.message || 'The new angle is showing here.');
     }
@@ -227,19 +226,23 @@ export default function EventViewScreen({ navigation, route }) {
       ) : null}
 
       {photo ? (
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => setFullOpen(true)}
-          accessibilityLabel="View full image"
-        >
-          <PhotoView
-            uri={photo}
-            style={[styles.photo, { height: previewHeight, width: '100%' }]}
-            resizeMode="contain"
-          />
-          <Text style={styles.photoHint}>Tap image to view full size</Text>
-          <TurnPhotoButton uri={photo} onTurned={(next) => turnPhoto(next)} />
-        </TouchableOpacity>
+        <View>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => setFullOpen(true)}
+            accessibilityLabel="View full image"
+          >
+            <PhotoView
+              uri={photo}
+              turn={photoTurn}
+              style={[styles.photo, { height: previewHeight, width: '100%' }]}
+              resizeMode="contain"
+            />
+            <Text style={styles.photoHint}>Tap image to view full size</Text>
+          </TouchableOpacity>
+          <TurnPhotoButton uri={photo} turn={photoTurn} onTurned={turnPhoto} />
+          <Text style={styles.photoHint}>Each tap turns it a quarter. Twice turns an upside-down photo the right way up.</Text>
+        </View>
       ) : null}
 
       <EventLabelChips labels={event.labels} />
@@ -410,7 +413,7 @@ export default function EventViewScreen({ navigation, route }) {
           <Pressable style={styles.fullCloseHit} onPress={() => setFullOpen(false)}>
             <Text style={styles.fullClose}>Close</Text>
           </Pressable>
-          <TurnPhotoButton uri={photo} onTurned={(next) => turnPhoto(next)} />
+          <TurnPhotoButton uri={photo} turn={photoTurn} onTurned={turnPhoto} />
           <ScrollView
             maximumZoomScale={4}
             minimumZoomScale={1}
@@ -419,6 +422,7 @@ export default function EventViewScreen({ navigation, route }) {
           >
             <PhotoView
               uri={photo}
+              turn={photoTurn}
               style={{ width: screenW, height: Math.max(screenH - 80, screenW * 1.8) }}
               resizeMode="contain"
             />

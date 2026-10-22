@@ -33,6 +33,8 @@ export default function AddPoemScreen({ navigation, route }) {
   const [photoNote, setPhotoNote] = useState(existing?.photoNote || '');
   const [coverImageUri, setCoverImageUri] = useState(existing?.coverImageUri || '');
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
+  const [coverImageRotation, setCoverImageRotation] = useState(Number(existing?.coverImageRotation) || 0);
+  const [imageRotation, setImageRotation] = useState(Number(existing?.imageRotation) || 0);
   const [shareCaption, setShareCaption] = useState(existing?.shareCaption || '');
   const [labels, setLabels] = useState(existing?.labels || []);
   const [saving, setSaving] = useState(false);
@@ -69,8 +71,10 @@ export default function AddPoemScreen({ navigation, route }) {
         hobbyType: 'poetry',
         collectionName: collectionName.trim() || undefined,
         coverImageUri: coverImageUri || undefined,
+        coverImageRotation: Number(coverImageRotation) || 0,
         coverPhotoNote: coverPhotoNote.trim() || undefined,
         imageUri: imageUri || undefined,
+        imageRotation: Number(imageRotation) || 0,
         photoNote: photoNote.trim() || undefined,
         shareCaption: shareCaption.trim() || undefined,
         labels,
@@ -162,7 +166,11 @@ export default function AddPoemScreen({ navigation, route }) {
         <ImageAttachField
           label="Cover photo"
           uri={coverImageUri}
-          onChange={(picked) => setCoverImageUri(picked && picked.uri ? picked.uri : '')}
+          turn={coverImageRotation}
+          onChange={(picked) => {
+            setCoverImageUri(picked && picked.uri ? picked.uri : '');
+            setCoverImageRotation(picked && picked.rotation ? Number(picked.rotation) : 0);
+          }}
           caption={coverPhotoNote}
           onCaptionChange={setCoverPhotoNote}
           captionPlaceholder="Optional cover caption"
@@ -172,7 +180,11 @@ export default function AddPoemScreen({ navigation, route }) {
         <ImageAttachField
           label="Photo for this poem"
           uri={imageUri}
-          onChange={(picked) => setImageUri(picked && picked.uri ? picked.uri : '')}
+          turn={imageRotation}
+          onChange={(picked) => {
+            setImageUri(picked && picked.uri ? picked.uri : '');
+            setImageRotation(picked && picked.rotation ? Number(picked.rotation) : 0);
+          }}
           caption={photoNote}
           onCaptionChange={setPhotoNote}
           captionPlaceholder="Optional caption"

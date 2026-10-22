@@ -73,6 +73,7 @@ export default function AddFoodScreen({ navigation, route }) {
       : 'eaten'
   );
   const [imageUri, setImageUri] = useState(existing?.imageUri || '');
+  const [imageRotation, setImageRotation] = useState(Number(existing?.imageRotation) || 0);
   const [mealKit, setMealKit] = useState(existing?.mealKit || '');
   const [recipeName, setRecipeName] = useState(existing?.recipeName || '');
   const [cardNumber, setCardNumber] = useState(existing?.cardNumber || '');
@@ -134,6 +135,7 @@ export default function AddFoodScreen({ navigation, route }) {
         foodStatus,
         foodItems: items || undefined,
         imageUri: imageUri || undefined,
+        imageRotation: Number(imageRotation) || 0,
         mealKit: mealKit || undefined,
         recipeName: recipeName.trim() || undefined,
         cardNumber: cardNumber.trim() || undefined,
@@ -204,6 +206,7 @@ export default function AddFoodScreen({ navigation, route }) {
         foodStatus,
         foodItems: items || undefined,
         imageUri: imageUri || undefined,
+        imageRotation: Number(imageRotation) || 0,
         mealKit: mealKit || undefined,
         recipeName: recipeName.trim() || undefined,
         cardNumber: cardNumber.trim() || undefined,
@@ -270,7 +273,11 @@ export default function AddFoodScreen({ navigation, route }) {
         <ImageAttachField
           label="Photo"
           uri={imageUri}
-          onChange={(picked) => setImageUri(picked && picked.uri ? picked.uri : '')}
+          turn={imageRotation}
+          onChange={(picked) => {
+            setImageUri(picked && picked.uri ? picked.uri : '');
+            setImageRotation(picked && picked.rotation ? Number(picked.rotation) : 0);
+          }}
           hint="Camera, gallery (Google Photos on Android), or a file."
         />
 

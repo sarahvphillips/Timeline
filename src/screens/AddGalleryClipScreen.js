@@ -76,6 +76,7 @@ export default function AddGalleryClipScreen({ navigation, route }) {
       {
         id: existing.id,
         uri: existing.imageUri || existing.videoUri || '',
+        rotation: Number(existing.imageRotation) || 0,
         filename: existing.clipFileName || '',
         kind: existing.clipKind || (video ? 'video' : 'image'),
         stream: existing.clipStream || 'tapo',
@@ -142,6 +143,7 @@ export default function AddGalleryClipScreen({ navigation, route }) {
           clipKind: file.kind,
           clipTimeSource: file.override ? 'manual' : file.capturedFrom || 'manual',
           imageUri: file.kind === 'image' ? file.uri : undefined,
+          imageRotation: file.kind === 'image' ? Number(file.rotation) || 0 : undefined,
           videoUri: file.kind === 'video' ? file.uri : undefined,
         };
         if (existing && file.id === existing.id) payload.id = existing.id;
@@ -180,11 +182,12 @@ export default function AddGalleryClipScreen({ navigation, route }) {
         <View key={file.id} style={styles.card}>
           {file.kind === 'image' && file.uri ? (
             <View>
-              <PhotoView uri={file.uri} style={styles.thumb} resizeMode="cover" />
+              <PhotoView uri={file.uri} turn={file.rotation || 0} style={styles.thumb} resizeMode="cover" />
               <TurnPhotoButton
                 uri={file.uri}
-                onTurned={(next) =>
-                  setFiles((list) => list.map((row) => (row.id === file.id ? { ...row, uri: next } : row)))
+                turn={file.rotation || 0}
+                onTurned={(degrees) =>
+                  setFiles((list) => list.map((row) => (row.id === file.id ? { ...row, rotation: degrees } : row)))
                 }
               />
             </View>
