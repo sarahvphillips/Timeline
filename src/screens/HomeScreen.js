@@ -325,6 +325,12 @@ export default function HomeScreen({ navigation, user, onLogout }) {
           <MenuCard colors={colors}>
             <MenuRow
               colors={colors}
+              icon="search-outline"
+              label="Search"
+              onPress={() => navigation.navigate('Search')}
+            />
+            <MenuRow
+              colors={colors}
               icon="time-outline"
               label="Timeline"
               onPress={() => navigation.navigate('YearOverview')}

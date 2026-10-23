@@ -75,6 +75,7 @@ import AddLocationScreen from './src/screens/AddLocationScreen';
 import AddLifeEventScreen from './src/screens/AddLifeEventScreen';
 import AddGalleryClipScreen from './src/screens/AddGalleryClipScreen';
 import TodoListScreen from './src/screens/TodoListScreen';
+import SearchScreen from './src/screens/SearchScreen';
 import { welcomePendingKey, WELCOME_NEXT_KEY } from './src/legal/welcomeEmail';
 import { ThemeProvider, useTheme } from './src/themeContext';
 import { isBrandNewUser, needUsernameKey } from './src/services/googleSignIn';
@@ -347,6 +348,8 @@ function AppShell() {
                   <HomeScreen {...props} user={user} onLogout={handleLogout} />
                 )}
               </Stack.Screen>
+
+              <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'Search' }} />
 
               <Stack.Screen
                 name="YearOverview"

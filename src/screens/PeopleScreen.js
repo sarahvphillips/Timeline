@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -61,7 +61,7 @@ function whatsappHref(phone, body) {
   return d ? `https://wa.me/${d}?text=${t}` : `https://wa.me/?text=${t}`;
 }
 
-export default function PeopleScreen({ navigation }) {
+export default function PeopleScreen({ navigation, route }) {
   const { colors } = useTheme();
   const styles = useMemo(() => screenStyles(colors), [colors]);
   const [people, setPeople] = useState([]);
@@ -119,6 +119,16 @@ export default function PeopleScreen({ navigation }) {
     setBirthday(p.birthday || '');
     setNote(p.note);
   };
+
+  const openedPerson = useRef('');
+  useEffect(() => {
+    const focusId = route?.params?.personId;
+    if (!focusId || openedPerson.current === String(focusId)) return;
+    const found = people.find((p) => String(p.id) === String(focusId));
+    if (!found) return;
+    openedPerson.current = String(focusId);
+    fillForm(found);
+  }, [people, route?.params?.personId]);
 
   const handleSave = async () => {
     const label = name.trim();
