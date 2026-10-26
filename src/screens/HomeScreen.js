@@ -238,7 +238,10 @@ export default function HomeScreen({ navigation, user, onLogout }) {
             )}
           </TouchableOpacity>
           <View style={styles.profileCopy}>
-            <Text style={[styles.brand, { color: colors.text }]}>Timeline</Text>
+            <View style={styles.brandRow}>
+              <Image source={require('../../assets/icon.png')} style={styles.brandMark} />
+              <Text style={[styles.brand, { color: colors.text }]}>Timeline</Text>
+            </View>
             <Text style={[styles.email, { color: colors.faint }]} numberOfLines={1}>
               {guest ? 'Guest · this device only' : user?.email || 'Signed in'}
             </Text>
@@ -454,6 +457,8 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   profileCopy: { flex: 1 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandMark: { width: 28, height: 28, borderRadius: 7 },
   avatar: {
     width: 52,
     height: 52,

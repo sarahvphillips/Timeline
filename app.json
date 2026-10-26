@@ -12,7 +12,7 @@
       "web"
     ],
     "splash": {
-      "backgroundColor": "#0f1024",
+      "backgroundColor": "#000000",
       "image": "./assets/icon.png"
     },
     "ios": {
@@ -28,7 +28,7 @@
     "android": {
       "package": "com.sarahphillips.timelineapp",
       "adaptiveIcon": {
-        "backgroundColor": "#0f1024",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/icon.png"
       },
       "permissions": [
