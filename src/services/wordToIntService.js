@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { heavySyncPaused, noteRead } from './usageService';
+import { bumpSync, fetchUpdatedSince, fullSyncFresh, readSyncMeta } from './syncMeta';
 
 const LEGACY_WORD_KEY = '@word_to_int_list';
 const GUEST_WORD_KEY = '@word_to_int_list_guest';
@@ -190,12 +192,31 @@ async function pushWordNumberToFirebase(payload) {
   await setDoc(wordNumberDoc(uid, clean.id), clean, { merge: true });
 }
 
+function wordSyncKeys(uid) {
+  return {
+    ver: `@timeline_words_ver_${uid}`,
+    at: `@timeline_words_at_${uid}`,
+    full: `@timeline_words_full_${uid}`,
+  };
+}
+
+async function rememberWordSync(uid, version, full, at) {
+  const keys = wordSyncKeys(uid);
+  const pairs = [
+    [keys.ver, String(version || Date.now())],
+    [keys.at, at || new Date().toISOString()],
+  ];
+  if (full) pairs.push([keys.full, String(Date.now())]);
+  await AsyncStorage.multiSet(pairs);
+}
+
 async function fetchWordNumbersFromFirebase() {
   if (!WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) return [];
   const uid = currentUid();
   if (!uid) return [];
   const snap = await getDocs(collection(db, 'users', uid, 'wordNumbers'));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  noteRead(snap.size);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((row) => !row.deleted);
 }
 
 function mergeLists(localList, remoteList) {
@@ -353,7 +374,13 @@ async function applyDedupe(list, uid, epoch) {
       dropped.map(async (item) => {
         if (!item?.id) return;
         try {
-          await deleteDoc(wordNumberDoc(uid, item.id));
+          await setDoc(wordNumberDoc(uid, item.id), {
+            id: String(item.id),
+            phrase: item.phrase || '',
+            deleted: true,
+            updatedAt: new Date().toISOString(),
+            ownerUid: uid,
+          }, { merge: true });
         } catch (e) {
           console.warn('Duplicate word-number cloud delete skipped', e);
         }
@@ -368,6 +395,11 @@ async function applyDedupe(list, uid, epoch) {
         }
       })
     );
+    try {
+      await bumpSync(uid);
+    } catch (e) {
+      console.warn('Word dedupe sync bump skipped', e);
+    }
   return kept;
 }
 
@@ -396,7 +428,7 @@ export async function readLocalWordNumbers(uid = currentUid()) {
     if (uid) await migrateLegacyWordNumbersOnce(uid);
     let local = await readListRaw(uid);
     if (uid) local = claimLocalRows(local, uid);
-    return sortWordNumbers(local);
+    return sortWordNumbers(local.filter((item) => item && !item.deleted));
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
     return [];
@@ -458,6 +490,51 @@ async function loadWordNumbersFresh() {
       return sortWordNumbers(cleaned);
     }
 
+    let remoteMeta = null;
+    try {
+      remoteMeta = await readSyncMeta(uid);
+    } catch (_) {
+      remoteMeta = null;
+    }
+    const wordKeys = wordSyncKeys(uid);
+    const savedVer = await AsyncStorage.getItem(wordKeys.ver);
+    const since = await AsyncStorage.getItem(wordKeys.at);
+    const fullFresh = fullSyncFresh(Number((await AsyncStorage.getItem(wordKeys.full)) || 0));
+    const versionSame = remoteMeta && savedVer && String(remoteMeta.version) === String(savedVer);
+    if (versionSame && local.length && (fullFresh || heavySyncPaused())) {
+      const cleaned = await applyDedupe(local, uid, epoch);
+      return sortWordNumbers(cleaned.filter((item) => !item.deleted));
+    }
+    if (remoteMeta && savedVer && since && local.length && String(remoteMeta.version) !== String(savedVer)) {
+      try {
+        const cursorAt = new Date().toISOString();
+        const changed = await fetchUpdatedSince(collection(db, 'users', uid, 'wordNumbers'), since);
+        if (!changed.capped || heavySyncPaused()) {
+          const byId = new Map();
+          local.forEach((item) => {
+            if (item?.id) byId.set(String(item.id), item);
+          });
+          changed.docs.forEach((d) => {
+            const data = { id: d.id, ...(d.data() || {}) };
+            if (data.ownerUid && data.ownerUid !== uid) return;
+            if (data.deleted) byId.delete(String(d.id));
+            else byId.set(String(d.id), { ...data, ownerUid: data.ownerUid || uid });
+          });
+          const merged = [...byId.values()].filter((item) => entryBelongsToUid(item, uid) && !item.deleted);
+          if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
+          await writeList(merged, uid);
+          await rememberWordSync(uid, remoteMeta.version, false, cursorAt);
+          const cleaned = await applyDedupe(merged, uid, epoch);
+          return sortWordNumbers(cleaned.filter((item) => !item.deleted));
+        }
+      } catch (e) {
+        console.warn('Word delta skipped', e);
+      }
+    }
+    if (heavySyncPaused() && local.length) {
+      return sortWordNumbers(local.filter((item) => !item.deleted));
+    }
+
     let remote = [];
     try {
       remote = await fetchWordNumbersFromFirebase();
@@ -502,7 +579,8 @@ async function loadWordNumbersFresh() {
     );
     if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);
     const cleaned = await applyDedupe(merged, uid, epoch);
-    return sortWordNumbers(cleaned);
+    rememberWordSync(uid, remoteMeta ? remoteMeta.version : Date.now(), true, new Date().toISOString()).catch(() => {});
+    return sortWordNumbers(cleaned.filter((item) => !item.deleted));
   } catch (e) {
     console.warn('Failed to load word-to-int list', e);
     try {
@@ -585,6 +663,7 @@ export async function saveWordNumber(entry) {
 
   try {
     await pushWordNumberToFirebase(found);
+    if (uid) await bumpSync(uid);
     found.cloudSaved = true;
   } catch (e) {
     found.cloudSaved = false;
@@ -635,7 +714,14 @@ export async function deleteWordNumber(id) {
   sessionWordsUid = uid || null;
   if (uid && target?.id && WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
     try {
-      await deleteDoc(wordNumberDoc(uid, target.id));
+      await setDoc(wordNumberDoc(uid, target.id), {
+        id: String(target.id),
+        phrase: target.phrase || '',
+        deleted: true,
+        updatedAt: new Date().toISOString(),
+        ownerUid: uid,
+      }, { merge: true });
+      await bumpSync(uid);
     } catch (e) {
       console.warn('Firebase word-to-int delete skipped', e);
     }

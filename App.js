@@ -62,6 +62,7 @@ import TransferCreditsScreen from './src/screens/TransferCreditsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OpenBankingScreen from './src/screens/OpenBankingScreen';
 import ConnectBotScreen from './src/screens/ConnectBotScreen';
+import ReportProblemScreen from './src/screens/ReportProblemScreen';
 import LegalScreen from './src/screens/LegalScreen';
 import EventsWithFriendsScreen from './src/screens/EventsWithFriendsScreen';
 import ShareEventScreen from './src/screens/ShareEventScreen';
@@ -689,6 +690,12 @@ function AppShell() {
                 name="ConnectBot"
                 component={ConnectBotScreen}
                 options={{ title: 'Connect a bot' }}
+              />
+
+              <Stack.Screen
+                name="ReportProblem"
+                component={ReportProblemScreen}
+                options={{ title: 'Report a problem' }}
               />
 
               <Stack.Screen

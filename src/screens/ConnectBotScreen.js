@@ -74,11 +74,11 @@ export default function ConnectBotScreen({ navigation }) {
     }, [load])
   );
 
-  const create = async () => {
+  const create = async (replace) => {
     if (busy) return;
     setBusy(true);
     try {
-      const out = await createBotKey(label.trim() || 'Bot');
+      const out = await createBotKey(label.trim() || 'Grok', { replace: replace === true });
       setNewKey(out);
       setLabel('');
       load();
@@ -116,26 +116,41 @@ export default function ConnectBotScreen({ navigation }) {
         <Text style={styles.kicker}>Settings</Text>
         <Text style={styles.heading}>Connect a bot</Text>
         <Text style={styles.intro}>
-          A bot key lets an assistant (like Timeline Bot) add and read your events. Each key only sees
-          your timeline. You can revoke it at any time.
+          One Grok bot can be connected at a time. The key only sees your timeline. You can replace it or revoke it.
         </Text>
 
-        <Text style={styles.section}>Create bot key</Text>
-        <View style={styles.card}>
-          <TextInput
-            style={styles.input}
-            value={label}
-            onChangeText={setLabel}
-            placeholder="Name, e.g. Timeline Bot"
-            placeholderTextColor={colors.faint}
-            maxLength={60}
-            onSubmitEditing={create}
-            returnKeyType="done"
-          />
-          <TouchableOpacity style={styles.button} onPress={create} disabled={busy} activeOpacity={0.8}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create bot key</Text>}
-          </TouchableOpacity>
-        </View>
+        {keys.some((k) => !k.revoked) ? (
+          <View style={styles.card}>
+            <Text style={styles.title}>A Grok bot is already connected</Text>
+            <Text style={styles.muted}>Replace retires the current key and shows a new one once.</Text>
+            <TouchableOpacity
+              style={styles.button}
+              disabled={busy}
+              onPress={() => confirm('Replace bot key?', 'The current key stops working as soon as the new one is created.', () => create(true))}
+            >
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Replace with new key</Text>}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.section}>Create bot key</Text>
+            <View style={styles.card}>
+              <TextInput
+                style={styles.input}
+                value={label}
+                onChangeText={setLabel}
+                placeholder="Name, e.g. Grok"
+                placeholderTextColor={colors.faint}
+                maxLength={60}
+                onSubmitEditing={() => create(false)}
+                returnKeyType="done"
+              />
+              <TouchableOpacity style={styles.button} onPress={() => create(false)} disabled={busy} activeOpacity={0.8}>
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create bot key</Text>}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         {newKey ? (
           <View style={[styles.card, styles.keyCard]}>

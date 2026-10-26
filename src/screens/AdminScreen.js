@@ -30,6 +30,16 @@ import { adminGetRewardsByEmail, adminSetRewards, perkLabel } from '../services/
 import { listCreditFeedback, creditFeedbackItems } from '../services/creditFeedback';
 import { useTheme } from '../themeContext';
 import { allowanceStatus, loadUsageRules, saveUsageRules } from '../services/usageService';
+import {
+  createAdminKey,
+  lookupAccount,
+  getUserLimits,
+  setUserLimits,
+  listUserBotKeys,
+  revokeUserBotKey,
+  listAdminTickets,
+  updateAdminTicket,
+} from '../services/adminApi';
 
 export default function AdminScreen({ navigation, route }) {
   const { colors } = useTheme();
@@ -49,6 +59,15 @@ export default function AdminScreen({ navigation, route }) {
   const [feedbackNote, setFeedbackNote] = useState('');
   const [allowance, setAllowance] = useState('500');
   const [usageNote, setUsageNote] = useState('');
+  const [adminKey, setAdminKey] = useState('');
+  const [limitEmail, setLimitEmail] = useState('');
+  const [limitRow, setLimitRow] = useState(null);
+  const [limitCap, setLimitCap] = useState('');
+  const [limitNote, setLimitNote] = useState('');
+  const [userKeys, setUserKeys] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [ticketNote, setTicketNote] = useState('');
+  const [drafts, setDrafts] = useState({});
 
   const notify = (title, message) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
@@ -230,6 +249,180 @@ export default function AdminScreen({ navigation, route }) {
         <Text style={styles.primaryText}>Check today's usage</Text>
       </TouchableOpacity>
       {usageNote ? <Text style={styles.meta}>{usageNote}</Text> : null}
+
+      <Text style={styles.section}>Admin bot key</Text>
+      <Text style={styles.intro}>
+        Separate from a user's Grok key. Shown once. Create it here, then keep it out of the repo.
+      </Text>
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={async () => {
+          try {
+            const out = await createAdminKey('Admin bot');
+            setAdminKey(out.key || '');
+          } catch (e) {
+            setAdminKey('');
+            setNotice(e?.message || 'Could not create an admin key. Deploy the functions first.');
+          }
+        }}
+      >
+        <Text style={styles.primaryText}>Create admin key</Text>
+      </TouchableOpacity>
+      {adminKey ? <Text selectable style={styles.meta}>{adminKey}</Text> : null}
+
+      <Text style={styles.section}>A user's allowance and keys</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="user@example.com"
+        placeholderTextColor="#64748b"
+        value={limitEmail}
+        onChangeText={setLimitEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={async () => {
+          setLimitNote('Looking up…');
+          try {
+            const found = await lookupAccount(limitEmail.trim());
+            const [limits, keys] = await Promise.all([
+              getUserLimits(found.uid),
+              listUserBotKeys(found.uid),
+            ]);
+            setLimitRow({ ...limits, email: found.email });
+            setUserKeys(keys.keys || []);
+            setLimitCap(limits.allowance == null ? '' : String(limits.allowance));
+            setLimitNote(`${found.email} · bot points today ${limits.botPoints}`);
+          } catch (e) {
+            setLimitRow(null);
+            setUserKeys([]);
+            setLimitNote(e?.message || 'Could not look that up.');
+          }
+        }}
+      >
+        <Text style={styles.primaryText}>Look up user</Text>
+      </TouchableOpacity>
+      {limitNote ? <Text style={styles.meta}>{limitNote}</Text> : null}
+      {limitRow ? (
+        <View style={styles.card}>
+          <Text style={styles.rowText}>{limitRow.email}</Text>
+          <Text style={styles.muted}>uid {limitRow.uid}</Text>
+          <TextInput
+            style={styles.input}
+            value={limitCap}
+            onChangeText={setLimitCap}
+            keyboardType="number-pad"
+            placeholder="Daily allowance override"
+            placeholderTextColor="#64748b"
+          />
+          <TouchableOpacity
+            style={styles.primary}
+            onPress={async () => {
+              try {
+                await setUserLimits(limitRow.uid, { dailyAllowance: Number(limitCap) || 0 });
+                setLimitNote('Allowance override saved.');
+              } catch (e) {
+                setLimitNote(e?.message || 'Could not save.');
+              }
+            }}
+          >
+            <Text style={styles.primaryText}>Save allowance override</Text>
+          </TouchableOpacity>
+          <View style={styles.row}>
+            <TouchableOpacity onPress={async () => {
+              try {
+                await setUserLimits(limitRow.uid, { adsUnlocked: (Number(limitRow.usage?.adsUnlocked) || 0) + 1 });
+                setLimitNote('Added one ad unlock.');
+              } catch (e) { setLimitNote(e?.message || 'Could not unlock.'); }
+            }}>
+              <Text style={styles.link}>Add unlock</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={async () => {
+              try {
+                await setUserLimits(limitRow.uid, { testAccount: true });
+                setLimitNote('Marked as a test account.');
+              } catch (e) { setLimitNote(e?.message || 'Could not mark test account.'); }
+            }}>
+              <Text style={styles.link}>Mark test account</Text>
+            </TouchableOpacity>
+          </View>
+          {userKeys.map((k) => (
+            <View key={k.hash} style={styles.row}>
+              <Text style={styles.rowText}>{k.label || 'Bot'} {k.revoked ? '(revoked)' : ''}</Text>
+              {!k.revoked ? (
+                <TouchableOpacity onPress={async () => {
+                  try {
+                    await revokeUserBotKey(limitRow.uid, k.hash);
+                    setUserKeys((cur) => cur.map((row) => (row.hash === k.hash ? { ...row, revoked: true } : row)));
+                  } catch (e) { setLimitNote(e?.message || 'Could not revoke.'); }
+                }}>
+                  <Text style={styles.link}>Revoke</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <Text style={styles.section}>Problem tickets</Text>
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={async () => {
+          setTicketNote('Loading…');
+          try {
+            const out = await listAdminTickets();
+            setTickets(out.tickets || []);
+            setTicketNote(out.count ? `${out.count} ticket${out.count === 1 ? '' : 's'}.` : 'No tickets.');
+          } catch (e) {
+            setTicketNote(e?.message || 'Could not load tickets.');
+          }
+        }}
+      >
+        <Text style={styles.primaryText}>Load tickets</Text>
+      </TouchableOpacity>
+      {ticketNote ? <Text style={styles.meta}>{ticketNote}</Text> : null}
+      {tickets.map((ticket) => (
+        <View key={ticket.id} style={styles.card}>
+          <Text style={styles.rowText}>{ticket.title}</Text>
+          <Text style={styles.muted}>{ticket.email || ticket.uid} · {ticket.status}</Text>
+          {ticket.detail ? <Text style={styles.intro}>{ticket.detail}</Text> : null}
+          <View style={styles.row}>
+            {['in_progress', 'resolved', 'closed'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                onPress={async () => {
+                  try {
+                    await updateAdminTicket(ticket.id, { status });
+                    setTickets((cur) => cur.map((row) => (row.id === ticket.id ? { ...row, status } : row)));
+                  } catch (e) { setTicketNote(e?.message || 'Could not update.'); }
+                }}
+              >
+                <Text style={styles.link}>{status}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Draft email (saved, not sent)"
+            placeholderTextColor="#64748b"
+            value={drafts[ticket.id] != null ? drafts[ticket.id] : (ticket.draftEmail || '')}
+            onChangeText={(value) => setDrafts((cur) => ({ ...cur, [ticket.id]: value }))}
+            multiline
+          />
+          <TouchableOpacity
+            style={styles.ghost}
+            onPress={async () => {
+              try {
+                await updateAdminTicket(ticket.id, { draftEmail: drafts[ticket.id] != null ? drafts[ticket.id] : (ticket.draftEmail || '') });
+                setTicketNote('Draft saved on the ticket. No email was sent.');
+              } catch (e) { setTicketNote(e?.message || 'Could not save the draft.'); }
+            }}
+          >
+            <Text style={styles.ghostText}>Save draft email</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
       <TouchableOpacity style={styles.primary} onPress={() => navigation.navigate('CreditsShop')}>
         <Text style={styles.primaryText}>Credits shop — test as a user</Text>
       </TouchableOpacity>

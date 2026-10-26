@@ -52,9 +52,9 @@ async function saveLocalBotKeys(list) {
   if (k) await AsyncStorage.setItem(k, JSON.stringify(list));
 }
 
-/** Returns { key, hash, label }. The key is never saved; show it once. */
-export async function createBotKey(label) {
-  const out = await call('/keys/create', { label });
+/** Returns { key, hash, label }. The key is never saved; show it once. Pass replace to retire the current key. */
+export async function createBotKey(label, opts = {}) {
+  const out = await call('/keys/create', { label, replace: opts.replace === true, botType: 'grok' });
   const list = await getLocalBotKeys();
   list.unshift({ hash: out.hash, label: out.label, createdAt: new Date().toISOString(), revoked: false });
   await saveLocalBotKeys(list);

@@ -22,11 +22,19 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage, getDownloadURL } = require('firebase-admin/storage');
 const { getAuth } = require('firebase-admin/auth');
+const { createSync } = require('./sync');
+const { createGuard } = require('./guard');
+const { registerAdmin } = require('./adminRoutes');
+const { publicProfile } = require('./lib/profile');
+const { decideKeyCreate } = require('./lib/keys');
+const { tombstone } = require('./lib/delta');
+const { foldEvents, encodeCursor, decodeCursor } = require('./lib/recap');
 
 initializeApp();
 setGlobalOptions({ region: 'europe-west2' });
 
 const db = getFirestore();
+const { bumpSync } = createSync(db, FieldValue);
 
 const APP_SCHEME = 'timelineapp'; // app.json "scheme"
 const RATE_LIMIT_PER_MINUTE = 60;
@@ -102,7 +110,7 @@ const WRITABLE = [
   'photoNote', 'coverPhotoNote', 'shareCaption', 'placeName', 'foodStatus',
   'foodItems', 'emailFrom', 'botNote',
   'socialUrl', 'socialTitle', 'socialPlatform', 'socialAction', 'socialNote', 'url',
-  'driveUrl',
+  'driveUrl', 'readingUrl',
   'mealKit', 'recipeName', 'cardNumber', 'cookMinutes', 'mealTags', 'recipeUrl',
 ];
 
@@ -112,11 +120,16 @@ const MEAL_KIT_CAPS = {
 };
 
 class HttpError extends Error {
-  constructor(status, message) {
+  constructor(status, message, extra) {
     super(message);
     this.status = status;
+    if (extra && extra.retryAfter) this.retryAfter = extra.retryAfter;
+    if (extra && extra.code) this.code = extra.code;
+    if (extra && extra.details) this.details = extra.details;
   }
 }
+
+const guard = createGuard(db, HttpError, { limit: RATE_LIMIT_PER_MINUTE });
 
 const sha256 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 
@@ -184,7 +197,7 @@ function pickWritable(body) {
   Object.keys(MEAL_KIT_CAPS).forEach((k) => {
     if (out[k] !== undefined && out[k] !== null) out[k] = String(out[k]).trim().slice(0, MEAL_KIT_CAPS[k]);
   });
-  ['socialUrl', 'url', 'driveUrl', 'recipeUrl'].forEach((k) => {
+  ['socialUrl', 'url', 'driveUrl', 'readingUrl', 'recipeUrl'].forEach((k) => {
     if (out[k] !== undefined && out[k] !== null && !/^https:\/\//i.test(String(out[k]))) {
       throw new HttpError(400, `${k} must be an https URL`);
     }
@@ -198,26 +211,17 @@ async function authenticate(req) {
   const header = String(req.get('authorization') || '');
   const m = header.match(/^Bearer\s+(\S{16,})$/i);
   if (!m) throw new HttpError(401, 'Missing or malformed Authorization: Bearer <key>');
-  const ref = db.collection('botKeys').doc(sha256(m[1]));
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists) throw new HttpError(401, 'Unknown key');
-    const key = snap.data();
-    if (key.revoked || !key.uid) throw new HttpError(401, 'Key revoked');
-    const now = Date.now();
-    const windowStart = Number(key.rateWindowStart || 0);
-    const inWindow = now - windowStart < 60 * 1000;
-    const count = inWindow ? Number(key.rateCount || 0) + 1 : 1;
-    if (count > RATE_LIMIT_PER_MINUTE) {
-      throw new HttpError(429, `Rate limit: ${RATE_LIMIT_PER_MINUTE} requests per minute`);
-    }
-    tx.update(ref, {
-      lastUsedAt: FieldValue.serverTimestamp(),
-      rateWindowStart: inWindow ? windowStart : now,
-      rateCount: count,
-    });
-    return key.uid;
-  });
+  const hash = sha256(m[1]);
+  const ref = db.collection('botKeys').doc(hash);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpError(401, 'Unknown key');
+  const key = snap.data();
+  if (key.revoked || !key.uid) throw new HttpError(401, 'Key revoked');
+  const lastMs = key.lastUsedAt && typeof key.lastUsedAt.toMillis === 'function' ? key.lastUsedAt.toMillis() : 0;
+  if (Date.now() - lastMs >= 60 * 1000) {
+    ref.update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
+  }
+  return { uid: key.uid, hash };
 }
 
 // ---------- photos ----------
@@ -387,13 +391,15 @@ const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((e) => {
     const status = e.status || 500;
     if (status >= 500) console.error(e);
-    res.status(status).json({ error: status >= 500 ? 'Server error' : e.message });
+    if (e.retryAfter) res.set('Retry-After', String(e.retryAfter));
+    const body = { error: status >= 500 ? 'Server error' : e.message };
+    if (e.code) body.code = e.code;
+    if (e.details && typeof e.details === 'object') Object.assign(body, e.details);
+    res.status(status).json(body);
   });
 
 // ---------- key management (signed-in app user, Firebase ID token) ----------
 // These routes use `Authorization: Bearer <Firebase ID token>`, not a bot key.
-
-const MAX_ACTIVE_KEYS = 10;
 
 async function appUser(req) {
   const m = String(req.get('authorization') || '').match(/^Bearer\s+(\S+)$/i);
@@ -412,27 +418,43 @@ const keyView = (d) => {
     hash: d.id,
     label: k.label || '',
     revoked: !!k.revoked,
+    botType: k.botType || '',
     createdAt: toIso(k.createdAt) || null,
     lastUsedAt: toIso(k.lastUsedAt) || null,
   };
 };
 
-// POST /keys/create { label } -> { key, hash, label, apiUrl }  (key is shown once, never stored)
+// POST /keys/create { label, replace? } -> { key, hash, label }
+// One active Grok key. { replace: true } revokes the current key in the same transaction.
+// Keys that were already active before this rule stay valid until revoked or replaced.
 app.post('/keys/create', wrap(async (req, res) => {
   const uid = await appUser(req);
+  const body = req.body || {};
   const active = await db.collection('botKeys').where('uid', '==', uid).where('revoked', '==', false).get();
-  if (active.size >= MAX_ACTIVE_KEYS) throw new HttpError(409, `You already have ${MAX_ACTIVE_KEYS} active keys. Revoke one first.`);
-  const label = String((req.body && req.body.label) || 'Bot').trim().slice(0, 60) || 'Bot';
+  const decision = decideKeyCreate({
+    activeCount: active.size,
+    replace: body.replace === true,
+    botType: body.botType || 'grok',
+  });
+  if (!decision.ok) throw new HttpError(decision.status, decision.error);
+  const label = String(body.label || 'Grok').trim().slice(0, 60) || 'Grok';
   const key = 'tl_' + crypto.randomBytes(32).toString('base64url');
   const hash = sha256(key);
-  // Same fields the published botKeys rule allows: uid, createdAt, label, revoked.
-  await db.collection('botKeys').doc(hash).create({
-    uid,
-    createdAt: FieldValue.serverTimestamp(),
-    label,
-    revoked: false,
+  await db.runTransaction(async (tx) => {
+    if (decision.revokeExisting) {
+      active.docs.forEach((d) => {
+        tx.update(d.ref, { revoked: true, revokedAt: FieldValue.serverTimestamp(), replacedBy: hash });
+      });
+    }
+    tx.create(db.collection('botKeys').doc(hash), {
+      uid,
+      createdAt: FieldValue.serverTimestamp(),
+      label,
+      revoked: false,
+      botType: 'grok',
+    });
   });
-  res.status(201).json({ key, hash, label });
+  res.status(201).json({ key, hash, label, botType: 'grok', replaced: active.size });
 }));
 
 // POST /keys/list -> { keys: [{ hash, label, revoked, createdAt, lastUsedAt }] }
@@ -454,15 +476,37 @@ app.post('/keys/revoke', wrap(async (req, res) => {
   res.json({ hash, revoked: true });
 }));
 
-// Every route needs a valid key; req.uid is the only user ever touched.
+registerAdmin(app, { db, FieldValue, HttpError, wrap, toIso, getAuth });
+
+// Every bot route needs a valid key; req.uid is the only user ever touched.
+// Rate limit (429 + Retry-After) and the daily allowance (402) run before the handler.
 app.use((req, res, next) => {
   authenticate(req)
-    .then((uid) => {
+    .then(async ({ uid, hash }) => {
       req.uid = uid;
+      req.keyHash = hash;
+      await guard.enforceRate(hash);
+      await guard.enforceAllowance(uid, req.method);
       next();
     })
-    .catch((e) => res.status(e.status || 500).json({ error: e.status ? e.message : 'Server error' }));
+    .catch((e) => {
+      const status = e.status || 500;
+      if (e.retryAfter) res.set('Retry-After', String(e.retryAfter));
+      const body = { error: status >= 500 ? 'Server error' : e.message };
+      if (e.code) body.code = e.code;
+      if (e.details && typeof e.details === 'object') Object.assign(body, e.details);
+      if (status >= 500) console.error(e);
+      res.status(status).json(body);
+    });
 });
+
+// ---------- profile (read only) ----------
+
+// GET /me/profile -> { displayName, dateOfBirth, dateOfBirthIso, username }
+app.get('/me/profile', wrap(async (req, res) => {
+  const snap = await db.collection('users').doc(req.uid).collection('settings').doc('profile').get();
+  res.json(publicProfile(snap.exists ? snap.data() : {}));
+}));
 
 // POST /photos -> { eventId, storagePath, downloadUrl }
 app.post('/photos', wrap(async (req, res) => {
@@ -491,7 +535,8 @@ app.post('/events', wrap(async (req, res) => {
     id = String(body.id); // e.g. the eventId returned by POST /photos
   }
   const ref = eventsCol(req.uid).doc(id);
-  if ((await ref.get()).exists) throw new HttpError(409, 'An event with this id already exists; use PATCH');
+  const existing = await ref.get();
+  if (existing.exists && !existing.data().deleted) throw new HttpError(409, 'An event with this id already exists; use PATCH');
 
   if (body.imageBase64) {
     const { downloadUrl } = await storeImage(req.uid, id, decodeBase64Image(body.imageBase64, body.contentType));
@@ -529,10 +574,15 @@ app.post('/events', wrap(async (req, res) => {
     addedBy: 'bot',
   });
   await ref.set(event);
+  await bumpSync(req.uid, 'event:create', req);
   res.status(201).json(present(event, id));
 }));
 
-// GET /events?from=&to=&q=&label=&limit=
+function notDeleted(data) {
+  return !data || data.deleted !== true;
+}
+
+// GET /events?from=&to=&q=&label=&kind=&source=&limit=&cursor=
 app.get('/events', wrap(async (req, res) => {
   const from = parseDate(req.query.from, 'from');
   const to = parseDate(req.query.to, 'to');
@@ -543,14 +593,19 @@ app.get('/events', wrap(async (req, res) => {
   if (kind && !FILTER_KINDS.includes(kind)) throw new HttpError(400, `kind must be one of: ${FILTER_KINDS.join(', ')}`);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), MAX_LIST);
   const scanning = !!(q || label || kind || source);
+  const cursor = decodeCursor(req.query.cursor);
 
   let query = eventsCol(req.uid);
   if (from) query = query.where('date', '>=', from);
   if (to) query = query.where('date', '<=', to);
-  query = query.orderBy('date', 'desc').limit(scanning ? SCAN_CAP : limit);
+  // from/to are a real range query on `date`. Text filters then run inside that window.
+  // orderBy(date) uses the automatic single-field index (no composite index).
+  query = query.orderBy('date', 'desc');
+  if (cursor && cursor.date) query = query.startAfter(cursor.date);
+  query = query.limit(scanning ? SCAN_CAP : limit);
 
   const snap = await query.get();
-  let events = snap.docs.map((d) => present(d.data(), d.id));
+  let events = snap.docs.map((d) => present(d.data(), d.id)).filter((e) => notDeleted(e));
   if (kind) events = events.filter((e) => matchesKind(e, kind));
   if (source) events = events.filter((e) => String(e.source || 'manual').toLowerCase() === source);
   if (label) {
@@ -562,16 +617,121 @@ app.get('/events', wrap(async (req, res) => {
         .filter(Boolean)
         .some((t) => String(t).toLowerCase().includes(q)));
   }
-  const out = { count: Math.min(events.length, limit), total: events.length, events: events.slice(0, limit) };
-  if (scanning && snap.size >= SCAN_CAP) out.truncated = true; // only the newest SCAN_CAP events were searched
+  const page = events.slice(0, limit);
+  const out = { count: page.length, total: events.length, events: page };
+  if (scanning && snap.size >= SCAN_CAP) out.truncated = true;
+  if (!scanning && snap.size === limit && snap.docs.length) {
+    const last = snap.docs[snap.docs.length - 1];
+    out.nextCursor = encodeCursor(String((last.data() || {}).date || ''), last.id);
+  }
   res.json(out);
+}));
+
+// POST /sync/bump -> one write, to finish a batch done with ?nosync=1
+app.post('/sync/bump', wrap(async (req, res) => {
+  await bumpSync(req.uid, String((req.body && req.body.what) || 'batch').slice(0, 60));
+  const snap = await db.collection('users').doc(req.uid).collection('meta').doc('sync').get();
+  const data = snap.exists ? snap.data() : {};
+  res.json({ bumped: true, version: data.version || null, lastChanged: toIso(data.lastChanged) || null });
+}));
+
+// GET /sync?since=&version=&limit=&cursor= -> only events changed since the last sync
+app.get('/sync', wrap(async (req, res) => {
+  const syncSnap = await db.collection('users').doc(req.uid).collection('meta').doc('sync').get();
+  const sync = syncSnap.exists ? syncSnap.data() : {};
+  const version = sync.version == null ? null : sync.version;
+  const clientVersion = req.query.version;
+  if (clientVersion != null && clientVersion !== '' && String(version) === String(clientVersion)) {
+    return res.json({
+      changed: false,
+      version,
+      lastChanged: toIso(sync.lastChanged) || null,
+      count: 0,
+      events: [],
+    });
+  }
+  const since = parseDate(req.query.since, 'since');
+  if (!since) throw new HttpError(400, 'Pass since (ISO) or version matching meta/sync');
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), MAX_LIST);
+  const cursor = decodeCursor(req.query.cursor);
+  let query = eventsCol(req.uid).where('updatedAt', '>', since).orderBy('updatedAt');
+  if (cursor && cursor.date) query = query.startAfter(cursor.date);
+  const snap = await query.limit(limit).get();
+  const events = snap.docs.map((d) => present(d.data(), d.id));
+  const out = {
+    changed: true,
+    version,
+    lastChanged: toIso(sync.lastChanged) || null,
+    count: events.length,
+    events,
+  };
+  if (snap.size === limit && snap.docs.length) {
+    const last = snap.docs[snap.docs.length - 1];
+    out.nextCursor = encodeCursor(String((last.data() || {}).updatedAt || ''), last.id);
+  }
+  res.json(out);
+}));
+
+// GET /events/exists?id= | ?url= -> { exists, id } at 1 read. Tombstones count as not existing.
+const URL_FIELDS = ['socialUrl', 'url', 'driveUrl', 'readingUrl', 'recipeUrl'];
+app.get('/events/exists', wrap(async (req, res) => {
+  const id = String(req.query.id || '').trim();
+  const url = String(req.query.url || '').trim();
+  if (!id && !url) throw new HttpError(400, 'Pass id or url');
+  if (id) {
+    if (!validEventId(id)) throw new HttpError(400, 'Invalid id');
+    const snap = await eventsCol(req.uid).doc(id).get();
+    const alive = snap.exists && notDeleted(snap.data());
+    return res.json({ exists: alive, id: alive ? snap.id : null });
+  }
+  const fields = req.query.field && URL_FIELDS.includes(String(req.query.field)) ? [String(req.query.field)] : URL_FIELDS;
+  for (const f of fields) {
+    const snap = await eventsCol(req.uid).where(f, '==', url).limit(1).get();
+    const hit = snap.docs.find((d) => notDeleted(d.data()));
+    if (hit) return res.json({ exists: true, id: hit.id, field: f });
+  }
+  res.json({ exists: false, id: null });
+}));
+
+// GET /recap?year=2026 -> the whole year, paged with startAfter so one response is not capped at 50.
+const RECAP_PAGE = 80;
+const RECAP_MAX_PAGES = 40;
+app.get('/recap', wrap(async (req, res) => {
+  const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+  if (year < 1970 || year > 2100) throw new HttpError(400, 'year must be 1970-2100');
+  const start = `${year}-01-01`;
+  const end = `${year + 1}-01-01`;
+  const collected = [];
+  let pages = 0;
+  let cursor = null;
+  let truncated = false;
+  while (pages < RECAP_MAX_PAGES) {
+    let query = eventsCol(req.uid)
+      .where('date', '>=', start)
+      .where('date', '<', end)
+      .orderBy('date')
+      .limit(RECAP_PAGE);
+    if (cursor) query = query.startAfter(cursor);
+    const snap = await query.get();
+    pages += 1;
+    snap.docs.forEach((d) => {
+      const data = d.data() || {};
+      if (data.deleted) return;
+      collected.push({ id: d.id, ...data });
+    });
+    if (snap.size < RECAP_PAGE) break;
+    cursor = snap.docs[snap.docs.length - 1];
+    if (pages >= RECAP_MAX_PAGES) truncated = true;
+  }
+  const recap = foldEvents(year, collected, new Date());
+  res.json({ ...recap, pages, truncated, scanned: collected.length });
 }));
 
 // GET /events/:id
 app.get('/events/:id', wrap(async (req, res) => {
   if (!validEventId(req.params.id)) throw new HttpError(400, 'Invalid id');
   const snap = await eventsCol(req.uid).doc(req.params.id).get();
-  if (!snap.exists) throw new HttpError(404, 'Not found');
+  if (!snap.exists || !notDeleted(snap.data())) throw new HttpError(404, 'Not found');
   res.json(present(snap.data(), snap.id));
 }));
 
@@ -580,11 +740,12 @@ app.patch('/events/:id', wrap(async (req, res) => {
   if (!validEventId(req.params.id)) throw new HttpError(400, 'Invalid id');
   const ref = eventsCol(req.uid).doc(req.params.id);
   const snap = await ref.get();
-  if (!snap.exists) throw new HttpError(404, 'Not found');
+  if (!snap.exists || !notDeleted(snap.data())) throw new HttpError(404, 'Not found');
   const fields = stripUndefined(pickWritable(req.body || {}));
   if (!Object.keys(fields).length) throw new HttpError(400, 'No editable fields in body');
   const update = { ...fields, updatedAt: new Date().toISOString(), ownerUid: req.uid };
   await ref.set(update, { merge: true });
+  await bumpSync(req.uid, 'event:update', req);
   res.json(present({ ...snap.data(), ...update }, snap.id));
 }));
 
@@ -593,12 +754,13 @@ app.post('/events/:id/attachments', wrap(async (req, res) => {
   if (!validEventId(req.params.id)) throw new HttpError(400, 'Invalid id');
   const ref = eventsCol(req.uid).doc(req.params.id);
   const snap = await ref.get();
-  if (!snap.exists) throw new HttpError(404, 'Not found');
+  if (!snap.exists || !notDeleted(snap.data())) throw new HttpError(404, 'Not found');
   const existing = Array.isArray(snap.data().attachments) ? snap.data().attachments : [];
   const attachment = await storeAttachment(req.uid, snap.id, await readAttachment(req), existing);
   const attachments = [...existing, attachment];
   const updatedAt = new Date().toISOString();
   await ref.set({ attachments, updatedAt }, { merge: true });
+  await bumpSync(req.uid, 'event:update', req);
   await syncSharedAttachments({ ...snap.data(), attachments, ownerUid: req.uid });
   res.status(201).json({ eventId: snap.id, attachment, attachments });
 }));
@@ -608,7 +770,7 @@ app.delete('/events/:id/attachments/:name', wrap(async (req, res) => {
   if (!validEventId(req.params.id)) throw new HttpError(400, 'Invalid id');
   const ref = eventsCol(req.uid).doc(req.params.id);
   const snap = await ref.get();
-  if (!snap.exists) throw new HttpError(404, 'Not found');
+  if (!snap.exists || !notDeleted(snap.data())) throw new HttpError(404, 'Not found');
   const existing = Array.isArray(snap.data().attachments) ? snap.data().attachments : [];
   const hit = existing.find((a) => a && a.name === req.params.name);
   if (!hit) throw new HttpError(404, 'Attachment not found');
@@ -617,6 +779,7 @@ app.delete('/events/:id/attachments/:name', wrap(async (req, res) => {
   }
   const attachments = existing.filter((a) => a !== hit);
   await ref.set({ attachments, updatedAt: new Date().toISOString() }, { merge: true });
+  await bumpSync(req.uid, 'event:update', req);
   await syncSharedAttachments({ ...snap.data(), attachments, ownerUid: req.uid });
   res.json({ eventId: snap.id, attachments });
 }));
@@ -691,7 +854,7 @@ app.post('/events/:id/invite', wrap(async (req, res) => {
   const uid = req.uid;
   const ref = eventsCol(uid).doc(req.params.id);
   const snap = await ref.get();
-  if (!snap.exists) throw new HttpError(404, 'Not found');
+  if (!snap.exists || !notDeleted(snap.data())) throw new HttpError(404, 'Not found');
   const event = { ...snap.data(), id: snap.id };
   if (event.source === 'shared' || (event.sharedFrom && event.sharedFrom !== uid)) {
     throw new HttpError(409, 'This event was shared with you by a friend; only its creator can invite people');
@@ -767,6 +930,7 @@ app.post('/events/:id/invite', wrap(async (req, res) => {
     sharedFrom: event.sharedFrom || uid,
     updatedAt: now.toISOString(),
   }, { merge: true });
+  await bumpSync(req.uid, 'event:invite', req);
 
   res.status(201).json({
     eventId: event.id,
@@ -859,7 +1023,9 @@ app.delete('/events/:id', wrap(async (req, res) => {
       }
     }
   }
-  await ref.delete();
+  const nowIso = new Date().toISOString();
+  await ref.set(tombstone({ ...event, id: snap.id, ownerUid: req.uid }, nowIso), { merge: true });
+  await bumpSync(req.uid, 'event:delete', req);
   if (userMade) {
     await db.collection('users').doc(req.uid).collection('botAudit').add({
       action: 'delete-user-event', by: 'bot', uid: req.uid, eventId: snap.id, title: event.title || '',
@@ -942,6 +1108,7 @@ app.post('/todos', wrap(async (req, res) => {
     tx.set(ref, { items: [row, ...items], updatedAt: new Date().toISOString() });
     return row;
   });
+  await bumpSync(req.uid, 'todo:create', req);
   res.status(201).json({ todo });
 }));
 
@@ -985,8 +1152,8 @@ app.patch('/todos/:id', wrap(async (req, res) => {
       if (row.eventId && validEventId(row.eventId)) {
         const evRef = eventsCol(req.uid).doc(row.eventId);
         const ev = await tx.get(evRef);
-        if (ev.exists && ev.data().addedBy === 'bot' && ev.data().fromTodo) {
-          tx.delete(evRef);
+        if (ev.exists && ev.data().addedBy === 'bot' && ev.data().fromTodo && !ev.data().deleted) {
+          tx.set(evRef, tombstone({ ...ev.data(), id: ev.id, ownerUid: req.uid }, nowIso), { merge: true });
           result.eventRemoved = row.eventId;
         } else if (ev.exists) {
           result.eventKept = row.eventId;
@@ -999,6 +1166,7 @@ app.patch('/todos/:id', wrap(async (req, res) => {
     tx.set(ref, { items: next, updatedAt: nowIso });
     return { todo: row, ...result };
   });
+  await bumpSync(req.uid, 'todo:update', req);
   res.json(out);
 }));
 
@@ -1010,6 +1178,7 @@ app.delete('/todos/:id', wrap(async (req, res) => {
     if (!items.some((r) => r.id === id)) throw new HttpError(404, 'To-do not found');
     tx.set(ref, { items: items.filter((r) => r.id !== id), updatedAt: new Date().toISOString() });
   });
+  await bumpSync(req.uid, 'todo:delete', req);
   res.json({ deleted: id });
 }));
 
@@ -1160,9 +1329,18 @@ function wordValues(r) {
   };
 }
 const wordsCol = (uid) => db.collection('users').doc(uid).collection('wordNumbers');
+// Per-instance cache: one full read per uid per 5 min instead of per call. Invalidated by this API's own word writes.
+const WORDS_TTL_MS = 5 * 60 * 1000;
+const wordsCache = new Map();
 async function allWords(uid) {
+  const hit = wordsCache.get(uid);
+  if (hit && Date.now() - hit.at < WORDS_TTL_MS) return hit.list;
   const snap = await wordsCol(uid).limit(5000).get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const list = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((row) => !row.deleted);
+  wordsCache.set(uid, { at: Date.now(), list });
+  return list;
 }
 
 // POST /words/calc {text} -> values, no write
@@ -1205,6 +1383,8 @@ app.post('/words', wrap(async (req, res) => {
     addedBy: 'bot',
   };
   await wordsCol(req.uid).doc(word.id).set(word);
+  wordsCache.delete(req.uid);
+  await bumpSync(req.uid, 'word:create', req);
   res.status(201).json({ existing: false, word, values: wordValues(r) });
 }));
 

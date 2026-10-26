@@ -1021,6 +1021,19 @@ export default function SettingsScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('ReportProblem')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuRowText}>
+            <Text style={[styles.menuRowLabel, { color: colors.text }]}>Report a problem</Text>
+            <Text style={[styles.hint, { color: colors.faint, marginTop: 4, marginBottom: 0 }]}>
+              Sends a ticket to Admin. No email is sent.
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: colors.faint }]}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.menuRow, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
           onPress={() => navigation.navigate('OpenBanking')}
           activeOpacity={0.7}
         >
