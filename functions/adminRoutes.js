@@ -313,6 +313,17 @@ function registerAdmin(app, ctx) {
       note: 'Dry run only. No usage document was written.',
     });
   }));
+
+  app.post('/admin/users/:uid/word-index/rebuild', wrap(async (req, res) => {
+    const actor = await requireAdmin(req);
+    const uid = String(req.params.uid || '');
+    if (!uid) throw new HttpError(400, 'uid is required');
+    if (typeof ctx.rebuildWordIndex !== 'function') throw new HttpError(500, 'Word index rebuild is not available');
+    const out = await ctx.rebuildWordIndex(uid);
+    if (!out.ok) throw new HttpError(out.status || 409, out.error || 'Could not rebuild the word index');
+    await logAction(actor, 'word-index-rebuild', { uid, count: out.count, reads: out.reads });
+    res.json(out);
+  }));
 }
 
 module.exports = { registerAdmin, OWNER_EMAIL, TICKET_STATUSES };

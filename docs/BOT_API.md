@@ -193,22 +193,27 @@ Saved words live at `users/{uid}/wordNumbers/{id}`, the same docs the app's Word
 | `hashcode` | Java `String.hashCode` of the trimmed text (case and spaces count here), 32-bit signed |
 
 **Saved doc shape** (the same as the app's, plus `addedBy` and `lookupKey`): `{ id: "<ms>-<6 base36>", phrase, notes, preferred: "ordinal", lookupKey, ordinal, pythagorean, reverse, reduced, hashCode, letterCount, createdAt, updatedAt, ownerUid, addedBy: "bot" }`.
-`lookupKey` is the letters A–Z only, in lower case. A duplicate check reads words with that key (one query) instead of every saved word. The first add after this change also stamps `lookupKey` onto words that were saved before, once.
+`lookupKey` is the phrase in lower case, with the ends trimmed and repeated spaces collapsed. Those keys also live in one doc, `users/{uid}/meta/wordIndex` (`entries` of `{ k, id }`, plus `count`, `bytes`, `seeded`).
 
 ### `POST /words/calc { "text" }`
-This writes nothing.
-`200` → `{ values: { phrase, letters, letterCount, wordCount, ordinal, pythagorean, reverse, reduced, reducedSteps, reducedPythagorean, reducedReverse, hashCode, breakdown: [{letter, ordinal, pythagorean, reverse}] }, saved: <doc or null> }`.
+This writes nothing. One index read.
+`200` → `{ values, saved: { id } or null, indexReady, reads }`.
 `400` if the text has no letters A–Z.
 
 ### `POST /words { "text", "notes"?, "preferred"? }`
-One lookup, then one write if it is new.
-`201` → `{ existing: false, word, values }`. If the word is already saved: `200` → `{ existing: true, word: <saved doc>, values }`, and nothing is written.
+One index read. A new word is two writes (the word and the index). An existing word is no write.
+`201` → `{ existing: false, word, values, reads, writes }`. Already saved: `200` → `{ existing: true, id, values, reads, writes }`.
+`409` `index_not_ready` until the index has been built.
+
+### `POST /words/index/rebuild`
+Reads the word list once and writes the index. Run this once after deploy (about one read per saved word). The owner calls it with a bot key. An admin can call `POST /admin/users/:uid/word-index/rebuild`.
+`200` → `{ seeded, count, bytes, reads, writes }`.
 
 ### `POST /words/bulk { "words", "notes"?, "preferred"? }`
-`words` is an array of text, or `{ "text", "notes"?, "preferred"? }`. At most **100** words. A longer array is `400` `{ code: "batch_too_large", estimatedReads, estimatedWrites }` and the word list is not read. Shared `notes` and `preferred` apply where a word does not set its own.
-Each word costs about one read. Today's ceiling is 20,000 word reads and 20,000 word writes (`config/usageRules.wordDailyReads` / `wordDailyWrites` can lower it). Over that is `402` `{ code: "cost_limit" }` with `Retry-After`, and again the word list is not read.
-`201` if any word was added, otherwise `200` → `{ count, added, existing, errors, estimatedReads, estimatedWrites, results: [{ text, status: "added"|"existing"|"error", word?, error? }] }`.
-A repeat inside the same request is `existing`. One bad word does not stop the rest.
+`words` is an array of text, or `{ "text", "notes"?, "preferred"? }`. At most **499** words. A longer array is `400` `batch_too_large` and the index is not read.
+One transaction reads the index, skips keys already there, and writes the new words plus the index. Cost is 1 read and (new words + 1) writes.
+`201` if any word was added, otherwise `200` → `{ count, added, existing, errors, reads, writes, results }`.
+`409` `index_not_ready` if the index has not been built. `409` `index_full` if it would pass 800 KB.
 
 ### `GET /words?cursor=&limit=`
 Newest first, one page at a time (default 50, max 200). Pass `cursor` from `nextCursor` to read the next page. `200` → `{ count, words, scanned, nextCursor? }`. This does not load the whole list.
@@ -221,7 +226,11 @@ Matches on **this page only**. Follow `nextCursor` to keep looking. `cipher` is 
 Searches the phrase and notes on this page, ignoring case. Same paging as the plain list.
 
 ### `PATCH /words/:id { "notes" }`
-Updates notes on that saved word. `200` → `{ word }`. `404` if it is missing. The numbers are left as they are.
+Updates notes. The index stays as it is. `200` → `{ word }`. `404` if it is missing.
+`PATCH /words/:id { "text" }` renames the word and moves its index key. If that text is already saved, `{ existing: true, id }` and nothing is written.
+
+### `DELETE /words/:id`
+Tombstones the word and removes its key from the index. `200` → `{ deleted, removedKey, reads, writes }`.
 
 ## Key management (app only)
 These use `Authorization: Bearer <Firebase ID token>` of the signed-in app user, not a bot key.
@@ -231,7 +240,7 @@ These use `Authorization: Bearer <Firebase ID token>` of the signed-in app user,
 
 ## Read cost
 - Every API write (events, attachments, invites, to-dos, words) bumps `users/{uid}/meta/sync` `{ version, lastChanged, lastChangedBy: "bot", lastWhat }` unless `?nosync=1`.
-- A word add looks up `lookupKey` (one query). It does not read the whole word list. `POST /words/bulk` is capped at 100 words, and a longer sheet is refused before that lookup.
+- A word add reads `users/{uid}/meta/wordIndex` once. It does not read the whole word list. `POST /words/bulk` is capped at 499 words. A longer sheet is refused before that read. Build the index once with `POST /words/index/rebuild`.
 
 ## Admin API
 Separate from user bot keys. Send `Authorization: Bearer <Firebase ID token>` of Sarah (`sarah.v.phillips@googlemail.com`) or an email on `app/staff.admins`, or `Bearer tla_…` (an admin key created in the app). Admin routes do not spend the user's allowance.

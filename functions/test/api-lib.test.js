@@ -8,6 +8,7 @@ const { dobToIso, publicProfile } = require('../lib/profile');
 const { decideKeyCreate } = require('../lib/keys');
 const { applyDelta, tombstone } = require('../lib/delta');
 const { lookupKey, checkBatchSize, checkDailyWordBudget, classifyWords, WORD_BULK_CAP } = require('../lib/wordBatch');
+const { commitBulk, commitDelete, rebuildEntries, packIndex } = require('../lib/wordIndex');
 
 test('uk day follows Europe/London, including BST', () => {
   assert.equal(ukDay(new Date('2026-06-15T23:30:00Z')), '2026-06-16');
@@ -162,12 +163,12 @@ test('a 2080 word sheet is refused before any read', () => {
   const tooBig = checkBatchSize(2080);
   assert.equal(tooBig.ok, false);
   assert.equal(tooBig.code, 'batch_too_large');
-  assert.equal(tooBig.estimatedReads, 2080);
-  assert.equal(tooBig.estimatedWrites, 2080);
+  assert.equal(tooBig.estimatedReads, 1);
+  assert.equal(tooBig.estimatedWrites, 2081);
   assert.equal(checkBatchSize(WORD_BULK_CAP).ok, true);
+  assert.equal(checkBatchSize(WORD_BULK_CAP).estimatedReads, 1);
   assert.equal(checkBatchSize(WORD_BULK_CAP + 1).ok, false);
-  assert.equal(lookupKey('Hello, World!'), 'helloworld');
-  assert.equal(lookupKey('Hello World'), lookupKey('hello-world'));
+  assert.equal(lookupKey('Hello   World'), 'hello world');
 });
 
 test('word budget stops an oversized day and bulk results stay per word', () => {
@@ -178,13 +179,113 @@ test('word budget stops an oversized day and bulk results stay per word', () => 
   const ok = checkDailyWordBudget({ usedReads: 100, usedWrites: 100, reads: 50, writes: 50 });
   assert.equal(ok.ok, true);
   assert.equal(ok.usedReads, 150);
-  const { pending, results } = classifyWords(['Alpha', 'alpha!', '', { text: 'Beta', notes: 'own' }], { notes: 'shared' });
+  const { pending, results } = classifyWords(['Alpha', '  ALPHA  ', '', { text: 'Beta', notes: 'own' }], { notes: 'shared' });
   assert.equal(pending.length, 2);
   assert.equal(results[0].status, 'pending');
   assert.equal(results[0].notes, 'shared');
   assert.equal(results[1].status, 'existing');
   assert.equal(results[1].duplicateInRequest, true);
+  assert.equal(results[1].key, 'alpha');
   assert.equal(results[2].status, 'error');
   assert.equal(results[3].notes, 'own');
   assert.equal(results[3].key, 'beta');
+});
+
+function countingTx(initial) {
+  const ops = { reads: 0, writes: 0 };
+  let index = initial || null;
+  const words = [];
+  return {
+    ops,
+    words,
+    get index() { return index; },
+    async get(ref) {
+      ops.reads += 1;
+      if (ref && ref.kind === 'word') {
+        return { exists: false, data: () => null };
+      }
+      return { exists: !!index, data: () => index };
+    },
+    set(ref, data) {
+      ops.writes += 1;
+      if (ref && ref.kind === 'index') index = data;
+      else words.push({ id: ref && ref.id, data });
+    },
+  };
+}
+
+function seeded(entries) {
+  return packIndex(new Map(entries), '2026-10-28T12:00:00.000Z');
+}
+
+test('a bulk commit reads the index once', async () => {
+  const make = (n) => Array.from({ length: n }, (_, i) => ({
+    key: `word ${i}`,
+    text: `Word ${i}`,
+    notes: '',
+    preferred: 'ordinal',
+  }));
+  const makeWord = (row, seq) => ({ id: `id-${seq}`, phrase: row.text, lookupKey: row.key });
+  for (const size of [100, 499]) {
+    const tx = countingTx(seeded([]));
+    const out = await commitBulk(tx, {
+      indexRef: { kind: 'index' },
+      wordRefFor: (id) => ({ kind: 'word', id }),
+      pending: make(size),
+      now: '2026-10-28T12:00:00.000Z',
+      makeWord,
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.reads, 1);
+    assert.equal(tx.ops.reads, 1);
+    assert.equal(out.writes, size + 1);
+    assert.equal(tx.ops.writes, size + 1);
+    assert.equal(tx.words.length, size);
+    assert.equal(tx.index.count, size);
+  }
+});
+
+test('duplicates are skipped without word writes', async () => {
+  const tx = countingTx(seeded([['alpha', 'old-id'], ['beta', 'beta-id']]));
+  const out = await commitBulk(tx, {
+    indexRef: { kind: 'index' },
+    wordRefFor: (id) => ({ kind: 'word', id }),
+    pending: [
+      { key: 'alpha', text: 'Alpha' },
+      { key: 'gamma', text: 'Gamma' },
+    ],
+    now: '2026-10-28T12:00:00.000Z',
+    makeWord: (row, seq) => ({ id: `new-${seq}`, phrase: row.text, lookupKey: row.key }),
+  });
+  assert.equal(out.reads, 1);
+  assert.equal(out.writes, 2);
+  assert.equal(tx.words.length, 1);
+  assert.equal(tx.words[0].data.lookupKey, 'gamma');
+  assert.equal(out.byKey.get('alpha').status, 'existing');
+  assert.equal(out.byKey.get('alpha').id, 'old-id');
+});
+
+test('delete removes the key and rebuild matches the kept words', async () => {
+  const tx = countingTx(seeded([['alpha', 'a1'], ['beta', 'b1']]));
+  const removed = await commitDelete(tx, {
+    indexRef: { kind: 'index' },
+    wordRef: { kind: 'word', id: 'a1' },
+    id: 'a1',
+    phrase: 'Alpha',
+    now: '2026-10-28T12:00:00.000Z',
+    ownerUid: 'u',
+  });
+  assert.equal(removed.reads, 1);
+  assert.equal(removed.writes, 2);
+  assert.equal(removed.removedKey, 'alpha');
+  assert.equal(tx.index.count, 1);
+  assert.equal(tx.index.entries[0].k, 'beta');
+  const rebuilt = rebuildEntries([
+    { id: 'b1', phrase: 'Beta', createdAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'a1', phrase: 'Alpha', deleted: true, createdAt: '2026-01-02T00:00:00.000Z' },
+    { id: 'b2', phrase: '  beta ', createdAt: '2026-02-01T00:00:00.000Z' },
+  ], '2026-10-28T12:00:00.000Z');
+  assert.equal(rebuilt.ok, true);
+  assert.equal(rebuilt.count, 1);
+  assert.equal(rebuilt.indexDoc.entries[0].id, 'b1');
 });

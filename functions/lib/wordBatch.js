@@ -1,19 +1,26 @@
 /**
  * Word to Int batch limits. A sheet is refused from its length alone,
- * before any word document is read.
+ * before the word index is read.
+ * One batch may add at most 499 words: Firestore allows 500 writes in a
+ * transaction, and one of those writes is the index doc.
  */
 
-const WORD_BULK_CAP = 100;
+const WORD_BULK_CAP = 499;
 const WORD_DAILY_READS = 20000;
 const WORD_DAILY_WRITES = 20000;
 
+/** Lower case, trimmed, single spaces. Same key the word index stores. */
 function lookupKey(phrase) {
-  return String(phrase || '').toLowerCase().replace(/[^a-z]/g, '');
+  return String(phrase || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function hasWordLetters(phrase) {
+  return /[a-z]/i.test(String(phrase || ''));
 }
 
 function estimateWordOps(count) {
   const n = Math.max(0, Math.floor(Number(count) || 0));
-  return { reads: n, writes: n };
+  return { reads: n ? 1 : 0, writes: n ? n + 1 : 0 };
 }
 
 function checkBatchSize(count) {
@@ -24,9 +31,9 @@ function checkBatchSize(count) {
       ok: false,
       status: 400,
       code: 'batch_too_large',
-      error: `At most ${WORD_BULK_CAP} words in one request. This one has ${n}, about ${ops.reads} reads and ${ops.writes} writes. Split the sheet into batches of ${WORD_BULK_CAP}. Nothing was read from the word list.`,
-      estimatedReads: ops.reads,
-      estimatedWrites: ops.writes,
+      error: `At most ${WORD_BULK_CAP} words in one request. This one has ${n}. Split the sheet into batches of ${WORD_BULK_CAP}. Nothing was read.`,
+      estimatedReads: 1,
+      estimatedWrites: n + 1,
       cap: WORD_BULK_CAP,
     };
   }
@@ -45,7 +52,7 @@ function checkDailyWordBudget({ usedReads, usedWrites, reads, writes, caps }) {
       ok: false,
       status: 402,
       code: 'cost_limit',
-      error: `This request would pass today's Word to Int budget (${readCap} reads and ${writeCap} writes). Nothing was read from the word list.`,
+      error: `This request would pass today's Word to Int budget (${readCap} reads and ${writeCap} writes). Nothing was read from the word index.`,
       usedReads: spentReads,
       usedWrites: spentWrites,
       estimatedReads: Math.max(0, Number(reads) || 0),
@@ -66,8 +73,9 @@ function classifyWords(items, shared) {
     const text = String(typeof item === 'string' ? item : (item && (item.text ?? item.phrase)) || '').trim();
     if (!text) return { text, status: 'error', error: 'text is required' };
     if (text.length > 500) return { text, status: 'error', error: 'text must be 500 characters or fewer' };
+    if (!hasWordLetters(text)) return { text, status: 'error', error: 'text has no letters A-Z' };
     const key = lookupKey(text);
-    if (!key) return { text, status: 'error', error: 'text has no letters A-Z' };
+    if (!key) return { text, status: 'error', error: 'text is required' };
     if (seen.has(key)) return { text, status: 'existing', key, duplicateInRequest: true };
     seen.add(key);
     const ownNotes = item && typeof item === 'object' ? item.notes : undefined;
@@ -87,6 +95,7 @@ module.exports = {
   WORD_DAILY_READS,
   WORD_DAILY_WRITES,
   lookupKey,
+  hasWordLetters,
   estimateWordOps,
   checkBatchSize,
   checkDailyWordBudget,

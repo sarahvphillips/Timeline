@@ -19,7 +19,7 @@ const Busboy = require('busboy');
 const { onRequest } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { initializeApp } = require('firebase-admin/app');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { getStorage, getDownloadURL } = require('firebase-admin/storage');
 const { getAuth } = require('firebase-admin/auth');
 const { createSync } = require('./sync');
@@ -30,11 +30,14 @@ const { decideKeyCreate } = require('./lib/keys');
 const { tombstone } = require('./lib/delta');
 const { foldEvents, encodeCursor, decodeCursor } = require('./lib/recap');
 const { lookupKey, checkBatchSize, classifyWords } = require('./lib/wordBatch');
+const { readIndex } = require('./lib/wordIndex');
+const { createWordIndexIo } = require('./wordIndexIo');
 
 initializeApp();
 setGlobalOptions({ region: 'europe-west2' });
 
 const db = getFirestore();
+const wordIo = createWordIndexIo(db, FieldPath);
 const { bumpSync } = createSync(db, FieldValue);
 
 const APP_SCHEME = 'timelineapp'; // app.json "scheme"
@@ -477,7 +480,7 @@ app.post('/keys/revoke', wrap(async (req, res) => {
   res.json({ hash, revoked: true });
 }));
 
-registerAdmin(app, { db, FieldValue, HttpError, wrap, toIso, getAuth });
+registerAdmin(app, { db, FieldValue, HttpError, wrap, toIso, getAuth, rebuildWordIndex: wordIo.rebuild });
 
 // Every bot route needs a valid key; req.uid is the only user ever touched.
 // Rate limit (429 + Retry-After) and the daily allowance (402) run before the handler.
@@ -1329,10 +1332,6 @@ function wordValues(r) {
     breakdown: r.breakdown,
   };
 }
-const wordsCol = (uid) => db.collection('users').doc(uid).collection('wordNumbers');
-const wordIndexRef = (uid) => db.collection('users').doc(uid).collection('meta').doc('wordIndex');
-const wordLookupReady = new Set();
-
 function throwWordCost(result) {
   const err = new HttpError(result.status || 400, result.error || 'Too many words');
   err.code = result.code;
@@ -1340,62 +1339,19 @@ function throwWordCost(result) {
     estimatedReads: result.estimatedReads,
     estimatedWrites: result.estimatedWrites,
     cap: result.cap,
+    bytes: result.bytes,
   };
   throw err;
 }
 
-/** One-time stamp so later adds can find a word with one query instead of reading the whole list. */
-async function ensureWordLookup(uid) {
-  if (wordLookupReady.has(uid)) return 0;
-  const flag = await wordIndexRef(uid).get();
-  if (flag.exists && flag.data().ready) {
-    wordLookupReady.add(uid);
-    return 0;
-  }
-  const snap = await wordsCol(uid).limit(5000).get();
-  let batch = db.batch();
-  let ops = 0;
-  let patched = 0;
-  const commit = async () => {
-    if (!ops) return;
-    await batch.commit();
-    batch = db.batch();
-    ops = 0;
-  };
-  for (const docSnap of snap.docs) {
-    const data = docSnap.data() || {};
-    const key = lookupKey(data.phrase);
-    const patch = {};
-    if (key && data.lookupKey !== key) patch.lookupKey = key;
-    if (!data.updatedAt) patch.updatedAt = data.createdAt || new Date().toISOString();
-    if (!Object.keys(patch).length) continue;
-    batch.set(docSnap.ref, patch, { merge: true });
-    ops += 1;
-    patched += 1;
-    if (ops >= 400) await commit();
-  }
-  await commit();
-  await wordIndexRef(uid).set({
-    ready: snap.size < 5000,
-    scanned: snap.size,
-    patched,
-    at: new Date().toISOString(),
-  });
-  if (snap.size < 5000) wordLookupReady.add(uid);
-  await guard.noteWordOps(uid, snap.size, patched);
-  return snap.size;
+function failWordResult(result) {
+  if (result && result.ok === false) throwWordCost(result);
 }
 
-async function findWordByKey(uid, key) {
-  const snap = await wordsCol(uid).where('lookupKey', '==', key).limit(5).get();
-  const row = snap.docs.map((d) => ({ id: d.id, ...d.data() })).find((item) => !item.deleted);
-  return row || null;
-}
-
-function wordDoc(uid, phraseResult, notes, preferred) {
+function wordDoc(uid, phraseResult, notes, preferred, seq) {
   const now = new Date().toISOString();
   return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `${Date.now()}-${seq}-${Math.random().toString(36).slice(2, 6)}`,
     phrase: phraseResult.phrase,
     notes: String(notes || '').trim().slice(0, 5000),
     preferred,
@@ -1413,37 +1369,64 @@ function wordDoc(uid, phraseResult, notes, preferred) {
   };
 }
 
-// POST /words/calc {text} -> values, no write. One lookup, not the whole list.
+function makeWord(uid, row, seq) {
+  const converted = convertPhrase(row.text);
+  if (!converted.letters) {
+    const err = new HttpError(400, 'text has no letters A-Z');
+    throw err;
+  }
+  return wordDoc(uid, converted, row.notes, row.preferred || 'ordinal', seq);
+}
+
+// POST /words/calc {text} -> values, no write. One index read.
 app.post('/words/calc', wrap(async (req, res) => {
   const r = convertPhrase(wordText(req.body));
   if (!r.letters) throw new HttpError(400, 'text has no letters A-Z');
   await guard.reserveWordOps(req.uid, 1, 0);
-  await ensureWordLookup(req.uid);
-  const saved = await findWordByKey(req.uid, lookupKey(r.phrase));
-  res.json({ values: wordValues(r), saved: saved || null });
+  const data = await wordIo.readIndexDoc(req.uid);
+  const index = readIndex(data);
+  const id = index.seeded ? index.map.get(lookupKey(r.phrase)) || null : null;
+  res.json({
+    values: wordValues(r),
+    saved: id ? { id } : null,
+    indexReady: index.seeded,
+    reads: 1,
+  });
 }));
 
-// POST /words {text, notes?, preferred?} -> one lookup, then one write
+// POST /words {text, notes?, preferred?} -> 1 index read, and 2 writes when it is new
 app.post('/words', wrap(async (req, res) => {
   const body = req.body || {};
   const r = convertPhrase(wordText(body));
   if (!r.letters) throw new HttpError(400, 'text has no letters A-Z');
   let preferred = 'ordinal';
-  if (body.preferred !== undefined) {
+  if (body.preferred !== undefined && body.preferred !== '') {
     preferred = parseCipher(body.preferred);
     if (preferred === 'all') throw new HttpError(400, 'preferred cannot be all');
   }
-  await guard.reserveWordOps(req.uid, 1, 1);
-  await ensureWordLookup(req.uid);
-  const existing = await findWordByKey(req.uid, lookupKey(r.phrase));
-  if (existing) return res.json({ existing: true, word: existing, values: wordValues(convertPhrase(existing.phrase)) });
-  const word = wordDoc(req.uid, r, body.notes, preferred);
-  await wordsCol(req.uid).doc(word.id).set(word);
+  await guard.reserveWordOps(req.uid, 1, 2);
+  const now = new Date().toISOString();
+  const row = { text: r.phrase, key: lookupKey(r.phrase), notes: body.notes, preferred };
+  const outcome = await wordIo.saveBulk(req.uid, [row], (item, seq) => makeWord(req.uid, item, seq), now);
+  failWordResult(outcome);
+  const hit = outcome.byKey.get(row.key);
+  if (hit.status === 'existing') {
+    return res.json({ existing: true, id: hit.id, values: wordValues(r), reads: outcome.reads, writes: outcome.writes });
+  }
   await bumpSync(req.uid, 'word:create', req);
-  res.status(201).json({ existing: false, word, values: wordValues(r) });
+  res.status(201).json({ existing: false, word: hit.word, values: wordValues(r), reads: outcome.reads, writes: outcome.writes });
 }));
 
-// POST /words/bulk { words: [text | {text, notes?, preferred?}], notes?, preferred? }
+// POST /words/index/rebuild -> one read per saved word, one write of the index
+app.post('/words/index/rebuild', wrap(async (req, res) => {
+  const out = await wordIo.rebuild(req.uid);
+  failWordResult(out);
+  await guard.noteWordOps(req.uid, out.reads, out.writes);
+  await bumpSync(req.uid, 'word:index', req);
+  res.json(out);
+}));
+
+// POST /words/bulk { words, notes?, preferred? } -> 1 index read, then new words + the index
 app.post('/words/bulk', wrap(async (req, res) => {
   const body = req.body || {};
   if (!Array.isArray(body.words)) throw new HttpError(400, 'words must be an array of text, or { text, notes }');
@@ -1471,55 +1454,28 @@ app.post('/words/bulk', wrap(async (req, res) => {
     }
   });
   const pending = classified.pending.filter((row) => row.status === 'pending');
-  const found = new Map();
-  const toAdd = [];
+  let outcome = { reads: 0, writes: 0, byKey: new Map() };
   if (pending.length) {
-    await guard.reserveWordOps(req.uid, pending.length, pending.length);
-    await ensureWordLookup(req.uid);
-    await Promise.all(pending.map(async (row) => {
-      found.set(row.key, await findWordByKey(req.uid, row.key));
-    }));
-    pending.forEach((row) => {
-      const existing = found.get(row.key);
-      if (existing) {
-        row.status = 'existing';
-        row.word = existing;
-        return;
-      }
-      try {
-        const converted = convertPhrase(row.text);
-        if (!converted.letters) throw new HttpError(400, 'text has no letters A-Z');
-        row.word = wordDoc(req.uid, converted, row.notes, row.preferred);
-        row.status = 'added';
-        toAdd.push(row.word);
-      } catch (e) {
-        row.status = 'error';
-        row.error = e.message || 'Could not save that word';
-      }
-    });
-    let batch = db.batch();
-    let ops = 0;
-    for (const word of toAdd) {
-      batch.set(wordsCol(req.uid).doc(word.id), word);
-      ops += 1;
-      if (ops >= 400) {
-        await batch.commit();
-        batch = db.batch();
-        ops = 0;
-      }
-    }
-    if (ops) await batch.commit();
-    if (toAdd.length) await bumpSync(req.uid, 'word:bulk', req);
+    await guard.reserveWordOps(req.uid, 1, pending.length + 1);
+    outcome = await wordIo.saveBulk(
+      req.uid,
+      pending,
+      (item, seq) => makeWord(req.uid, item, seq),
+      new Date().toISOString(),
+    );
+    failWordResult(outcome);
+    if (outcome.writes) await bumpSync(req.uid, 'word:bulk', req);
   }
-  const savedByKey = new Map();
-  classified.results.forEach((row) => {
-    if (row.key && row.word && !row.duplicateInRequest) savedByKey.set(row.key, row.word);
-  });
   const results = classified.results.map((row) => {
-    if (row.duplicateInRequest) return { text: row.text, status: 'existing', word: savedByKey.get(row.key) || null };
-    if (row.status === 'added') return { text: row.text, status: 'added', word: row.word };
-    if (row.status === 'existing') return { text: row.text, status: 'existing', word: row.word || null };
-    return { text: row.text, status: 'error', error: row.error || 'Could not save that word' };
+    if (row.duplicateInRequest) {
+      const hit = outcome.byKey.get(row.key);
+      return { text: row.text, status: 'existing', id: hit ? hit.id : null };
+    }
+    if (row.status === 'error') return { text: row.text, status: 'error', error: row.error || 'Could not save that word' };
+    const hit = outcome.byKey.get(row.key);
+    if (!hit) return { text: row.text, status: 'error', error: 'Could not save that word' };
+    if (hit.status === 'added') return { text: row.text, status: 'added', id: hit.id, word: hit.word };
+    return { text: row.text, status: 'existing', id: hit.id };
   });
   const added = results.filter((row) => row.status === 'added').length;
   const existing = results.filter((row) => row.status === 'existing').length;
@@ -1529,8 +1485,10 @@ app.post('/words/bulk', wrap(async (req, res) => {
     added,
     existing,
     errors,
-    estimatedReads: pending.length,
-    estimatedWrites: toAdd.length,
+    reads: outcome.reads,
+    writes: outcome.writes,
+    estimatedReads: pending.length ? 1 : 0,
+    estimatedWrites: outcome.writes,
     results,
   });
 }));
@@ -1582,20 +1540,60 @@ app.get('/words', wrap(async (req, res) => {
   res.json(out);
 }));
 
-// PATCH /words/:id { notes } -> edit notes without rewriting the numbers
+// PATCH /words/:id { notes?, text? } -> notes only, or rename via the index
 app.patch('/words/:id', wrap(async (req, res) => {
   const id = String(req.params.id || '');
   if (!/^[A-Za-z0-9_-]{6,80}$/.test(id)) throw new HttpError(400, 'Invalid id');
-  if (!req.body || req.body.notes === undefined) throw new HttpError(400, 'notes is required');
-  const notes = String(req.body.notes || '').trim().slice(0, 5000);
+  const body = req.body || {};
+  const now = new Date().toISOString();
+  if (body.text != null || body.phrase != null) {
+    const phrase = wordText(body);
+    const converted = convertPhrase(phrase);
+    if (!converted.letters) throw new HttpError(400, 'text has no letters A-Z');
+    let preferred;
+    if (body.preferred !== undefined && body.preferred !== '') {
+      preferred = parseCipher(body.preferred);
+      if (preferred === 'all') throw new HttpError(400, 'preferred cannot be all');
+    }
+    await guard.reserveWordOps(req.uid, 1, 2);
+    const patch = {
+      ordinal: converted.ordinal,
+      pythagorean: converted.pythagorean,
+      reverse: converted.reverse,
+      reduced: converted.reducedOrdinal.value,
+      hashCode: converted.hashCode,
+      letterCount: converted.letterCount,
+    };
+    if (body.notes !== undefined) patch.notes = String(body.notes || '').trim().slice(0, 5000);
+    if (preferred) patch.preferred = preferred;
+    const outcome = await wordIo.renameWord(req.uid, id, converted.phrase, patch, now);
+    if (outcome.code === 'existing') {
+      return res.json({ existing: true, id: outcome.id, reads: outcome.reads, writes: outcome.writes });
+    }
+    failWordResult(outcome);
+    await bumpSync(req.uid, 'word:rename', req);
+    return res.json({ word: { id, phrase: converted.phrase, ...patch, updatedAt: now }, reads: outcome.reads, writes: outcome.writes });
+  }
+  if (body.notes === undefined) throw new HttpError(400, 'notes or text is required');
+  const notes = String(body.notes || '').trim().slice(0, 5000);
   await guard.reserveWordOps(req.uid, 1, 1);
-  const ref = wordsCol(req.uid).doc(id);
+  const ref = wordIo.wordsCol(req.uid).doc(id);
   const snap = await ref.get();
   if (!snap.exists || snap.data().deleted) throw new HttpError(404, 'Word not found');
-  const updatedAt = new Date().toISOString();
-  await ref.set({ notes, updatedAt }, { merge: true });
+  await ref.set({ notes, updatedAt: now }, { merge: true });
   await bumpSync(req.uid, 'word:update', req);
-  res.json({ word: { id: snap.id, ...snap.data(), notes, updatedAt } });
+  res.json({ word: { id: snap.id, ...snap.data(), notes, updatedAt: now }, reads: 1, writes: 1 });
+}));
+
+// DELETE /words/:id -> tombstone, and drop the key from the index
+app.delete('/words/:id', wrap(async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!/^[A-Za-z0-9_-]{6,80}$/.test(id)) throw new HttpError(400, 'Invalid id');
+  await guard.reserveWordOps(req.uid, 1, 2);
+  const outcome = await wordIo.removeWord(req.uid, id, '', new Date().toISOString(), req.uid);
+  failWordResult(outcome);
+  await bumpSync(req.uid, 'word:delete', req);
+  res.json({ deleted: id, removedKey: outcome.removedKey || null, reads: outcome.reads, writes: outcome.writes });
 }));
 
 app.use((_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));

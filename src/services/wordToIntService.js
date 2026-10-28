@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, runTransaction } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { heavySyncPaused, noteRead } from './usageService';
 import { bumpSync, fetchUpdatedSince, fullSyncFresh, readSyncMeta } from './syncMeta';
@@ -187,9 +187,10 @@ async function pushWordNumberToFirebase(payload) {
   }
   const clean = {};
   Object.keys(payload).forEach((key) => {
-    if (payload[key] !== undefined) clean[key] = payload[key];
+    if (key === 'previousPhrase' || payload[key] === undefined) return;
+    clean[key] = payload[key];
   });
-  await setDoc(wordNumberDoc(uid, clean.id), clean, { merge: true });
+  await writeWordAndIndex(uid, clean, { previousPhrase: payload.previousPhrase });
 }
 
 function wordSyncKeys(uid) {
@@ -313,7 +314,63 @@ export function phraseKey(phrase) {
 }
 
 function wordLookupKey(phrase) {
-  return phraseKey(phrase).replace(/[^a-z]/g, '');
+  return phraseKey(phrase);
+}
+
+function wordIndexDoc(uid) {
+  return doc(db, 'users', uid, 'meta', 'wordIndex');
+}
+
+function indexBytes(entries) {
+  let n = 80;
+  (entries || []).forEach((entry) => {
+    n += 16 + String(entry.k || '').length + String(entry.id || '').length;
+  });
+  return n;
+}
+
+/** Keep users/{uid}/meta/wordIndex in step with an add, rename, or tombstone. */
+async function writeWordAndIndex(uid, word, { previousPhrase, deleted } = {}) {
+  const indexRef = wordIndexDoc(uid);
+  const wordRef = wordNumberDoc(uid, word.id);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(indexRef);
+    tx.set(wordRef, word, { merge: true });
+    const data = snap.exists() ? snap.data() : null;
+    if (!data || data.seeded !== true || !Array.isArray(data.entries)) return;
+    const map = new Map();
+    data.entries.forEach((entry) => {
+      if (entry && entry.k && entry.id) map.set(String(entry.k), String(entry.id));
+    });
+    const oldKey = previousPhrase ? wordLookupKey(previousPhrase) : '';
+    if (oldKey && map.get(oldKey) === String(word.id)) map.delete(oldKey);
+    const key = wordLookupKey(word.phrase);
+    if (deleted) {
+      if (key && map.get(key) === String(word.id)) map.delete(key);
+    } else if (key) {
+      const taken = map.get(key);
+      if (taken && taken !== String(word.id)) {
+        const err = new Error('that word is already saved in the list!');
+        err.code = 'DUPLICATE_PHRASE';
+        throw err;
+      }
+      map.set(key, String(word.id));
+    }
+    const entries = Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([k, id]) => ({ k, id }));
+    const bytes = indexBytes(entries);
+    if (bytes > 800 * 1024) {
+      throw new Error('The word index is full. Nothing else was saved.');
+    }
+    tx.set(indexRef, {
+      seeded: true,
+      count: entries.length,
+      updatedAt: word.updatedAt || new Date().toISOString(),
+      bytes,
+      entries,
+    });
+  });
 }
 
 export function findSavedPhrase(list, phrase) {
@@ -378,13 +435,13 @@ async function applyDedupe(list, uid, epoch) {
       dropped.map(async (item) => {
         if (!item?.id) return;
         try {
-          await setDoc(wordNumberDoc(uid, item.id), {
+          await writeWordAndIndex(uid, {
             id: String(item.id),
             phrase: item.phrase || '',
             deleted: true,
             updatedAt: new Date().toISOString(),
             ownerUid: uid,
-          }, { merge: true });
+          }, { deleted: true });
         } catch (e) {
           console.warn('Duplicate word-number cloud delete skipped', e);
         }
@@ -643,6 +700,7 @@ export async function saveWordNumber(entry) {
   }
 
   const index = list.findIndex((item) => entry.id && String(item.id) === String(entry.id));
+  const previousPhrase = index !== -1 ? list[index].phrase || '' : '';
 
   if (index !== -1) {
     payload.id = list[index].id;
@@ -667,7 +725,7 @@ export async function saveWordNumber(entry) {
   }
 
   try {
-    await pushWordNumberToFirebase(found);
+    await pushWordNumberToFirebase({ ...found, previousPhrase });
     if (uid) await bumpSync(uid);
     found.cloudSaved = true;
   } catch (e) {
@@ -719,13 +777,13 @@ export async function deleteWordNumber(id) {
   sessionWordsUid = uid || null;
   if (uid && target?.id && WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) {
     try {
-      await setDoc(wordNumberDoc(uid, target.id), {
+      await writeWordAndIndex(uid, {
         id: String(target.id),
         phrase: target.phrase || '',
         deleted: true,
         updatedAt: new Date().toISOString(),
         ownerUid: uid,
-      }, { merge: true });
+      }, { deleted: true, previousPhrase: target.phrase || '' });
       await bumpSync(uid);
     } catch (e) {
       console.warn('Firebase word-to-int delete skipped', e);
