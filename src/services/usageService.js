@@ -120,7 +120,6 @@ export async function flushUsage() {
         writes: usage.writes,
         deletes: usage.deletes,
         points: usagePoints(),
-        adsUnlocked: 0,
         lastSaved: new Date().toISOString(),
       },
       { merge: true },

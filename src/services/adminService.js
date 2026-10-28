@@ -175,6 +175,19 @@ export async function saveAdmin(state) {
   memCache = next;
   memAt = Date.now();
   const uid = auth.currentUser?.uid;
+  const latest = (next.audit || [])[0];
+  if (latest && latest.id && auth.currentUser) {
+    try {
+      await setDoc(doc(db, 'adminLog', latest.id), {
+        action: String(latest.action || 'admin'),
+        detail: String(latest.detail || ''),
+        at: latest.at || stamp(),
+        by: auth.currentUser.email || latest.by,
+      });
+    } catch (e) {
+      if (!isDenied(e)) console.warn('Admin log append failed; the in-app list was still saved.', e);
+    }
+  }
   if (isOwnerEmail(next.signedInEmail) && uid) {
     try {
       await setDoc(userStaffDoc(uid), payload, { merge: true });

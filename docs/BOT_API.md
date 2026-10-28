@@ -9,11 +9,12 @@ After deploy the base URL is `https://europe-west2-timelineapp-3bc05.cloudfuncti
 ## Auth
 Every request: `Authorization: Bearer <key>`.
 - Firestore `botKeys/{sha256(key)}` → `{ uid, createdAt, lastUsedAt, revoked }`. Only the hash is stored.
-- Unknown or revoked key → `401`. Each call updates `lastUsedAt`.
-- Rate limit: 60 requests per minute per key → `429`.
+- Unknown or revoked key → `401`. `lastUsedAt` updates at most once a minute.
+- Rate limit: 60 requests per minute per key → `429`, with a `Retry-After` header (seconds until the window resets) and `{ "error", "code": "rate_limit" }`. The counter is in memory, with one `botRate/{keyHash}` doc as the shared fallback (read once a minute, written every few requests, not on every call).
+- Daily allowance used up → `402`, also with `Retry-After` (seconds until midnight UK time) and `{ "error", "code": "allowance_exhausted", "used", "allowance", "resetsAt" }`. The cap is `config/usageRules.dailyAllowance` (default 500 points) plus `meta/usage.adsUnlocked * adUnlockPoints`. A per-user override lives on `users/{uid}/entitlements/main.dailyAllowance`. `premium` or `allowanceExempt` skips the cap. Bot points are stored on `users/{uid}/meta/botUsage` (the app cannot write that doc).
 - All reads and writes are limited to `users/{uid}` of the key's owner.
 
-Errors are JSON: `{ "error": "message" }`.
+Errors are JSON: `{ "error": "message" }`. `429` and `402` add `code` and, for `402`, the allowance fields above.
 
 ## Event shape
 Stored at `users/{uid}/events/{id}` exactly like the app's `saveEvent()`:
@@ -29,8 +30,9 @@ Stored at `users/{uid}/events/{id}` exactly like the app's `saveEvent()`:
 | `hobbyType` | e.g. `poetry` (Poems filter = `source: hobby` + `hobbyType: poetry`) |
 | `labels` | array of strings |
 | `location`, `placeName`, `photoNote`, `imageUri`, `coverImageUri`, `nextAction`, `foodStatus`, `foodItems`, `collectionName`, `shareCaption`, `emailFrom`, `botNote` | optional |
-| `socialUrl`, `url` | optional https URL (400 otherwise). `socialUrl` drives the "Open post" button on social events |
+| `socialUrl`, `url`, `driveUrl`, `readingUrl`, `recipeUrl` | optional https URL (400 otherwise). `socialUrl` drives "Open post". `driveUrl` drives "Open card in Drive". `readingUrl` drives "Play my reading" |
 | `socialTitle`, `socialPlatform` (e.g. `X`), `socialAction` (e.g. `Posted`), `socialNote` | optional strings for social media events |
+| `mealKit`, `recipeName`, `cardNumber`, `cookMinutes`, `mealTags` | optional meal-kit strings, length-capped |
 | `createdAt`, `updatedAt` | ISO strings, set by the API |
 | `ownerUid` | key owner's uid, set by the API |
 | `addedBy` | always `"bot"` on bot-created events (marker for sorting / removing) |
@@ -52,6 +54,9 @@ Responses also include `appLink: "timelineapp://event/<id>"` and `webLink: null`
 Explicit `source` / `category` override `kind`.
 
 ## Endpoints
+
+### `GET /me/profile` (read only)
+`200` → `{ "displayName", "dateOfBirth", "dateOfBirthIso", "username" }` from `users/{uid}/settings/profile`. `dateOfBirth` is as stored; `dateOfBirthIso` is `yyyy-mm-dd` or `null`; `username` is the handle with no `@`. Missing fields are `""`. Email, devices, visibility, and the photo are never returned. There is no write route.
 
 ### `POST /photos`
 Upload one image (max 5 MB, `image/*`). Stored at `users/{uid}/events/{eventId}/imageUri.jpg`, the same path the app uses.
@@ -89,7 +94,7 @@ Tickets in the same call: `"attachments": [{ "fileBase64": "<base64 or data: URL
 - All filters combine (e.g. `?kind=poem&q=love&from=2025-01-01`).
 - `limit`: default 50, max 200. Newest first.
 
-`200` → `{ "count", "total", "events": [ … ], "truncated"? }`. `total` = all matches before `limit`. With any of `q`/`label`/`kind`/`source`, the newest 1000 events are searched; `truncated: true` means there were more.
+`200` → `{ "count", "total", "events": [ … ], "truncated"?, "nextCursor"? }`. `total` = matches in this page's scan before `limit`. With any of `q`/`label`/`kind`/`source`, the newest 1000 events are searched; `truncated: true` means there were more. Tombstones (`deleted: true`) are left out. Pass `cursor` from `nextCursor` to read the next page (date order). For a whole year, use `GET /recap` instead of stopping after one page.
 
 ### `GET /events/:id`
 `200` → event + links, or `404`.
@@ -99,8 +104,20 @@ Body: any of the optional fields above. `id`, `ownerUid`, `addedBy`, `createdAt`
 `200` → the updated event + links.
 
 ### `DELETE /events/:id`
-Only events with `addedBy: "bot"` (`403` otherwise). Also deletes the event's Storage files (photo + attachments), its pending invites, and its `sharedEvents` doc if no friend has joined.
+Bot-added events delete on the first call. Events the user made return `409` `{ needsConfirm, confirmToken, expiresAt, event, message }`; repeat with `?confirm=TOKEN` within 5 minutes (single use). Storage files, pending invites, and an unjoined share are still removed. The event doc becomes a tombstone (`deleted: true`, `updatedAt` set) so other devices drop it on delta sync. `GET` hides it (`404` by id). `POST` with the same id may create it again.
 `200` → `{ deleted: "<id>", removed: { files, invites, sharedEvent } }`.
+
+### `GET /events/exists?id=` or `?url=`
+`200` → `{ exists, id, field? }`. An id check is one document read. A url check tries `socialUrl`, `url`, `driveUrl`, `readingUrl`, then `recipeUrl` (`field` limits it to one). A tombstone counts as not existing. Use this for duplicate checks instead of `GET /events?q=`.
+
+### `GET /sync?version=` or `?since=&limit=&cursor=`
+Reads `users/{uid}/meta/sync` first. If `version` matches, `{ changed: false, version, count: 0, events: [] }` and no event query. Otherwise `since` (ISO `updatedAt`) returns changed events, including tombstones, one page at a time (`nextCursor`). 
+
+### `POST /sync/bump`
+One write to `meta/sync`. Use after a batch of writes sent with `?nosync=1` (or header `X-No-Sync: 1`). The bump is on by default, and at most once per request.
+
+### `GET /recap?year=2026`
+Walks that calendar year with `orderBy(date)` and `startAfter`, 80 events at a time, up to 40 pages. `200` → `{ title: "My 2026 so far", year, count, byMonth, byKind, highlights, pages, truncated, scanned }`. Tombstones are not counted. A past year is titled `My {year}`. This is the call that covers the whole year; `GET /events` still returns one page unless you follow `nextCursor`.
 
 ## Tickets and files (attachments)
 Max **10 MB** per file, up to 10 per event. Allowed `contentType`: `application/pdf`, `image/jpeg`, `image/png`, `image/webp`, `image/heic`. PDFs must start with `%PDF-`.
@@ -199,9 +216,29 @@ Default `limit` is 50, max 200.
 
 ## Key management (app only)
 These use `Authorization: Bearer <Firebase ID token>` of the signed-in app user, not a bot key.
-- `POST /keys/create { label }` → `201 { key, hash, label }`. Key = `tl_` + 32 random bytes (base64url), made on the server; only its SHA-256 is stored. Max 10 active keys.
-- `POST /keys/list` → `{ keys: [{ hash, label, revoked, createdAt, lastUsedAt }] }`
+- `POST /keys/create { label, replace? }` → `201 { key, hash, label, botType: "grok" }`. Key = `tl_` + 32 random bytes (base64url). Only its SHA-256 is stored, with `botType: "grok"`. One active key. A second create without `{ "replace": true }` is `409`. Replace revokes the previous active key in the same transaction. Other bot types are `400` for now. Keys that were already active stay valid until revoked or replaced.
+- `POST /keys/list` → `{ keys: [{ hash, label, revoked, botType, createdAt, lastUsedAt }] }`
 - `POST /keys/revoke { hash }` → `{ hash, revoked: true }` (only your own keys)
+
+## Read cost
+- Every API write (events, attachments, invites, to-dos, words) bumps `users/{uid}/meta/sync` `{ version, lastChanged, lastChangedBy: "bot", lastWhat }` unless `?nosync=1`.
+- `allWords()` is cached per function instance for 5 minutes and cleared by `POST /words`.
+
+## Admin API
+Separate from user bot keys. Send `Authorization: Bearer <Firebase ID token>` of Sarah (`sarah.v.phillips@googlemail.com`) or an email on `app/staff.admins`, or `Bearer tla_…` (an admin key created in the app). Admin routes do not spend the user's allowance.
+- `POST /admin/keys/create` (signed-in admin only) → `201 { key, hash }`. The key is shown once.
+- `POST /admin/keys/revoke { hash }`
+- `GET /admin/lookup?email=`
+- `GET /admin/users/:uid/limits` and `PATCH` `{ dailyAllowance?, adsUnlocked?, premium?, allowanceExempt?, testAccount? }`
+- `GET /admin/users/:uid/keys` and `POST /admin/users/:uid/keys/revoke { hash }`
+- `GET /admin/usage-rules` and `PATCH /admin/usage-rules`
+- `GET /admin/tickets?status=` and `PATCH /admin/tickets/:id { status?, note?, draftEmail? }`. `draftEmail` is stored for a person to approve. The API does not send mail.
+- `GET /admin/log`
+- `POST /admin/allowance-test { uid | email }` dry-runs costs. `403` unless `entitlements/main.testAccount` is true. It does not write usage.
+
+Every admin mutation appends to `adminLog` (create-only).
+
+Problem tickets from the app are `tickets/{id}` with `status: "open"`. Users read their own. Only the admin API updates or closes them.
 
 ## Example
 ```bash

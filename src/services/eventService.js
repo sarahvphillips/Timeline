@@ -1,12 +1,22 @@
 import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where } from 'firebase/firestore';
+import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { isGuestUid } from './guestSession';
 import { uploadEventImage, deleteEventPhotos } from './photoStorage';
 import { asImageUri, compressImageUri } from './imagePicker';
 import { settleEventDate } from './eventClock';
 import { noteRead, noteWrite, noteDelete, heavySyncPaused, flushUsage } from './usageService';
+import {
+  syncDoc,
+  syncKeys,
+  readSyncMeta,
+  markSyncSeen,
+  bumpSync as bumpSyncMeta,
+  fullSyncFresh,
+  fetchUpdatedSince,
+  clearSyncCache,
+} from './syncMeta';
 import { cancelReminder } from './eventReminder';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
@@ -298,6 +308,7 @@ export function beginAuthScope(uid) {
   activeAuthUid = uid || null;
   sessionEvents = null;
   sessionEventsUid = undefined;
+  clearSyncCache();
   return authEpoch;
 }
 
@@ -313,34 +324,9 @@ function eventDoc(uid, eventId) {
   return doc(db, 'users', uid, 'events', eventId);
 }
 
-function syncDoc(uid) {
-  return doc(db, 'users', uid, 'meta', 'sync');
-}
-
-function syncKeys(uid) {
-  return {
-    ver: `@timeline_sync_ver_${uid}`,
-    at: `@timeline_sync_at_${uid}`,
-    full: `@timeline_full_at_${uid}`,
-  };
-}
-
-async function markSyncSeen(uid, version, full) {
-  const keys = syncKeys(uid);
-  const pairs = [
-    [keys.ver, String(version || Date.now())],
-    [keys.at, new Date().toISOString()],
-  ];
-  if (full) pairs.push([keys.full, String(Date.now())]);
-  await AsyncStorage.multiSet(pairs);
-}
-
 async function bumpSync(uid) {
   if (!uid || isGuestUid(uid) || !EVENTS_FIRESTORE_SYNC_ENABLED) return;
-  const version = Date.now();
-  await setDoc(syncDoc(uid), { version, lastChanged: new Date().toISOString() }, { merge: true });
-  noteWrite(1);
-  await markSyncSeen(uid, version, false);
+  await bumpSyncMeta(uid);
 }
 
 function withoutDeleted(events) {
@@ -650,58 +636,64 @@ export async function syncEventsFromCloud(uid) {
     const keys = syncKeys(uid);
     let remote = null;
     try {
-      const syncSnap = await withTimeout(() => getDoc(syncDoc(uid)), 8000);
-      noteRead(1);
-      remote = syncSnap.exists() ? syncSnap.data() : null;
+      remote = await withTimeout(() => readSyncMeta(uid), 8000);
     } catch (_) {
       remote = null;
     }
     const savedVer = await AsyncStorage.getItem(keys.ver);
     const since = await AsyncStorage.getItem(keys.at);
     const fullAt = Number((await AsyncStorage.getItem(keys.full)) || 0);
-    const fullFresh = fullAt && Date.now() - fullAt < 7 * 24 * 60 * 60 * 1000;
-    if (heavySyncPaused() && localOwned.length) {
+    const fullFresh = fullSyncFresh(fullAt);
+    const versionSame = remote && savedVer && String(remote.version) === String(savedVer);
+    // Unchanged version: 1 read (the sync doc). A weekly full reload still runs unless the allowance is used up.
+    if (versionSame && localOwned.length && (fullFresh || heavySyncPaused())) {
       return sortEvents(localOwned);
     }
-    if (remote && savedVer && String(remote.version) === String(savedVer) && fullFresh && localOwned.length) {
-      return sortEvents(localOwned);
-    }
-    if (remote && savedVer && since && fullFresh && localOwned.length && String(remote.version) !== String(savedVer)) {
+    const cursorAt = new Date().toISOString();
+    if (remote && savedVer && since && localOwned.length && String(remote.version) !== String(savedVer)) {
       const changed = await withTimeout(
-        () => getDocs(query(eventsCollection(uid), where('updatedAt', '>', since))),
+        () => fetchUpdatedSince(eventsCollection(uid), since),
         12000,
       );
       if (!isScopeCurrent(uid, epoch)) return [];
-      noteRead(changed.size);
-      const byId = {};
-      localOwned.forEach((ev) => {
-        if (ev?.id) byId[ev.id] = ev;
-      });
-      changed.forEach((d) => {
-        const data = d.data() || {};
-        if (data.ownerUid && data.ownerUid !== uid) return;
-        if (data.deleted) {
-          delete byId[d.id];
-          return;
-        }
-        const prev = byId[d.id];
-        const ev = normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id);
-        byId[d.id] = {
-          ...ev,
-          imageUri: ev.imageUri || prev?.imageUri || undefined,
-          coverImageUri: ev.coverImageUri || prev?.coverImageUri || undefined,
-          videoUri: ev.videoUri || prev?.videoUri || undefined,
-          audioUri: ev.audioUri || prev?.audioUri || undefined,
-          audioName: ev.audioName || prev?.audioName || undefined,
-          imageRotation: keptAngle(ev.imageRotation, prev && prev.imageRotation),
-          coverImageRotation: keptAngle(ev.coverImageRotation, prev && prev.coverImageRotation),
-        };
-      });
-      const mergedDelta = sortEvents(Object.values(byId));
-      await writeCache(mergedDelta, uid);
-      await markSyncSeen(uid, remote.version, false);
-      flushUsage().catch(() => {});
-      return mergedDelta;
+      if (changed.capped && !heavySyncPaused()) {
+        // Too many edits for a delta. Fall through to the weekly-style full read.
+      } else {
+        const changedDocs = changed.docs || [];
+        const byId = {};
+        localOwned.forEach((ev) => {
+          if (ev?.id) byId[ev.id] = ev;
+        });
+        changedDocs.forEach((d) => {
+          const data = d.data() || {};
+          if (data.ownerUid && data.ownerUid !== uid) return;
+          if (data.deleted) {
+            delete byId[d.id];
+            return;
+          }
+          const prev = byId[d.id];
+          const ev = normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id);
+          byId[d.id] = {
+            ...ev,
+            imageUri: ev.imageUri || prev?.imageUri || undefined,
+            coverImageUri: ev.coverImageUri || prev?.coverImageUri || undefined,
+            videoUri: ev.videoUri || prev?.videoUri || undefined,
+            audioUri: ev.audioUri || prev?.audioUri || undefined,
+            audioName: ev.audioName || prev?.audioName || undefined,
+            imageRotation: keptAngle(ev.imageRotation, prev && prev.imageRotation),
+            coverImageRotation: keptAngle(ev.coverImageRotation, prev && prev.coverImageRotation),
+          };
+        });
+        const mergedDelta = sortEvents(Object.values(byId));
+        await writeCache(mergedDelta, uid);
+        await markSyncSeen(uid, remote.version, false, cursorAt);
+        flushUsage().catch(() => {});
+        return mergedDelta;
+      }
+    }
+
+    if (heavySyncPaused() && localOwned.length) {
+      return sortEvents(localOwned);
     }
 
     const snap = await withTimeout(() => getDocs(eventsCollection(uid)), 12000);
