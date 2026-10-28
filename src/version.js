@@ -1,7 +1,7 @@
 /** Bump APP_BUILD whenever a testable change ships. */
 export const APP_NAME = 'Timeline';
 export const APP_VERSION = '1.0.10';
-export const APP_BUILD = 221;
+export const APP_BUILD = 222;
 export const APP_BUILD_DATE = '2026-10-28';
 
 export function versionLabel() {

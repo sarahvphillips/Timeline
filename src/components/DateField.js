@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../themeContext';
 import {
   DATE_FORMAT_MDY,
@@ -40,14 +40,31 @@ export default function DateField({ value, onChange, editable = true, style }) {
     y: (selected || today).y,
     m: (selected || today).m,
   });
+  const [yearDraft, setYearDraft] = useState(String((selected || today).y));
+  const yearFocused = useRef(false);
 
   useEffect(() => {
     getDateFormat().then((next) => setFormat(normalizeDateFormat(next))).catch(() => {});
   }, [open]);
 
+  useEffect(() => {
+    if (!yearFocused.current) setYearDraft(String(cursor.y));
+  }, [cursor.y, open]);
   const cells = useMemo(() => monthCells(cursor.y, cursor.m), [cursor.y, cursor.m]);
   const shown = selected ? formatFullDate(value, format) : '';
+
   const orderHint = format === DATE_FORMAT_MDY ? 'MM/DD/YYYY' : 'DD/MM/YYYY';
+
+  const applyYear = (raw) => {
+    const digits = String(raw || '').replace(/\D/g, '');
+    const n = parseInt(digits, 10);
+    if (digits.length !== 4 || n < 1000 || n > 9999) {
+      setYearDraft(String(cursor.y));
+      return;
+    }
+    setCursor((c) => (c.y === n ? c : { ...c, y: n }));
+    setYearDraft(String(n));
+  };
 
   const shiftMonth = (delta) => {
     const next = new Date(cursor.y, cursor.m - 1 + delta, 1);
@@ -89,10 +106,37 @@ export default function DateField({ value, onChange, editable = true, style }) {
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={styles.backdrop}>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Text style={[styles.title, { color: colors.text }]}>
-              {MONTHS[cursor.m - 1]} {cursor.y}
+            <View style={styles.titleRow}>
+              <Text style={[styles.title, { color: colors.text }]}>{MONTHS[cursor.m - 1]}</Text>
+              <TextInput
+                value={yearDraft}
+                onChangeText={(text) => {
+                  const digits = text.replace(/\D/g, '').slice(0, 4);
+                  setYearDraft(digits);
+                  if (digits.length === 4) {
+                    const n = parseInt(digits, 10);
+                    if (n >= 1000 && n <= 9999) setCursor((c) => (c.y === n ? c : { ...c, y: n }));
+                  }
+                }}
+                onFocus={() => { yearFocused.current = true; }}
+                onBlur={() => {
+                  yearFocused.current = false;
+                  applyYear(yearDraft);
+                }}
+                onSubmitEditing={() => applyYear(yearDraft)}
+                keyboardType="number-pad"
+                inputMode="numeric"
+                maxLength={4}
+                selectTextOnFocus
+                placeholder="Year"
+                placeholderTextColor={colors.faint}
+                style={[styles.yearInput, { color: colors.text, borderColor: colors.blue, backgroundColor: colors.bg }]}
+                accessibilityLabel="Year"
+              />
+            </View>
+            <Text style={[styles.hint, { color: colors.faint }]}>
+              Type the year, or use Year − and Year +. Shown as {orderHint}
             </Text>
-            <Text style={[styles.hint, { color: colors.faint }]}>Shown as {orderHint}</Text>
             <View style={styles.nav}>
               <TouchableOpacity style={styles.navBtn} onPress={() => setCursor((c) => ({ ...c, y: c.y - 1 }))}>
                 <Text style={[styles.navText, { color: colors.blueSoft }]}>Year −</Text>
@@ -179,6 +223,22 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   title: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  yearInput: {
+    minWidth: 76,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
   hint: { textAlign: 'center', marginTop: 4, marginBottom: 10, fontSize: 12 },
   nav: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   navBtn: { paddingVertical: 6, paddingHorizontal: 4 },
