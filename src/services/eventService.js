@@ -301,10 +301,12 @@ let authEpoch = 0;
 let activeAuthUid = null;
 let sessionEvents = null;
 let sessionEventsUid = undefined;
+let sessionEpoch = 0;
 
 /** Call from App onAuthStateChanged so event I/O is scoped to the current uid. */
 export function beginAuthScope(uid) {
   authEpoch += 1;
+  sessionEpoch += 1;
   activeAuthUid = uid || null;
   sessionEvents = null;
   sessionEventsUid = undefined;
@@ -579,12 +581,22 @@ export async function readLocalEvents(uid = getUid()) {
 export async function getEvents(force) {
   const uid = getUid() || null;
   if (!force && sessionEvents && sessionEventsUid === uid) return sessionEvents;
+  const stamp = sessionEpoch;
   const list = await loadEventsFresh();
+  if (stamp !== sessionEpoch && sessionEvents && sessionEventsUid === (getUid() || null)) return sessionEvents;
   if ((getUid() || null) === uid) {
     sessionEvents = list;
     sessionEventsUid = uid;
   }
   return list;
+}
+
+/** Events saved on this phone, including ones just added. Does not start a cloud reload. */
+export async function readVisibleEvents() {
+  const uid = getUid() || null;
+  const local = await readLocalEvents(uid);
+  if (!uid) return local;
+  return local.filter((ev) => eventVisibleForUid(ev, uid));
 }
 
 async function loadEventsFresh() {
@@ -795,8 +807,10 @@ export async function syncEventsFromCloud(uid) {
 
     if (!isScopeCurrent(uid, epoch)) return Object.values(byId);
     const merged = sortEvents(Object.values(byId));
+    const stamp = sessionEpoch;
     promotePendingEventPhotos(merged, uid, 6)
       .then((next) => {
+        if (stamp !== sessionEpoch) return null;
         if (sessionEventsUid === uid) sessionEvents = next;
         return writeCache(next, uid);
       })
@@ -889,6 +903,7 @@ export async function saveEvent(event) {
   }
 
   await writeCache(events, uid);
+  sessionEpoch += 1;
   sessionEvents = events;
   sessionEventsUid = uid || null;
 
@@ -917,6 +932,7 @@ export async function deleteEvent(id) {
     if (ev?.reminderId) cancelReminder(ev.reminderId).catch(() => {});
   });
   await writeCache(filtered, uid);
+  sessionEpoch += 1;
   sessionEvents = filtered;
   sessionEventsUid = uid || null;
 

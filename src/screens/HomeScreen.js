@@ -10,7 +10,7 @@ import StampsRow from '../components/StampsRow';
 import AdBanner from '../components/AdBanner';
 import { useTheme } from '../themeContext';
 import { getProfilePhotoUri, saveProfilePhotoUri, getProfilePhotoTurn, saveProfilePhotoTurn } from '../services/profileService';
-import { getEvents } from '../services/eventService';
+import { getEvents, readVisibleEvents } from '../services/eventService';
 import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
 import { syncAcceptedJoins } from '../services/peopleService';
 import { allowanceStatus, flushUsage } from '../services/usageService';
@@ -27,7 +27,12 @@ import {
 function isHobby(event) {
   const source = String(event?.source || '').toLowerCase();
   const category = String(event?.category || '').toLowerCase();
-  return !!(event?.hobbyType || source === 'hobby' || category === 'hobby');
+  return !!(
+    event?.hobbyType
+    || source === 'hobby'
+    || source === 'youtube'
+    || category === 'hobby'
+  );
 }
 
 function isCardSpend(event) {
@@ -75,9 +80,13 @@ export default function HomeScreen({ navigation, user, onLogout }) {
         let people = [];
         let words = [];
         try {
-          events = await getEvents();
+          events = await readVisibleEvents();
         } catch {
-          events = [];
+          try {
+            events = await getEvents();
+          } catch {
+            events = [];
+          }
         }
         try {
           people = await syncAcceptedJoins();
