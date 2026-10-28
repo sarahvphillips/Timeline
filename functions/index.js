@@ -29,6 +29,7 @@ const { publicProfile } = require('./lib/profile');
 const { decideKeyCreate } = require('./lib/keys');
 const { tombstone } = require('./lib/delta');
 const { foldEvents, encodeCursor, decodeCursor } = require('./lib/recap');
+const { lookupKey, checkBatchSize, classifyWords } = require('./lib/wordBatch');
 
 initializeApp();
 setGlobalOptions({ region: 'europe-west2' });
@@ -1329,95 +1330,272 @@ function wordValues(r) {
   };
 }
 const wordsCol = (uid) => db.collection('users').doc(uid).collection('wordNumbers');
-// Per-instance cache: one full read per uid per 5 min instead of per call. Invalidated by this API's own word writes.
-const WORDS_TTL_MS = 5 * 60 * 1000;
-const wordsCache = new Map();
-async function allWords(uid) {
-  const hit = wordsCache.get(uid);
-  if (hit && Date.now() - hit.at < WORDS_TTL_MS) return hit.list;
-  const snap = await wordsCol(uid).limit(5000).get();
-  const list = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((row) => !row.deleted);
-  wordsCache.set(uid, { at: Date.now(), list });
-  return list;
+const wordIndexRef = (uid) => db.collection('users').doc(uid).collection('meta').doc('wordIndex');
+const wordLookupReady = new Set();
+
+function throwWordCost(result) {
+  const err = new HttpError(result.status || 400, result.error || 'Too many words');
+  err.code = result.code;
+  err.details = {
+    estimatedReads: result.estimatedReads,
+    estimatedWrites: result.estimatedWrites,
+    cap: result.cap,
+  };
+  throw err;
 }
 
-// POST /words/calc {text} -> values, no write
+/** One-time stamp so later adds can find a word with one query instead of reading the whole list. */
+async function ensureWordLookup(uid) {
+  if (wordLookupReady.has(uid)) return 0;
+  const flag = await wordIndexRef(uid).get();
+  if (flag.exists && flag.data().ready) {
+    wordLookupReady.add(uid);
+    return 0;
+  }
+  const snap = await wordsCol(uid).limit(5000).get();
+  let batch = db.batch();
+  let ops = 0;
+  let patched = 0;
+  const commit = async () => {
+    if (!ops) return;
+    await batch.commit();
+    batch = db.batch();
+    ops = 0;
+  };
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data() || {};
+    const key = lookupKey(data.phrase);
+    const patch = {};
+    if (key && data.lookupKey !== key) patch.lookupKey = key;
+    if (!data.updatedAt) patch.updatedAt = data.createdAt || new Date().toISOString();
+    if (!Object.keys(patch).length) continue;
+    batch.set(docSnap.ref, patch, { merge: true });
+    ops += 1;
+    patched += 1;
+    if (ops >= 400) await commit();
+  }
+  await commit();
+  await wordIndexRef(uid).set({
+    ready: snap.size < 5000,
+    scanned: snap.size,
+    patched,
+    at: new Date().toISOString(),
+  });
+  if (snap.size < 5000) wordLookupReady.add(uid);
+  await guard.noteWordOps(uid, snap.size, patched);
+  return snap.size;
+}
+
+async function findWordByKey(uid, key) {
+  const snap = await wordsCol(uid).where('lookupKey', '==', key).limit(5).get();
+  const row = snap.docs.map((d) => ({ id: d.id, ...d.data() })).find((item) => !item.deleted);
+  return row || null;
+}
+
+function wordDoc(uid, phraseResult, notes, preferred) {
+  const now = new Date().toISOString();
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    phrase: phraseResult.phrase,
+    notes: String(notes || '').trim().slice(0, 5000),
+    preferred,
+    lookupKey: lookupKey(phraseResult.phrase),
+    ordinal: phraseResult.ordinal,
+    pythagorean: phraseResult.pythagorean,
+    reverse: phraseResult.reverse,
+    reduced: phraseResult.reducedOrdinal.value,
+    hashCode: phraseResult.hashCode,
+    letterCount: phraseResult.letterCount,
+    createdAt: now,
+    updatedAt: now,
+    ownerUid: uid,
+    addedBy: 'bot',
+  };
+}
+
+// POST /words/calc {text} -> values, no write. One lookup, not the whole list.
 app.post('/words/calc', wrap(async (req, res) => {
   const r = convertPhrase(wordText(req.body));
   if (!r.letters) throw new HttpError(400, 'text has no letters A-Z');
-  const list = await allWords(req.uid);
-  const saved = findSavedPhrase(list, r.phrase);
+  await guard.reserveWordOps(req.uid, 1, 0);
+  await ensureWordLookup(req.uid);
+  const saved = await findWordByKey(req.uid, lookupKey(r.phrase));
   res.json({ values: wordValues(r), saved: saved || null });
 }));
 
-// POST /words {text, notes?, preferred?} -> saves in the app's wordNumbers shape
+// POST /words {text, notes?, preferred?} -> one lookup, then one write
 app.post('/words', wrap(async (req, res) => {
   const body = req.body || {};
   const r = convertPhrase(wordText(body));
   if (!r.letters) throw new HttpError(400, 'text has no letters A-Z');
-  const list = await allWords(req.uid);
-  const existing = findSavedPhrase(list, r.phrase);
-  if (existing) return res.json({ existing: true, word: existing, values: wordValues(convertPhrase(existing.phrase)) });
   let preferred = 'ordinal';
   if (body.preferred !== undefined) {
     preferred = parseCipher(body.preferred);
     if (preferred === 'all') throw new HttpError(400, 'preferred cannot be all');
   }
-  const now = new Date().toISOString();
-  const word = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    phrase: r.phrase,
-    notes: String(body.notes || '').trim().slice(0, 5000),
-    preferred,
-    ordinal: r.ordinal,
-    pythagorean: r.pythagorean,
-    reverse: r.reverse,
-    reduced: r.reducedOrdinal.value,
-    hashCode: r.hashCode,
-    letterCount: r.letterCount,
-    createdAt: now,
-    updatedAt: now,
-    ownerUid: req.uid,
-    addedBy: 'bot',
-  };
+  await guard.reserveWordOps(req.uid, 1, 1);
+  await ensureWordLookup(req.uid);
+  const existing = await findWordByKey(req.uid, lookupKey(r.phrase));
+  if (existing) return res.json({ existing: true, word: existing, values: wordValues(convertPhrase(existing.phrase)) });
+  const word = wordDoc(req.uid, r, body.notes, preferred);
   await wordsCol(req.uid).doc(word.id).set(word);
-  wordsCache.delete(req.uid);
   await bumpSync(req.uid, 'word:create', req);
   res.status(201).json({ existing: false, word, values: wordValues(r) });
 }));
 
-// GET /words?cipher=&value=&limit=  |  GET /words?q=&limit=  |  GET /words (newest first)
+// POST /words/bulk { words: [text | {text, notes?, preferred?}], notes?, preferred? }
+app.post('/words/bulk', wrap(async (req, res) => {
+  const body = req.body || {};
+  if (!Array.isArray(body.words)) throw new HttpError(400, 'words must be an array of text, or { text, notes }');
+  if (!body.words.length) throw new HttpError(400, 'words is empty');
+  const size = checkBatchSize(body.words.length);
+  if (!size.ok) throwWordCost(size);
+  let sharedPreferred = 'ordinal';
+  if (body.preferred !== undefined && body.preferred !== '') {
+    sharedPreferred = parseCipher(body.preferred);
+    if (sharedPreferred === 'all') throw new HttpError(400, 'preferred cannot be all');
+  }
+  const classified = classifyWords(body.words, { notes: body.notes, preferred: sharedPreferred });
+  classified.pending.forEach((row) => {
+    if (row.preferred === undefined || row.preferred === '' || row.preferred === 'ordinal') {
+      row.preferred = 'ordinal';
+      return;
+    }
+    try {
+      const parsed = parseCipher(row.preferred);
+      if (parsed === 'all') throw new HttpError(400, 'preferred cannot be all');
+      row.preferred = parsed;
+    } catch (e) {
+      row.status = 'error';
+      row.error = e.message || 'preferred is not a cipher';
+    }
+  });
+  const pending = classified.pending.filter((row) => row.status === 'pending');
+  const found = new Map();
+  const toAdd = [];
+  if (pending.length) {
+    await guard.reserveWordOps(req.uid, pending.length, pending.length);
+    await ensureWordLookup(req.uid);
+    await Promise.all(pending.map(async (row) => {
+      found.set(row.key, await findWordByKey(req.uid, row.key));
+    }));
+    pending.forEach((row) => {
+      const existing = found.get(row.key);
+      if (existing) {
+        row.status = 'existing';
+        row.word = existing;
+        return;
+      }
+      try {
+        const converted = convertPhrase(row.text);
+        if (!converted.letters) throw new HttpError(400, 'text has no letters A-Z');
+        row.word = wordDoc(req.uid, converted, row.notes, row.preferred);
+        row.status = 'added';
+        toAdd.push(row.word);
+      } catch (e) {
+        row.status = 'error';
+        row.error = e.message || 'Could not save that word';
+      }
+    });
+    let batch = db.batch();
+    let ops = 0;
+    for (const word of toAdd) {
+      batch.set(wordsCol(req.uid).doc(word.id), word);
+      ops += 1;
+      if (ops >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+    if (ops) await batch.commit();
+    if (toAdd.length) await bumpSync(req.uid, 'word:bulk', req);
+  }
+  const savedByKey = new Map();
+  classified.results.forEach((row) => {
+    if (row.key && row.word && !row.duplicateInRequest) savedByKey.set(row.key, row.word);
+  });
+  const results = classified.results.map((row) => {
+    if (row.duplicateInRequest) return { text: row.text, status: 'existing', word: savedByKey.get(row.key) || null };
+    if (row.status === 'added') return { text: row.text, status: 'added', word: row.word };
+    if (row.status === 'existing') return { text: row.text, status: 'existing', word: row.word || null };
+    return { text: row.text, status: 'error', error: row.error || 'Could not save that word' };
+  });
+  const added = results.filter((row) => row.status === 'added').length;
+  const existing = results.filter((row) => row.status === 'existing').length;
+  const errors = results.filter((row) => row.status === 'error').length;
+  res.status(added ? 201 : 200).json({
+    count: results.length,
+    added,
+    existing,
+    errors,
+    estimatedReads: pending.length,
+    estimatedWrites: toAdd.length,
+    results,
+  });
+}));
+
+// GET /words?cursor=  pages newest first. A value or q search only looks at this page.
 app.get('/words', wrap(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), MAX_LIST);
-  const list = await allWords(req.uid);
-  const total = list.length;
   const rawValue = req.query.value;
   const q = String(req.query.q || '').trim();
+  const cursor = String(req.query.cursor || '').trim();
+  let query = wordsCol(req.uid).orderBy('updatedAt', 'desc');
+  if (cursor) query = query.startAfter(cursor);
+  const snap = await query.limit(limit).get();
+  let rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((row) => !row.deleted);
+  const out = { count: 0, words: [] };
+  if (snap.size === limit) {
+    const last = snap.docs[snap.docs.length - 1];
+    const stamp = String((last.data() || {}).updatedAt || '');
+    if (stamp) out.nextCursor = stamp;
+  }
   if (rawValue !== undefined && String(rawValue).trim() !== '') {
     const n = Number(String(rawValue).trim());
     if (Number.isNaN(n)) throw new HttpError(400, 'value must be a number');
     const cipher = parseCipher(req.query.cipher);
     const reducedTo = cipher === 'reduced' ? reduceNumber(n).value : null;
     const exclude = String(req.query.exclude || '').trim();
-    const rows = [];
-    list.forEach((entry) => {
+    const matched = [];
+    rows.forEach((entry) => {
       if (exclude && findSavedPhrase([entry], exclude)) return;
       const hits = wordHits(entry, n, cipher, reducedTo);
-      if (hits.length) rows.push({ ...entry, matchOn: hits });
+      if (hits.length) matched.push({ ...entry, matchOn: hits });
     });
-    rows.sort((a, b) => phraseKey(a.phrase).localeCompare(phraseKey(b.phrase))
-      || String(a.phrase || '').localeCompare(String(b.phrase || '')));
-    return res.json({ cipher, value: n, reducedTo: reducedTo ?? undefined, total, count: Math.min(rows.length, limit), words: rows.slice(0, limit) });
+    out.cipher = cipher;
+    out.value = n;
+    if (reducedTo != null) out.reducedTo = reducedTo;
+    out.count = matched.length;
+    out.words = matched;
+    out.scanned = snap.size;
+    return res.json(out);
   }
-  let rows = list;
   if (q) {
     const key = phraseKey(q);
-    rows = list.filter((e) => phraseKey(e.phrase).includes(key) || String(e.notes || '').toLowerCase().includes(key));
+    rows = rows.filter((e) => phraseKey(e.phrase).includes(key) || String(e.notes || '').toLowerCase().includes(key));
+    out.q = q;
   }
-  rows.sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
-  res.json({ q: q || undefined, total, count: Math.min(rows.length, limit), words: rows.slice(0, limit) });
+  out.count = rows.length;
+  out.words = rows;
+  out.scanned = snap.size;
+  res.json(out);
+}));
+
+// PATCH /words/:id { notes } -> edit notes without rewriting the numbers
+app.patch('/words/:id', wrap(async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!/^[A-Za-z0-9_-]{6,80}$/.test(id)) throw new HttpError(400, 'Invalid id');
+  if (!req.body || req.body.notes === undefined) throw new HttpError(400, 'notes is required');
+  const notes = String(req.body.notes || '').trim().slice(0, 5000);
+  await guard.reserveWordOps(req.uid, 1, 1);
+  const ref = wordsCol(req.uid).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists || snap.data().deleted) throw new HttpError(404, 'Word not found');
+  const updatedAt = new Date().toISOString();
+  await ref.set({ notes, updatedAt }, { merge: true });
+  await bumpSync(req.uid, 'word:update', req);
+  res.json({ word: { id: snap.id, ...snap.data(), notes, updatedAt } });
 }));
 
 app.use((_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));

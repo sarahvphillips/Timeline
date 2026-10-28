@@ -312,6 +312,10 @@ export function phraseKey(phrase) {
     .toLowerCase();
 }
 
+function wordLookupKey(phrase) {
+  return phraseKey(phrase).replace(/[^a-z]/g, '');
+}
+
 export function findSavedPhrase(list, phrase) {
   const key = phraseKey(phrase);
   if (!key) return null;
@@ -624,6 +628,7 @@ export async function saveWordNumber(entry) {
     reduced: result.reducedOrdinal.value,
     hashCode: result.hashCode,
     letterCount: result.letterCount,
+    lookupKey: wordLookupKey(result.phrase),
     createdAt: entry.createdAt || now,
     updatedAt: now,
   };

@@ -7,6 +7,7 @@ const { foldEvents, pageEvents, encodeCursor, decodeCursor } = require('../lib/r
 const { dobToIso, publicProfile } = require('../lib/profile');
 const { decideKeyCreate } = require('../lib/keys');
 const { applyDelta, tombstone } = require('../lib/delta');
+const { lookupKey, checkBatchSize, checkDailyWordBudget, classifyWords, WORD_BULK_CAP } = require('../lib/wordBatch');
 
 test('uk day follows Europe/London, including BST', () => {
   assert.equal(ukDay(new Date('2026-06-15T23:30:00Z')), '2026-06-16');
@@ -155,4 +156,35 @@ test('delta drops tombstones and keeps edits', () => {
   assert.equal(next.a, undefined);
   assert.equal(next.b.title, 'B2');
   assert.equal(next.c.title, 'C');
+});
+
+test('a 2080 word sheet is refused before any read', () => {
+  const tooBig = checkBatchSize(2080);
+  assert.equal(tooBig.ok, false);
+  assert.equal(tooBig.code, 'batch_too_large');
+  assert.equal(tooBig.estimatedReads, 2080);
+  assert.equal(tooBig.estimatedWrites, 2080);
+  assert.equal(checkBatchSize(WORD_BULK_CAP).ok, true);
+  assert.equal(checkBatchSize(WORD_BULK_CAP + 1).ok, false);
+  assert.equal(lookupKey('Hello, World!'), 'helloworld');
+  assert.equal(lookupKey('Hello World'), lookupKey('hello-world'));
+});
+
+test('word budget stops an oversized day and bulk results stay per word', () => {
+  const blocked = checkDailyWordBudget({ usedReads: 19950, usedWrites: 0, reads: 100, writes: 100 });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.code, 'cost_limit');
+  assert.equal(blocked.usedReads, 19950);
+  const ok = checkDailyWordBudget({ usedReads: 100, usedWrites: 100, reads: 50, writes: 50 });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.usedReads, 150);
+  const { pending, results } = classifyWords(['Alpha', 'alpha!', '', { text: 'Beta', notes: 'own' }], { notes: 'shared' });
+  assert.equal(pending.length, 2);
+  assert.equal(results[0].status, 'pending');
+  assert.equal(results[0].notes, 'shared');
+  assert.equal(results[1].status, 'existing');
+  assert.equal(results[1].duplicateInRequest, true);
+  assert.equal(results[2].status, 'error');
+  assert.equal(results[3].notes, 'own');
+  assert.equal(results[3].key, 'beta');
 });

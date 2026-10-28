@@ -192,8 +192,8 @@ Saved words live at `users/{uid}/wordNumbers/{id}`, the same docs the app's Word
 | `reduced` | ordinal sum digit-summed until it is 1–9, or stops at master number 11, 22 or 33 |
 | `hashcode` | Java `String.hashCode` of the trimmed text (case and spaces count here), 32-bit signed |
 
-**Saved doc shape** (the same as the app's, plus `addedBy`): `{ id: "<ms>-<6 base36>", phrase, notes, preferred: "ordinal", ordinal, pythagorean, reverse, reduced, hashCode, letterCount, createdAt, updatedAt, ownerUid, addedBy: "bot" }`.
-Duplicates are matched the way the app matches them: the same text ignoring case and repeated spaces, or the same letters A–Z.
+**Saved doc shape** (the same as the app's, plus `addedBy` and `lookupKey`): `{ id: "<ms>-<6 base36>", phrase, notes, preferred: "ordinal", lookupKey, ordinal, pythagorean, reverse, reduced, hashCode, letterCount, createdAt, updatedAt, ownerUid, addedBy: "bot" }`.
+`lookupKey` is the letters A–Z only, in lower case. A duplicate check reads words with that key (one query) instead of every saved word. The first add after this change also stamps `lookupKey` onto words that were saved before, once.
 
 ### `POST /words/calc { "text" }`
 This writes nothing.
@@ -201,18 +201,27 @@ This writes nothing.
 `400` if the text has no letters A–Z.
 
 ### `POST /words { "text", "notes"?, "preferred"? }`
+One lookup, then one write if it is new.
 `201` → `{ existing: false, word, values }`. If the word is already saved: `200` → `{ existing: true, word: <saved doc>, values }`, and nothing is written.
 
-### `GET /words?cipher=&value=&exclude=&limit=`
-This returns the saved words that have that value.
-- `cipher` is any id or alias from the table, default `ordinal`. `all` matches any cipher, the same as the app's "All" lookup. `reduced` reduces `value` first.
-- `exclude` is optional text for a word to leave out, e.g. the word just looked up.
+### `POST /words/bulk { "words", "notes"?, "preferred"? }`
+`words` is an array of text, or `{ "text", "notes"?, "preferred"? }`. At most **100** words. A longer array is `400` `{ code: "batch_too_large", estimatedReads, estimatedWrites }` and the word list is not read. Shared `notes` and `preferred` apply where a word does not set its own.
+Each word costs about one read. Today's ceiling is 20,000 word reads and 20,000 word writes (`config/usageRules.wordDailyReads` / `wordDailyWrites` can lower it). Over that is `402` `{ code: "cost_limit" }` with `Retry-After`, and again the word list is not read.
+`201` if any word was added, otherwise `200` → `{ count, added, existing, errors, estimatedReads, estimatedWrites, results: [{ text, status: "added"|"existing"|"error", word?, error? }] }`.
+A repeat inside the same request is `existing`. One bad word does not stop the rest.
 
-`200` → `{ cipher, value, reducedTo?, total, count, words: [ doc + matchOn: [cipher ids] ] }`, sorted A–Z.
+### `GET /words?cursor=&limit=`
+Newest first, one page at a time (default 50, max 200). Pass `cursor` from `nextCursor` to read the next page. `200` → `{ count, words, scanned, nextCursor? }`. This does not load the whole list.
 
-### `GET /words?q=&limit=`
-This searches the phrase and notes text, ignoring case. Leave out `q` to list every word, newest first. `200` → `{ q?, total, count, words }`.
-Default `limit` is 50, max 200.
+### `GET /words?cipher=&value=&exclude=&limit=&cursor=`
+Matches on **this page only**. Follow `nextCursor` to keep looking. `cipher` is any id or alias from the table, default `ordinal`. `all` matches any cipher. `reduced` reduces `value` first. `exclude` is optional text to leave out.
+`200` → `{ cipher, value, reducedTo?, count, words: [ doc + matchOn ], scanned, nextCursor? }`.
+
+### `GET /words?q=&limit=&cursor=`
+Searches the phrase and notes on this page, ignoring case. Same paging as the plain list.
+
+### `PATCH /words/:id { "notes" }`
+Updates notes on that saved word. `200` → `{ word }`. `404` if it is missing. The numbers are left as they are.
 
 ## Key management (app only)
 These use `Authorization: Bearer <Firebase ID token>` of the signed-in app user, not a bot key.
@@ -222,7 +231,7 @@ These use `Authorization: Bearer <Firebase ID token>` of the signed-in app user,
 
 ## Read cost
 - Every API write (events, attachments, invites, to-dos, words) bumps `users/{uid}/meta/sync` `{ version, lastChanged, lastChangedBy: "bot", lastWhat }` unless `?nosync=1`.
-- `allWords()` is cached per function instance for 5 minutes and cleared by `POST /words`.
+- A word add looks up `lookupKey` (one query). It does not read the whole word list. `POST /words/bulk` is capped at 100 words, and a longer sheet is refused before that lookup.
 
 ## Admin API
 Separate from user bot keys. Send `Authorization: Bearer <Firebase ID token>` of Sarah (`sarah.v.phillips@googlemail.com`) or an email on `app/staff.admins`, or `Bearer tla_…` (an admin key created in the app). Admin routes do not spend the user's allowance.

@@ -1,6 +1,7 @@
 const { createRateLimiter } = require('./lib/rateLimit');
 const { pointsFor, allowanceCap, assessCharge, actionForMethod, DEFAULT_RULES } = require('./lib/allowance');
 const { ukDay, nextMidnight } = require('./lib/ukTime');
+const { checkDailyWordBudget, WORD_DAILY_READS, WORD_DAILY_WRITES } = require('./lib/wordBatch');
 
 /**
  * Rate limit (60/min, Retry-After) and daily allowance (402).
@@ -82,9 +83,14 @@ function createGuard(db, HttpError, opts = {}) {
     const usage = usageSnap.exists ? usageSnap.data() : {};
     const ent = entSnap.exists ? entSnap.data() : {};
     const stored = bot.date === day ? Number(bot.points) || 0 : 0;
+    const storedReads = bot.date === day ? Number(bot.wordReads) || 0 : 0;
+    const storedWrites = bot.date === day ? Number(bot.wordWrites) || 0 : 0;
+    const sameDay = cached && cached.date === day;
     const slot = {
       date: day,
-      points: cached && cached.date === day ? Math.max(stored, cached.points) : stored,
+      points: sameDay ? Math.max(stored, cached.points) : stored,
+      wordReads: sameDay ? Math.max(storedReads, cached.wordReads || 0) : storedReads,
+      wordWrites: sameDay ? Math.max(storedWrites, cached.wordWrites || 0) : storedWrites,
       cap: allowanceCap(cfg, ent, usage),
       loadedAt: Date.now(),
       dirty: 0,
@@ -147,7 +153,80 @@ function createGuard(db, HttpError, opts = {}) {
     }
   }
 
-  return { enforceRate, enforceAllowance };
+  function wordCaps(cfg) {
+    const reads = Number(cfg && cfg.wordDailyReads);
+    const writes = Number(cfg && cfg.wordDailyWrites);
+    return {
+      reads: reads > 0 ? reads : WORD_DAILY_READS,
+      writes: writes > 0 ? writes : WORD_DAILY_WRITES,
+    };
+  }
+
+  async function writeWordBudget(uid, slot) {
+    await db.collection('users').doc(uid).collection('meta').doc('botUsage').set({
+      date: slot.date,
+      wordReads: slot.wordReads || 0,
+      wordWrites: slot.wordWrites || 0,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  }
+
+  /** Refuse before the word list is read when today's Word to Int budget cannot cover the estimate. */
+  async function reserveWordOps(uid, reads, writes) {
+    const nReads = Math.max(0, Number(reads) || 0);
+    const nWrites = Math.max(0, Number(writes) || 0);
+    if (!nReads && !nWrites) return;
+    const cfg = await rules();
+    const slot = await loadSlot(uid, cfg);
+    const verdict = checkDailyWordBudget({
+      usedReads: slot.wordReads || 0,
+      usedWrites: slot.wordWrites || 0,
+      reads: nReads,
+      writes: nWrites,
+      caps: wordCaps(cfg),
+    });
+    if (!verdict.ok) {
+      const reset = nextMidnight(new Date(), cfg.resetTz || 'Europe/London');
+      const err = new HttpError(402, verdict.error);
+      err.retryAfter = reset.retryAfter;
+      err.code = 'cost_limit';
+      err.details = {
+        usedReads: verdict.usedReads,
+        usedWrites: verdict.usedWrites,
+        estimatedReads: verdict.estimatedReads,
+        estimatedWrites: verdict.estimatedWrites,
+        readCap: verdict.readCap,
+        writeCap: verdict.writeCap,
+        resetsAt: reset.resetsAt,
+      };
+      throw err;
+    }
+    slot.wordReads = verdict.usedReads;
+    slot.wordWrites = verdict.usedWrites;
+    try {
+      await writeWordBudget(uid, slot);
+    } catch (e) {
+      console.warn('word budget flush failed', e && e.message);
+    }
+  }
+
+  /** Count a read that already happened (the one-time lookup backfill). Does not refuse. */
+  async function noteWordOps(uid, reads, writes) {
+    const nReads = Math.max(0, Number(reads) || 0);
+    const nWrites = Math.max(0, Number(writes) || 0);
+    if (!nReads && !nWrites) return;
+    const cfg = await rules();
+    const slot = await loadSlot(uid, cfg);
+    slot.wordReads = (slot.wordReads || 0) + nReads;
+    slot.wordWrites = (slot.wordWrites || 0) + nWrites;
+    try {
+      await writeWordBudget(uid, slot);
+    } catch (e) {
+      console.warn('word budget note failed', e && e.message);
+    }
+  }
+
+  return { enforceRate, enforceAllowance, reserveWordOps, noteWordOps };
 }
 
 module.exports = { createGuard };

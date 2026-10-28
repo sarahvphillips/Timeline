@@ -11,7 +11,7 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test": "node --test",
-    "lint": "node --check index.js && node --check guard.js && node --check sync.js && node --check adminRoutes.js && node --check lib/allowance.js && node --check lib/rateLimit.js && node --check lib/recap.js && node --check lib/ukTime.js && node --check lib/profile.js && node --check lib/keys.js && node --check lib/delta.js"
+    "lint": "node --check index.js && node --check guard.js && node --check sync.js && node --check adminRoutes.js && node --check lib/allowance.js && node --check lib/rateLimit.js && node --check lib/recap.js && node --check lib/ukTime.js && node --check lib/profile.js && node --check lib/keys.js && node --check lib/delta.js && node --check lib/wordBatch.js"
   },
   "dependencies": {
     "busboy": "^1.6.0",
