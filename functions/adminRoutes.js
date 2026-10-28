@@ -197,12 +197,15 @@ function registerAdmin(app, ctx) {
     const actor = await requireAdmin(req);
     const uid = await resolveUid(req);
     const body = req.body || {};
+    const entRef = db.collection('users').doc(uid).collection('entitlements').doc('main');
+    const prevSnap = await entRef.get();
+    const prev = prevSnap.exists ? prevSnap.data() || {} : {};
     const ent = { updatedAt: new Date().toISOString(), updatedBy: actor.email };
     if (body.dailyAllowance != null) ent.dailyAllowance = Math.max(0, Number(body.dailyAllowance) || 0);
     if (body.premium != null) ent.premium = !!body.premium;
     if (body.allowanceExempt != null) ent.allowanceExempt = !!body.allowanceExempt;
     if (body.testAccount != null) ent.testAccount = !!body.testAccount;
-    await db.collection('users').doc(uid).collection('entitlements').doc('main').set(ent, { merge: true });
+    await entRef.set(ent, { merge: true });
     if (body.adsUnlocked != null) {
       const n = Math.max(0, Number(body.adsUnlocked) || 0);
       await db.collection('users').doc(uid).collection('meta').doc('usage').set({
@@ -211,7 +214,17 @@ function registerAdmin(app, ctx) {
         unlocksUpdatedBy: actor.email,
       }, { merge: true });
     }
-    await logAction(actor, 'user-limits-update', { uid, ...body, adsUnlocked: body.adsUnlocked });
+    await logAction(actor, 'user-limits-update', {
+      uid,
+      old: {
+        allowanceExempt: !!prev.allowanceExempt,
+        dailyAllowance: prev.dailyAllowance == null ? null : Number(prev.dailyAllowance) || 0,
+      },
+      next: {
+        allowanceExempt: ent.allowanceExempt != null ? ent.allowanceExempt : !!prev.allowanceExempt,
+        dailyAllowance: ent.dailyAllowance != null ? ent.dailyAllowance : (prev.dailyAllowance == null ? null : Number(prev.dailyAllowance) || 0),
+      },
+    });
     res.json({ uid, entitlements: ent, adsUnlocked: body.adsUnlocked != null ? Math.max(0, Number(body.adsUnlocked) || 0) : undefined });
   }));
 

@@ -30,6 +30,7 @@ import {
   sortWordNumberList,
   formatAddedAt,
   WORD_NUMBERS_FIRESTORE_SYNC_ENABLED,
+  wordLoadStatus,
   getNumberSearchList,
   addNumberSearch,
   addWordSearch,
@@ -145,6 +146,7 @@ function WordToIntScreen({ navigation, route }) {
   const [list, setList] = useState([]);
   const [spans, setSpans] = useState([]);
   const [listLoading, setListLoading] = useState(true);
+  const [wordHint, setWordHint] = useState('');
   const [saving, setSaving] = useState(false);
   const [lookupNumber, setLookupNumber] = useState('');
   const [dupNotice, setDupNotice] = useState(false);
@@ -221,6 +223,16 @@ function WordToIntScreen({ navigation, route }) {
       setSpans(Array.isArray(savedSpans) ? savedSpans : []);
       setSortMode(savedSort);
       if (Array.isArray(searches)) setSearchList(searches);
+      const status = wordLoadStatus();
+      if (status.cloud === 'skipped') {
+        setWordHint(`Cloud load skipped. Today's allowance is used up, so the saved words were not downloaded. On this phone: ${status.onPhone}. In Admin, open My testing allowance, turn Exempt on, save, then come back here.`);
+      } else if (status.cloud === 'failed') {
+        setWordHint(`Cloud read failed (${status.reason || 'error'}). On this phone: ${status.onPhone}.`);
+      } else if (status.cloud === 'read' && !status.cloudCount && !(words && words.length)) {
+        setWordHint('Cloud read finished and returned no words for this sign-in.');
+      } else {
+        setWordHint('');
+      }
     } finally {
       setListLoading(false);
     }
@@ -1152,7 +1164,9 @@ function WordToIntScreen({ navigation, route }) {
           </Text>
         </View>
       ) : list.length === 0 ? (
-        <Text style={styles.empty}>No saved numbers yet. Convert a phrase and save it here.</Text>
+        <Text style={styles.empty}>
+          {wordHint || 'No saved numbers yet. Convert a phrase and save it here.'}
+        </Text>
       ) : (
         sortedList.filter((item) => item && item.id).map((item) => (
           <View

@@ -29,7 +29,7 @@ import {
 import { adminGetRewardsByEmail, adminSetRewards, perkLabel } from '../services/rewardsService';
 import { listCreditFeedback, creditFeedbackItems } from '../services/creditFeedback';
 import { useTheme } from '../themeContext';
-import { allowanceStatus, loadUsageRules, saveUsageRules } from '../services/usageService';
+import { allowanceStatus, loadUsageRules, refreshAllowance, saveUsageRules } from '../services/usageService';
 import {
   createAdminKey,
   lookupAccount,
@@ -59,6 +59,9 @@ export default function AdminScreen({ navigation, route }) {
   const [feedbackNote, setFeedbackNote] = useState('');
   const [allowance, setAllowance] = useState('500');
   const [usageNote, setUsageNote] = useState('');
+  const [mineExempt, setMineExempt] = useState(false);
+  const [mineCap, setMineCap] = useState('');
+  const [mineNote, setMineNote] = useState('');
   const [adminKey, setAdminKey] = useState('');
   const [limitEmail, setLimitEmail] = useState('');
   const [limitRow, setLimitRow] = useState(null);
@@ -249,6 +252,78 @@ export default function AdminScreen({ navigation, route }) {
         <Text style={styles.primaryText}>Check today's usage</Text>
       </TouchableOpacity>
       {usageNote ? <Text style={styles.meta}>{usageNote}</Text> : null}
+
+      <Text style={styles.section}>My testing allowance</Text>
+      <Text style={styles.intro}>
+        Only this signed-in admin. It does not change the 500-point cap for everyone else.
+        Exempt turns the cap off. A number replaces the global cap for you. Empty the box to use the global cap again.
+      </Text>
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={() => setMineExempt((on) => !on)}
+      >
+        <Text style={styles.primaryText}>{mineExempt ? 'Exempt: on' : 'Exempt: off'}</Text>
+      </TouchableOpacity>
+      <TextInput
+        style={styles.input}
+        value={mineCap}
+        onChangeText={setMineCap}
+        keyboardType="number-pad"
+        placeholder="My daily allowance (testing)"
+        placeholderTextColor={colors.faint}
+      />
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={async () => {
+          const uid = auth.currentUser?.uid;
+          if (!uid) {
+            setMineNote('Sign in first.');
+            return;
+          }
+          const text = mineCap.trim();
+          const dailyAllowance = text === '' ? 0 : Math.floor(Number(text));
+          if (text !== '' && (!Number.isFinite(dailyAllowance) || dailyAllowance < 1)) {
+            setMineNote('Enter a whole number above 0, or leave the box empty.');
+            return;
+          }
+          try {
+            const before = await getUserLimits(uid);
+            const prev = before.entitlements || {};
+            await setUserLimits(uid, { allowanceExempt: mineExempt, dailyAllowance });
+            const status = await refreshAllowance();
+            const capLabel = status.exempt ? 'exempt' : String(status.allowance);
+            setMineNote(
+              `Saved. Was ${prev.allowanceExempt ? 'exempt' : (prev.dailyAllowance || 'global')}. Now ${capLabel}. Used today ${status.used}.`
+            );
+          } catch (e) {
+            setMineNote(e?.message || 'Could not save. The admin API must be deployed.');
+          }
+        }}
+      >
+        <Text style={styles.primaryText}>Save my testing allowance</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.primary}
+        onPress={async () => {
+          const uid = auth.currentUser?.uid;
+          if (!uid) return;
+          try {
+            const limits = await getUserLimits(uid);
+            const ent = limits.entitlements || {};
+            setMineExempt(!!ent.allowanceExempt);
+            setMineCap(ent.dailyAllowance ? String(ent.dailyAllowance) : '');
+            const status = await refreshAllowance();
+            setMineNote(status.exempt
+              ? `No cap. Used today ${status.used}.`
+              : `Today ${status.used} of ${status.allowance}.`);
+          } catch (e) {
+            setMineNote(e?.message || 'Could not read your allowance.');
+          }
+        }}
+      >
+        <Text style={styles.primaryText}>Load my testing allowance</Text>
+      </TouchableOpacity>
+      {mineNote ? <Text style={styles.meta}>{mineNote}</Text> : null}
 
       <Text style={styles.section}>Admin bot key</Text>
       <Text style={styles.intro}>

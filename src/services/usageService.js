@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { allowanceCap } from './allowanceCap';
 
 const DEFAULT_RULES = {
   dailyAllowance: 500,
@@ -13,6 +14,8 @@ const DEFAULT_RULES = {
 };
 
 let rulesCache = null;
+let entitlementsCache = null;
+let entitlementsUid = undefined;
 let usage = emptyUsage();
 let lastFlush = 0;
 
@@ -60,10 +63,22 @@ export function usagePoints(row = usage, rules = rulesCache || DEFAULT_RULES) {
   return reads * (Number(rules.wR) || 1) + writes * (Number(rules.wW) || 3) + deletes * (Number(rules.wD) || 1);
 }
 
+function currentCap() {
+  const rules = rulesCache || DEFAULT_RULES;
+  const decision = allowanceCap({
+    rules,
+    entitlements: entitlementsCache || {},
+    adsUnlocked: usage.adsUnlocked,
+    adUnlockPoints: rules.adUnlockPoints,
+  });
+  return decision;
+}
+
 export function heavySyncPaused() {
   rollDay();
-  const allowance = Number((rulesCache || DEFAULT_RULES).dailyAllowance) || 500;
-  return usagePoints() >= allowance;
+  const decision = currentCap();
+  if (decision.exempt || decision.cap === Infinity) return false;
+  return usagePoints() >= decision.cap;
 }
 
 export async function loadUsageRules() {
@@ -96,12 +111,55 @@ export async function saveUsageRules(next) {
   return rules;
 }
 
+export async function loadEntitlements(force) {
+  const uid = auth.currentUser?.uid || null;
+  if (!force && entitlementsCache && entitlementsUid === uid) return entitlementsCache;
+  entitlementsUid = uid;
+  if (!uid) {
+    entitlementsCache = {};
+    return entitlementsCache;
+  }
+  try {
+    const snap = await getDoc(doc(db, 'users', uid, 'entitlements', 'main'));
+    noteRead(1);
+    entitlementsCache = snap.exists() ? snap.data() || {} : {};
+  } catch {
+    entitlementsCache = entitlementsCache || {};
+  }
+  return entitlementsCache;
+}
+
+/** Re-read rules and this user's entitlement. Call after an admin changes the cap. */
+export async function refreshAllowance() {
+  rulesCache = null;
+  entitlementsCache = null;
+  await loadUsageRules();
+  await loadEntitlements(true);
+  return allowanceStatus();
+}
+
 export async function allowanceStatus() {
   const rules = await loadUsageRules();
+  const entitlements = await loadEntitlements(false);
   rollDay();
   const used = usagePoints(usage, rules);
-  const allowance = Number(rules.dailyAllowance) || 500;
-  return { over: used >= allowance, used, allowance, reads: usage.reads, writes: usage.writes, deletes: usage.deletes };
+  const decision = allowanceCap({
+    rules,
+    entitlements,
+    adsUnlocked: usage.adsUnlocked,
+    adUnlockPoints: rules.adUnlockPoints,
+  });
+  const allowance = decision.cap === Infinity ? null : decision.cap;
+  return {
+    over: allowance != null && used >= allowance,
+    used,
+    allowance,
+    exempt: decision.exempt,
+    testing: decision.testing,
+    reads: usage.reads,
+    writes: usage.writes,
+    deletes: usage.deletes,
+  };
 }
 
 export async function flushUsage() {

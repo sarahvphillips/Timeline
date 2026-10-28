@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { collection, doc, getDocs, runTransaction } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { heavySyncPaused, noteRead } from './usageService';
+import { heavySyncPaused, noteRead, refreshAllowance } from './usageService';
 import { bumpSync, fetchUpdatedSince, fullSyncFresh, readSyncMeta } from './syncMeta';
 
 const LEGACY_WORD_KEY = '@word_to_int_list';
@@ -525,9 +525,19 @@ export async function syncWordNumbersFromCloud(uid) {
  * If signed in and WORD_NUMBERS_FIRESTORE_SYNC_ENABLED, sync from Firestore.
  * Otherwise per-uid local cache only. Logged out uses guest cache only.
  */
+let lastWordLoad = { onPhone: 0, cloud: 'local', cloudCount: null, reason: '' };
+
+export function wordLoadStatus() {
+  return lastWordLoad;
+}
+
+function rememberWordLoad(partial) {
+  lastWordLoad = { onPhone: 0, cloud: 'local', cloudCount: null, reason: '', ...partial };
+}
+
 export async function getWordNumbers(force) {
   const uid = currentUid() || null;
-  if (!force && sessionWords && sessionWordsUid === uid) return sessionWords;
+  if (!force && sessionWords && sessionWords.length && sessionWordsUid === uid) return sessionWords;
   const list = await loadWordNumbersFresh();
   if ((currentUid() || null) === uid) {
     sessionWords = list;
@@ -539,6 +549,11 @@ export async function getWordNumbers(force) {
 async function loadWordNumbersFresh() {
   const uid = currentUid();
   const epoch = authEpoch;
+  try {
+    await refreshAllowance();
+  } catch (_) {
+    /* the global cap still applies */
+  }
   try {
     if (uid) await migrateLegacyWordNumbersOnce(uid);
     if (uid) await adoptUnscopedWords(uid);
@@ -564,9 +579,15 @@ async function loadWordNumbersFresh() {
     const versionSame = remoteMeta && savedVer && String(remoteMeta.version) === String(savedVer);
     if (versionSame && local.length && (fullFresh || heavySyncPaused())) {
       const cleaned = await applyDedupe(local, uid, epoch);
-      return sortWordNumbers(cleaned.filter((item) => !item.deleted));
+      const shown = sortWordNumbers(cleaned.filter((item) => !item.deleted));
+      rememberWordLoad({
+        onPhone: shown.length,
+        cloud: heavySyncPaused() ? 'skipped' : 'local',
+        reason: heavySyncPaused() ? 'allowance' : '',
+      });
+      return shown;
     }
-    if (remoteMeta && savedVer && since && local.length && String(remoteMeta.version) !== String(savedVer)) {
+    if (!heavySyncPaused() && remoteMeta && savedVer && since && local.length && String(remoteMeta.version) !== String(savedVer)) {
       try {
         const cursorAt = new Date().toISOString();
         const changed = await fetchUpdatedSince(collection(db, 'users', uid, 'wordNumbers'), since);
@@ -592,14 +613,22 @@ async function loadWordNumbersFresh() {
         console.warn('Word delta skipped', e);
       }
     }
-    if (heavySyncPaused() && local.length) {
-      return sortWordNumbers(local.filter((item) => !item.deleted));
+    if (heavySyncPaused()) {
+      const shown = sortWordNumbers(local.filter((item) => !item.deleted));
+      rememberWordLoad({ onPhone: shown.length, cloud: 'skipped', reason: 'allowance' });
+      return shown;
     }
 
     let remote = [];
     try {
       remote = await fetchWordNumbersFromFirebase();
+      rememberWordLoad({ onPhone: local.length, cloud: 'read', cloudCount: remote.length, reason: '' });
     } catch (e) {
+      rememberWordLoad({
+        onPhone: local.length,
+        cloud: 'failed',
+        reason: e?.message || 'Cloud read failed',
+      });
       console.warn('Firebase word-to-int load skipped', e);
     }
     if (!isScopeCurrent(uid, epoch)) return sortWordNumbers(local);

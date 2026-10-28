@@ -174,9 +174,13 @@ export default function HomeScreen({ navigation, user, onLogout }) {
       .then((status) => {
         if (cancelled) return;
         setAllowanceNote(
-          status.over
-            ? `You've used today's free allowance (${status.used} of ${status.allowance}). Events already on this phone still open. A full reload waits until tomorrow.`
-            : ''
+          status.exempt
+            ? 'Allowance: exempt (testing)'
+            : status.testing
+              ? `Allowance: ${status.allowance} (testing). Used ${status.used} today.`
+              : status.over
+                ? `You've used today's free allowance (${status.used} of ${status.allowance}). Events already on this phone still open. A full reload waits until tomorrow.`
+                : ''
         );
       })
       .catch(() => {});
