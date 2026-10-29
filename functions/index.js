@@ -30,7 +30,7 @@ const { decideKeyCreate } = require('./lib/keys');
 const { tombstone } = require('./lib/delta');
 const { foldEvents, encodeCursor, decodeCursor } = require('./lib/recap');
 const { lookupKey, checkBatchSize, classifyWords } = require('./lib/wordBatch');
-const { readIndex } = require('./lib/wordIndex');
+const { readIndex, matchByNumber, listReadCost } = require('./lib/wordIndex');
 const { createWordIndexIo } = require('./wordIndexIo');
 
 initializeApp();
@@ -1493,50 +1493,70 @@ app.post('/words/bulk', wrap(async (req, res) => {
   });
 }));
 
-// GET /words?cursor=  pages newest first. A value or q search only looks at this page.
+// GET /words pages by document id. ?number= or ?value= uses the word index (1 read).
 app.get('/words', wrap(async (req, res) => {
+  const numberRaw = req.query.number != null && String(req.query.number).trim() !== ''
+    ? req.query.number
+    : (req.query.value != null && String(req.query.value).trim() !== '' && !req.query.q ? req.query.value : null);
+  if (numberRaw != null) {
+    const n = Number(String(numberRaw).trim());
+    if (!Number.isFinite(n)) throw new HttpError(400, 'number must be a number');
+    let cipher = 'ordinal';
+    try {
+      cipher = parseCipher(req.query.cipher || 'ordinal');
+    } catch (e) {
+      throw new HttpError(400, e.message || 'cipher is not recognised');
+    }
+    if (cipher === 'all') throw new HttpError(400, 'number lookup needs one cipher, not all');
+    await guard.reserveWordOps(req.uid, 1, 0);
+    const data = await wordIo.readIndexDoc(req.uid);
+    const index = readIndex(data);
+    if (!index.seeded) {
+      const err = new HttpError(409, 'Word index is not built yet. POST /words/index/rebuild once, then look up a number.');
+      err.code = 'index_not_ready';
+      throw err;
+    }
+    const found = matchByNumber(index.map, n, (key) => {
+      const scored = convertPhrase(key);
+      if (cipher === 'pythagorean') return scored.pythagorean;
+      if (cipher === 'reverse') return scored.reverse;
+      if (cipher === 'reduced') return scored.reducedOrdinal.value;
+      if (cipher === 'hashcode') return scored.hashCode;
+      return scored.ordinal;
+    });
+    return res.json({
+      number: n,
+      cipher,
+      count: found.matches.length,
+      reads: found.reads,
+      matches: found.matches,
+    });
+  }
+
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), MAX_LIST);
-  const rawValue = req.query.value;
   const q = String(req.query.q || '').trim();
   const cursor = String(req.query.cursor || '').trim();
-  let query = wordsCol(req.uid).orderBy('updatedAt', 'desc');
-  if (cursor) query = query.startAfter(cursor);
-  const snap = await query.limit(limit).get();
+  await guard.reserveWordOps(req.uid, listReadCost(limit, limit).reads, 0);
+  let snap;
+  try {
+    let query = wordIo.wordsCol(req.uid).orderBy(FieldPath.documentId());
+    if (cursor) query = query.startAfter(cursor);
+    snap = await query.limit(limit).get();
+  } catch (e) {
+    const err = new HttpError(503, `Could not read the word list. ${e && e.message ? e.message : 'Try again.'}`);
+    err.code = 'words_unavailable';
+    throw err;
+  }
   let rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((row) => !row.deleted);
-  const out = { count: 0, words: [] };
-  if (snap.size === limit) {
-    const last = snap.docs[snap.docs.length - 1];
-    const stamp = String((last.data() || {}).updatedAt || '');
-    if (stamp) out.nextCursor = stamp;
-  }
-  if (rawValue !== undefined && String(rawValue).trim() !== '') {
-    const n = Number(String(rawValue).trim());
-    if (Number.isNaN(n)) throw new HttpError(400, 'value must be a number');
-    const cipher = parseCipher(req.query.cipher);
-    const reducedTo = cipher === 'reduced' ? reduceNumber(n).value : null;
-    const exclude = String(req.query.exclude || '').trim();
-    const matched = [];
-    rows.forEach((entry) => {
-      if (exclude && findSavedPhrase([entry], exclude)) return;
-      const hits = wordHits(entry, n, cipher, reducedTo);
-      if (hits.length) matched.push({ ...entry, matchOn: hits });
-    });
-    out.cipher = cipher;
-    out.value = n;
-    if (reducedTo != null) out.reducedTo = reducedTo;
-    out.count = matched.length;
-    out.words = matched;
-    out.scanned = snap.size;
-    return res.json(out);
-  }
+  const out = { count: 0, words: [], scanned: snap.size, reads: snap.size };
+  if (snap.size === limit) out.nextCursor = snap.docs[snap.docs.length - 1].id;
   if (q) {
     const key = phraseKey(q);
-    rows = rows.filter((e) => phraseKey(e.phrase).includes(key) || String(e.notes || '').toLowerCase().includes(key));
+    rows = rows.filter((entry) => phraseKey(entry.phrase).includes(key) || String(entry.notes || '').toLowerCase().includes(key));
     out.q = q;
   }
   out.count = rows.length;
   out.words = rows;
-  out.scanned = snap.size;
   res.json(out);
 }));
 

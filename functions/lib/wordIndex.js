@@ -209,6 +209,32 @@ function rebuildEntries(docs, now) {
   return { ok: true, indexDoc, count: indexDoc.count, bytes: indexDoc.bytes };
 }
 
+function listReadCost(total, limit) {
+  const count = Math.max(0, Math.floor(Number(total) || 0));
+  const page = Math.max(1, Math.floor(Number(limit) || 1));
+  return { reads: Math.min(count, page), writes: 0 };
+}
+
+/** One index read, then match in memory. Does not read each word document. */
+function matchByNumber(entries, number, score) {
+  const target = Number(number);
+  const matches = [];
+  const list = entries instanceof Map
+    ? Array.from(entries.entries()).map(([k, id]) => ({ k, id }))
+    : (entries || []);
+  list.forEach((entry) => {
+    if (!entry || !entry.k || !entry.id) return;
+    let value;
+    try {
+      value = score(entry.k, entry);
+    } catch (_) {
+      return;
+    }
+    if (value === target) matches.push({ id: String(entry.id), key: String(entry.k), number: value });
+  });
+  return { reads: 1, writes: 0, matches };
+}
+
 module.exports = {
   INDEX_BYTE_CAP,
   estimateIndexBytes,
@@ -220,4 +246,6 @@ module.exports = {
   commitRename,
   rebuildEntries,
   keyForId,
+  listReadCost,
+  matchByNumber,
 };

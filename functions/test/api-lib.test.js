@@ -8,7 +8,7 @@ const { dobToIso, publicProfile } = require('../lib/profile');
 const { decideKeyCreate } = require('../lib/keys');
 const { applyDelta, tombstone } = require('../lib/delta');
 const { lookupKey, checkBatchSize, checkDailyWordBudget, classifyWords, WORD_BULK_CAP } = require('../lib/wordBatch');
-const { commitBulk, commitDelete, rebuildEntries, packIndex } = require('../lib/wordIndex');
+const { commitBulk, commitDelete, rebuildEntries, packIndex, listReadCost, matchByNumber } = require('../lib/wordIndex');
 
 test('uk day follows Europe/London, including BST', () => {
   assert.equal(ukDay(new Date('2026-06-15T23:30:00Z')), '2026-06-16');
@@ -288,4 +288,24 @@ test('delete removes the key and rebuild matches the kept words', async () => {
   assert.equal(rebuilt.ok, true);
   assert.equal(rebuilt.count, 1);
   assert.equal(rebuilt.indexDoc.entries[0].id, 'b1');
+});
+
+test('a list page of 2177 words reads one page, and a number lookup reads the index once', () => {
+  assert.equal(listReadCost(2177, 50).reads, 50);
+  assert.equal(listReadCost(2177, 50).writes, 0);
+  const entries = [{ k: 'a', id: 'one' }];
+  for (let i = 0; i < 2176; i += 1) entries.push({ k: `word ${i}`, id: `id-${i}` });
+  const found = matchByNumber(entries, 1, (key) => {
+    let sum = 0;
+    for (const ch of key) {
+      const code = ch.charCodeAt(0);
+      if (code >= 97 && code <= 122) sum += code - 96;
+    }
+    return sum;
+  });
+  assert.equal(found.reads, 1);
+  assert.equal(found.writes, 0);
+  assert.equal(found.matches.length, 1);
+  assert.equal(found.matches[0].id, 'one');
+  assert.equal(found.matches[0].key, 'a');
 });

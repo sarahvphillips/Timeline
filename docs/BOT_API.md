@@ -216,14 +216,13 @@ One transaction reads the index, skips keys already there, and writes the new wo
 `409` `index_not_ready` if the index has not been built. `409` `index_full` if it would pass 800 KB.
 
 ### `GET /words?cursor=&limit=`
-Newest first, one page at a time (default 50, max 200). Pass `cursor` from `nextCursor` to read the next page. `200` → `{ count, words, scanned, nextCursor? }`. This does not load the whole list.
+One page at a time (default 50, max 200), in document id order. Pass `cursor` from `nextCursor`. A page costs one read per word on that page, not one read per saved word. `200` → `{ count, words, scanned, reads, nextCursor? }`. If the list cannot be read, `503` `{ code: "words_unavailable", error }` instead of a bare 500.
 
-### `GET /words?cipher=&value=&exclude=&limit=&cursor=`
-Matches on **this page only**. Follow `nextCursor` to keep looking. `cipher` is any id or alias from the table, default `ordinal`. `all` matches any cipher. `reduced` reduces `value` first. `exclude` is optional text to leave out.
-`200` → `{ cipher, value, reducedTo?, count, words: [ doc + matchOn ], scanned, nextCursor? }`.
+### `GET /words?number=10` or `?value=10&cipher=ordinal`
+Looks up the number in `meta/wordIndex`. **1 read**, however many words are saved. It does not open each word document. `cipher` defaults to `ordinal`. `200` → `{ number, cipher, count, reads: 1, matches: [{ id, key, number }] }`. `409` `index_not_ready` if the index has not been built.
 
 ### `GET /words?q=&limit=&cursor=`
-Searches the phrase and notes on this page, ignoring case. Same paging as the plain list.
+Searches the phrase and notes on this page only, ignoring case. Same paging as the plain list.
 
 ### `PATCH /words/:id { "notes" }`
 Updates notes. The index stays as it is. `200` → `{ word }`. `404` if it is missing.
