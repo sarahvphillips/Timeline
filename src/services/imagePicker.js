@@ -825,7 +825,17 @@ function rotateQuarterOnWeb(uri) {
   });
 }
 
-/** Next quarter turn. 0, 90, 180, 270. Two taps turns an upside-down photo the right way up. */
+/** Turn the file itself by 90 degree steps. The returned photo is already upright. */
+export async function rotateImageBy(uri, degrees) {
+  const steps = ((Math.round(Number(degrees) / 90) % 4) + 4) % 4;
+  if (!steps) return asImageUri(uri);
+  let current = uri;
+  for (let i = 0; i < steps; i += 1) {
+    current = await rotateImageQuarter(current);
+    if (!current) return '';
+  }
+  return current;
+}
 export function quarterTurn(current) {
   const n = Number(current);
   const base = Number.isFinite(n) ? n : 0;

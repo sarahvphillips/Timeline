@@ -3,7 +3,7 @@ import { Alert, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { asImageUri, quarterTurn } from '../services/imagePicker';
 
 /** One tap adds 90 degrees. The photo file stays as it is; the screen turns it. Tap again if it is still upside down. */
-export default function TurnPhotoButton({ uri, turn = 0, onTurned, label = 'Turn' }) {
+export default function TurnPhotoButton({ uri, turn = 0, onTurned, label = 'Turn', compact = false }) {
   if (uri != null && uri !== '' && !asImageUri(uri)) return null;
 
   const press = () => {
@@ -15,12 +15,12 @@ export default function TurnPhotoButton({ uri, turn = 0, onTurned, label = 'Turn
 
   return (
     <TouchableOpacity
-      style={styles.btn}
+      style={compact ? styles.link : styles.btn}
       onPress={press}
       accessibilityLabel="Turn photo"
       activeOpacity={0.8}
     >
-      <Text style={styles.text}>{label}</Text>
+      <Text style={compact ? styles.linkText : styles.text}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -36,4 +36,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   text: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  link: {
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+  linkText: { color: '#94a3b8', fontSize: 14, fontWeight: '700' },
 });

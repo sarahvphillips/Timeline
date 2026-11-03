@@ -10,6 +10,7 @@ import {
   Modal,
   Pressable,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,7 +26,7 @@ import {
 } from '../services/eventService';
 import { getEventCategories } from '../services/profileService';
 import { getDateFormat, formatDayMonth } from '../services/dateFormat';
-import { pickFromGallery, asImageUri, photoTurnStyle } from '../services/imagePicker';
+import { pickFromGallery, asImageUri, rotateImageBy } from '../services/imagePicker';
 import TurnPhotoButton from '../components/TurnPhotoButton';
 import HomeFab from '../components/HomeFab';
 import SpineKindBlock, { SpineStage } from '../components/SpineKindBlock';
@@ -40,6 +41,67 @@ function yearToLandOn(years) {
   return (past.length ? past[past.length - 1] : years[years.length - 1]).year;
 }
 
+function turnDegrees(turn) {
+  const n = Number(turn);
+  if (!Number.isFinite(n)) return 0;
+  return ((Math.round(n / 90) * 90) % 360 + 360) % 360;
+}
+
+/** Photo stays inside the card. A quarter turn changes the frame instead of spilling over it. */
+function SheetPhoto({ uri, turn }) {
+  const src = asImageUri(uri);
+  const degrees = turnDegrees(turn);
+  const sideways = degrees === 90 || degrees === 270;
+  const [ratio, setRatio] = useState(4 / 3);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    if (!src) return undefined;
+    let on = true;
+    Image.getSize(
+      src,
+      (w, h) => {
+        if (on && w && h) setRatio(w / h);
+      },
+      () => {}
+    );
+    return () => {
+      on = false;
+    };
+  }, [src]);
+
+  if (!src) return null;
+  const aspect = Math.min(Math.max(sideways ? 1 / ratio : ratio, 0.55), 1.9);
+  const turned =
+    sideways && box.w && box.h
+      ? {
+          position: 'absolute',
+          width: box.h,
+          height: box.w,
+          left: (box.w - box.h) / 2,
+          top: (box.h - box.w) / 2,
+          transform: [{ rotate: degrees + 'deg' }],
+        }
+      : {
+          width: '100%',
+          height: '100%',
+          transform: degrees ? [{ rotate: degrees + 'deg' }] : undefined,
+        };
+
+  return (
+    <View
+      style={[styles.sheetPhoto, { aspectRatio: aspect }]}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        const h = e.nativeEvent.layout.height;
+        setBox((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+      }}
+    >
+      <Image source={{ uri: src }} style={turned} resizeMode="cover" />
+    </View>
+  );
+}
+
 export default function YearOverviewScreen({ navigation, route }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -49,6 +111,7 @@ export default function YearOverviewScreen({ navigation, route }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState(null);
+  const [turningId, setTurningId] = useState('');
   const [filterId, setFilterId] = useState(route.params?.filter || 'all');
   const [filters, setFilters] = useState(TIMELINE_FILTERS);
   const [dateFormat, setDateFormat] = useState('dmy');
@@ -389,45 +452,58 @@ export default function YearOverviewScreen({ navigation, route }) {
                       <Text style={styles.blurbOpen}>Open</Text>
                     </View>
                     <Text style={styles.blurbDate}>{b.dateLabel}</Text>
-                    {asImageUri(b.imageUri) ? (
-                      <Image
-                        source={{ uri: asImageUri(b.imageUri) }}
-                        style={[styles.blurbImage, photoTurnStyle(turn)]}
-                      />
-                    ) : null}
+                    {asImageUri(b.imageUri) ? <SheetPhoto uri={b.imageUri} turn={turn} /> : null}
                     <EventLabelChips labels={b.labels} />
                     </TouchableOpacity>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       <TouchableOpacity onPress={() => addPhotoToPreview(b)}>
-                        <Text style={styles.addPhoto}>{b.imageUri ? 'Change photo' : 'Add photo'}</Text>
+                        <Text style={[styles.addPhoto, { marginTop: 0 }]}>{b.imageUri ? 'Change photo' : 'Add photo'}</Text>
                       </TouchableOpacity>
                       {asImageUri(b.imageUri) ? (
                         <TurnPhotoButton
+                          compact
                           uri={b.imageUri}
-                          turn={turn}
-                          onTurned={async (degrees) => {
+                          turn={0}
+                          label={turningId === b.id ? 'Turning…' : 'Turn'}
+                          onTurned={async () => {
+                            if (turningId) return;
                             const ev =
                               (b?.id && events.find((e) => e.id === b.id)) || preview?.item || null;
                             if (!ev) return;
-                            await saveEvent({ ...ev, imageRotation: degrees });
-                            setPreview((cur) =>
-                              cur
-                                ? {
-                                    ...cur,
-                                    item: cur.item?.id === ev.id ? { ...cur.item, imageRotation: degrees } : cur.item,
-                                    blurbs: (cur.blurbs || []).map((row) =>
-                                      row.id === ev.id
-                                        ? {
-                                            ...row,
-                                            imageRotation: degrees,
-                                            event: row.event ? { ...row.event, imageRotation: degrees } : row.event,
-                                          }
-                                        : row
-                                    ),
-                                  }
-                                : cur
-                            );
-                            load();
+                            const already = turnDegrees(turn);
+                            const steps = already ? already + 90 : 90;
+                            setTurningId(ev.id);
+                            try {
+                              const nextUri = await rotateImageBy(asImageUri(b.imageUri), steps);
+                              if (!nextUri) throw new Error('Could not turn that photo.');
+                              const saved = { ...ev, imageUri: nextUri, imageRotation: 0 };
+                              await saveEvent(saved);
+                              setPreview((cur) =>
+                                cur
+                                  ? {
+                                      ...cur,
+                                      item: cur.item?.id === ev.id ? { ...cur.item, imageUri: nextUri, imageRotation: 0 } : cur.item,
+                                      blurbs: (cur.blurbs || []).map((row) =>
+                                        row.id === ev.id
+                                          ? {
+                                              ...row,
+                                              imageUri: nextUri,
+                                              imageRotation: 0,
+                                              event: row.event
+                                                ? { ...row.event, imageUri: nextUri, imageRotation: 0 }
+                                                : row.event,
+                                            }
+                                          : row
+                                      ),
+                                    }
+                                  : cur
+                              );
+                              load();
+                            } catch (e) {
+                              Alert.alert('Could not turn photo', e?.message || 'Try again.');
+                            } finally {
+                              setTurningId('');
+                            }
                           }}
                         />
                       ) : null}
@@ -650,6 +726,14 @@ function screenStyles(c) {
     borderRadius: 10,
     marginTop: 8,
     backgroundColor: c.bg,
+  },
+  sheetPhoto: {
+    width: '100%',
+    maxHeight: 420,
+    borderRadius: 10,
+    marginTop: 8,
+    backgroundColor: c.bg,
+    overflow: 'hidden',
   },
   addPhoto: {
     color: c.muted,
