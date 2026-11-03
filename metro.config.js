@@ -5,8 +5,10 @@ const config = getDefaultConfig(__dirname);
 config.resolver.sourceExts.push('cjs');
 
 const adsStub = path.resolve(__dirname, 'src/shims/emptyAds.js');
-const authNative = path.resolve(__dirname, 'node_modules/@firebase/auth/dist/rn/index.js');
-const defaultResolveRequest = config.resolver.resolveRequest;
+
+function isFirebase(moduleName) {
+  return moduleName === 'firebase' || moduleName.startsWith('firebase/') || moduleName.startsWith('@firebase/');
+}
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (
@@ -16,14 +18,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   ) {
     return { type: 'sourceFile', filePath: adsStub };
   }
-  if (
-    platform !== 'web' &&
-    (moduleName === 'firebase/auth' || moduleName === '@firebase/auth')
-  ) {
-    return { type: 'sourceFile', filePath: authNative };
-  }
-  if (defaultResolveRequest) {
-    return defaultResolveRequest(context, moduleName, platform);
+  if (platform !== 'web' && isFirebase(moduleName)) {
+    return context.resolveRequest(
+      { ...context, unstable_enablePackageExports: false },
+      moduleName,
+      platform
+    );
   }
   return context.resolveRequest(context, moduleName, platform);
 };
