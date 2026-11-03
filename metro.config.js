@@ -3,7 +3,6 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 config.resolver.sourceExts.push('cjs');
-config.resolver.unstable_enablePackageExports = false;
 
 const adsStub = path.resolve(__dirname, 'src/shims/emptyAds.js');
 const defaultResolveRequest = config.resolver.resolveRequest;
