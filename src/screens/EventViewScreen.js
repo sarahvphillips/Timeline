@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useLayoutEffect, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   Alert,
   Linking,
+  PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -78,17 +79,21 @@ export default function EventViewScreen({ navigation, route }) {
   const [fullOpen, setFullOpen] = useState(false);
   const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
   const [event, setEvent] = useState(linkOnly ? null : seed || null);
+  const [activeId, setActiveId] = useState(seed?.id ? String(seed.id) : '');
+  const [order, setOrder] = useState([]);
   const [linkLoading, setLinkLoading] = useState(linkOnly);
   const [linked, setLinked] = useState([]);
   const [linkOpen, setLinkOpen] = useState(false);
   const [sharedFiles, setSharedFiles] = useState([]);
 
   const loadLive = useCallback(async () => {
-    const id = seed?.id;
+    const id = activeId || seed?.id;
     if (!id) return;
     try {
       const all = await getEvents();
-      const live = all.find((row) => String(row.id) === String(id));
+      const sorted = [...(all || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
+      setOrder(sorted);
+      const live = sorted.find((row) => String(row.id) === String(id));
       if (live) setEvent(live);
       const ids = live?.linkedEventIds || seed?.linkedEventIds || [];
       const rows = await eventsByIds(ids);
@@ -98,7 +103,7 @@ export default function EventViewScreen({ navigation, route }) {
     } finally {
       setLinkLoading(false);
     }
-  }, [seed?.id]);
+  }, [activeId, seed?.id, seed?.linkedEventIds]);
 
   useFocusEffect(
     useCallback(() => {
@@ -140,6 +145,45 @@ export default function EventViewScreen({ navigation, route }) {
         ) : null,
     });
   }, [navigation, event]);
+
+  const scrollRef = useRef(null);
+  const orderRef = useRef(order);
+  const eventRef = useRef(event);
+  const blockSwipe = useRef(false);
+  orderRef.current = order;
+  eventRef.current = event;
+  blockSwipe.current = fullOpen || linkOpen;
+
+  const showEvent = useCallback((next) => {
+    if (!next?.id) return;
+    setEvent(next);
+    setActiveId(String(next.id));
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, g) =>
+        !blockSwipe.current && Math.abs(g.dx) > 22 && Math.abs(g.dx) > Math.abs(g.dy) * 1.3,
+      onPanResponderRelease: (_, g) => {
+        const list = orderRef.current || [];
+        const id = String(eventRef.current?.id || '');
+        const index = list.findIndex((row) => String(row.id) === id);
+        if (index < 0) return;
+        if (g.dx <= -56 && list[index + 1]) showEvent(list[index + 1]);
+        else if (g.dx >= 56 && list[index - 1]) showEvent(list[index - 1]);
+      },
+    })
+  ).current;
+
+  const neighborHint = useMemo(() => {
+    const index = order.findIndex((row) => String(row.id) === String(event?.id));
+    if (index < 0 || order.length < 2) return '';
+    if (index === 0) return 'Swipe left for an older event.';
+    if (index === order.length - 1) return 'Swipe right for a newer event.';
+    return 'Swipe left for older, right for newer.';
+  }, [order, event?.id]);
+
   if (!event) {
     return (
       <View style={styles.emptyWrap}>
@@ -205,12 +249,18 @@ export default function EventViewScreen({ navigation, route }) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container} {...pan.panHandlers}>
+    <ScrollView
+      ref={scrollRef}
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
       <View style={[styles.kind, { borderColor: kind.color || '#8b5cf6' }]}>
         <Text style={[styles.kindText, { color: kind.color || '#c4b5fd' }]}>{kind.label || 'Event'}</Text>
       </View>
       <Text style={styles.title}>{event.title || 'Untitled'}</Text>
       <Text style={styles.when}>{formatWhen(event.date, dateFormat)}</Text>
+      {neighborHint ? <Text style={styles.swipeHint}>{neighborHint}</Text> : null}
       {event.source === 'todo' || event.fromTodo ? (
         <Text style={styles.meta}>Started on the to-do list</Text>
       ) : null}
@@ -445,6 +495,7 @@ export default function EventViewScreen({ navigation, route }) {
         }}
       />
     </ScrollView>
+    </View>
   );
 }
 
@@ -465,6 +516,7 @@ function screenStyles(c) {
   kindText: { fontSize: 13, fontWeight: '700' },
   title: { color: c.text, fontSize: 28, fontWeight: '700', lineHeight: 34 },
   when: { color: c.faint, fontSize: 15, marginTop: 8, marginBottom: 16 },
+  swipeHint: { color: c.faint, fontSize: 13, marginTop: -8, marginBottom: 16 },
   photo: {
     width: '100%',
     height: 240,
