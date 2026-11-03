@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getPeople } from '../services/peopleService';
+import { graphStatus } from '../services/peopleDateGraph';
 import { useTheme } from '../themeContext';
 import {
   getSpans,
@@ -188,6 +189,15 @@ export default function PeopleDateGraphScreen() {
   );
 
   const graph = useMemo(() => buildGraph(people, spans, sets), [people, spans, sets]);
+  const status = useMemo(
+    () => graphStatus({
+      peopleOn: sets.includes('people'),
+      spansOn: sets.includes('spans'),
+      people,
+      spans,
+    }),
+    [people, spans, sets]
+  );
   const pos = useMemo(() => placeCircle(graph.nodes, width, height), [graph, width, height]);
   const linkedIds = useMemo(() => {
     const ids = new Set();
@@ -236,10 +246,15 @@ export default function PeopleDateGraphScreen() {
       </View>
       {loading ? (
         <ActivityIndicator color="#93c5fd" style={{ marginTop: 24 }} />
-      ) : graph.nodes.length === 0 ? (
-        <Text style={styles.intro}>Nothing saved for the sets that are on.</Text>
+      ) : !status.showGraph ? (
+        status.lines.map((line) => (
+          <Text key={line} style={styles.intro}>{line}</Text>
+        ))
       ) : (
         <View style={{ width, alignSelf: 'center' }}>
+        {status.lines.map((line) => (
+          <Text key={line} style={styles.intro}>{line}</Text>
+        ))}
         <View style={[styles.canvas, { width, height }]}>
           <View pointerEvents="none" style={{ width, height, transform: [{ scale: zoom }] }}>
           {graph.edges.map((e) => {
@@ -338,7 +353,9 @@ export default function PeopleDateGraphScreen() {
                 </Text>
               ))}
             </View>
-            {people.map((person) => (
+            {people.length === 0 ? (
+              <Text style={styles.intro}>No people on this phone.</Text>
+            ) : people.map((person) => (
               <TouchableOpacity
                 key={person.id}
                 onPress={() => pickRow(person.id)}
@@ -365,7 +382,9 @@ export default function PeopleDateGraphScreen() {
                 </Text>
               ))}
             </View>
-            {spans.map((span) => (
+            {spans.length === 0 ? (
+              <Text style={styles.intro}>No Days between on this phone.</Text>
+            ) : spans.map((span) => (
               <TouchableOpacity
                 key={span.id}
                 onPress={() => pickRow(`span:${span.id}`)}
