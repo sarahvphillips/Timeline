@@ -3,13 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, Pla
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import ImageSourceSheet, { openImageSourcePicker } from '../components/ImageSourceSheet';
-import TurnPhotoButton from '../components/TurnPhotoButton';
 import { photoTurnStyle } from '../services/imagePicker';
 import { MenuCard, MenuRow, MenuSection } from '../components/MenuGroup';
 import StampsRow from '../components/StampsRow';
 import AdBanner from '../components/AdBanner';
 import { useTheme } from '../themeContext';
-import { getProfilePhotoUri, saveProfilePhotoUri, getProfilePhotoTurn, saveProfilePhotoTurn } from '../services/profileService';
+import { getProfilePhotoUri, saveProfilePhotoUri, getProfilePhotoTurn } from '../services/profileService';
 import { getEvents, readVisibleEvents } from '../services/eventService';
 import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
 import { syncAcceptedJoins } from '../services/peopleService';
@@ -258,16 +257,6 @@ export default function HomeScreen({ navigation, user, onLogout }) {
             <Text style={[styles.email, { color: colors.faint }]} numberOfLines={1}>
               {guest ? 'Guest · this device only' : user?.email || 'Signed in'}
             </Text>
-            {photoUri ? (
-              <TurnPhotoButton
-                uri={photoUri}
-                turn={photoTurn}
-                onTurned={async (degrees) => {
-                  await saveProfilePhotoTurn(degrees);
-                  setPhotoTurn(degrees);
-                }}
-              />
-            ) : null}
           </View>
         </View>
         {allowanceNote ? (

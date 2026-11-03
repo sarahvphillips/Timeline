@@ -9,8 +9,11 @@ import {
   Alert,
   Platform,
   Switch,
+  Image,
 } from 'react-native';
 import DateField from '../components/DateField';
+import TurnPhotoButton from '../components/TurnPhotoButton';
+import { photoTurnStyle } from '../services/imagePicker';
 import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useTheme } from '../themeContext';
@@ -33,6 +36,9 @@ import {
   getShowWashInMenu,
   saveShowWashInMenu,
   normalizeHandle,
+  getProfilePhotoUri,
+  getProfilePhotoTurn,
+  saveProfilePhotoTurn,
 } from '../services/profileService';
 import { getShowWorkshop, saveShowWorkshop } from '../services/workshopPrefs';
 import { clearThisAccountLocalCache } from '../services/localCache';
@@ -120,6 +126,8 @@ export default function SettingsScreen({ navigation }) {
   const [referralLine, setReferralLine] = useState('');
   const [dateFormat, setDateFormat] = useState(DATE_FORMAT_DMY);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [photoUri, setPhotoUri] = useState('');
+  const [photoTurn, setPhotoTurn] = useState(0);
 
   const about = appAboutInfo();
 
@@ -188,6 +196,17 @@ export default function SettingsScreen({ navigation }) {
     useCallback(() => {
       load();
       loadSessions();
+      let on = true;
+      Promise.all([getProfilePhotoUri(), getProfilePhotoTurn()])
+        .then(([uri, turn]) => {
+          if (!on) return;
+          setPhotoUri(uri || '');
+          setPhotoTurn(turn || 0);
+        })
+        .catch(() => {});
+      return () => {
+        on = false;
+      };
     }, [load, loadSessions])
   );
 
@@ -466,8 +485,21 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.saveBtnText}>{savingProfile ? 'Saving…' : 'Save profile'}</Text>
         </TouchableOpacity>
         <Text style={[styles.hint, { color: colors.faint }]}>
-          Profile photo is still changed from Home (tap the circle at the top).
+          The picture is still changed from Home, by tapping the circle. Turn it here.
         </Text>
+        {photoUri ? (
+          <View style={styles.photoRow}>
+            <Image source={{ uri: photoUri }} style={[styles.photo, photoTurnStyle(photoTurn)]} />
+            <TurnPhotoButton
+              uri={photoUri}
+              turn={photoTurn}
+              onTurned={async (degrees) => {
+                await saveProfilePhotoTurn(degrees);
+                setPhotoTurn(degrees);
+              }}
+            />
+          </View>
+        ) : null}
 
         <Text style={[styles.section, { color: colors.muted }]}>Who can find you</Text>
         <Text style={[styles.hint, { color: colors.faint }]}>
@@ -1344,6 +1376,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 10,
+  },
+  photoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  photo: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
   },
   input: {
     borderWidth: 1,
