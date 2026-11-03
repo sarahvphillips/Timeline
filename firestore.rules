@@ -246,6 +246,18 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /adminIndex/{docId} {
+      allow read, write: if false;
+    }
+
+    match /activity/{day}/users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create, update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid;
+      allow delete: if false;
+    }
+
     match /tickets/{ticketId} {
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid

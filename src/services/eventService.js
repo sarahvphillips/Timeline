@@ -1,22 +1,22 @@
 import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, setDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, getDocs, deleteDoc, collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { isGuestUid } from './guestSession';
 import { uploadEventImage, deleteEventPhotos } from './photoStorage';
 import { asImageUri, compressImageUri } from './imagePicker';
 import { settleEventDate } from './eventClock';
-import { noteRead, noteWrite, noteDelete, heavySyncPaused, flushUsage } from './usageService';
+import { noteRead, noteWrite, noteDelete, flushUsage, syncBlocked } from './usageService';
 import {
   syncDoc,
   syncKeys,
   readSyncMeta,
   markSyncSeen,
   bumpSync as bumpSyncMeta,
-  fullSyncFresh,
   fetchUpdatedSince,
   clearSyncCache,
 } from './syncMeta';
+import { recentWindowStart, syncPlan } from './syncPlan';
 import { cancelReminder } from './eventReminder';
 
 const LEGACY_EVENTS_KEY = '@timeline_events';
@@ -582,7 +582,7 @@ export async function getEvents(force) {
   const uid = getUid() || null;
   if (!force && sessionEvents && sessionEventsUid === uid) return sessionEvents;
   const stamp = sessionEpoch;
-  const list = await loadEventsFresh();
+  const list = await loadEventsFresh(!!force);
   if (stamp !== sessionEpoch && sessionEvents && sessionEventsUid === (getUid() || null)) return sessionEvents;
   if ((getUid() || null) === uid) {
     sessionEvents = list;
@@ -599,7 +599,7 @@ export async function readVisibleEvents() {
   return local.filter((ev) => eventVisibleForUid(ev, uid));
 }
 
-async function loadEventsFresh() {
+async function loadEventsFresh(force) {
   const uid = getUid();
   if (uid) {
     if (!EVENTS_FIRESTORE_SYNC_ENABLED) {
@@ -609,7 +609,7 @@ async function loadEventsFresh() {
       return local.filter((ev) => eventVisibleForUid(ev, uid));
     }
     try {
-      return await syncEventsFromCloud(uid);
+      return await syncEventsFromCloud(uid, { force });
     } catch (e) {
       console.warn('getEvents: cloud sync failed, using local', e);
       const local = await readLocalEvents(uid);
@@ -626,7 +626,7 @@ async function loadEventsFresh() {
  * Drops/deletes cloud docs whose ownerUid is set to a different account
  * (self-heal for historical cross-account contamination under this uid path).
  */
-export async function syncEventsFromCloud(uid) {
+export async function syncEventsFromCloud(uid, options = {}) {
   if (!uid || isGuestUid(uid)) return readLocalEvents(uid || null);
 
   const epoch = authEpoch;
@@ -646,31 +646,37 @@ export async function syncEventsFromCloud(uid) {
     const localAll = await readLocalEvents(uid);
     const localOwned = localAll.filter((ev) => eventBelongsToUid(ev, uid));
     const keys = syncKeys(uid);
+    const force = !!options.force;
+    const noteOpts = { background: !force };
     let remote = null;
     try {
-      remote = await withTimeout(() => readSyncMeta(uid), 8000);
+      remote = await withTimeout(() => readSyncMeta(uid, noteOpts), 8000);
     } catch (_) {
       remote = null;
     }
     const savedVer = await AsyncStorage.getItem(keys.ver);
     const since = await AsyncStorage.getItem(keys.at);
-    const fullAt = Number((await AsyncStorage.getItem(keys.full)) || 0);
-    const fullFresh = fullSyncFresh(fullAt);
-    const versionSame = remote && savedVer && String(remote.version) === String(savedVer);
-    // Unchanged version: 1 read (the sync doc). A weekly full reload still runs unless the allowance is used up.
-    if (versionSame && localOwned.length && (fullFresh || heavySyncPaused())) {
+    const remoteMeta = remote;
+    const plan = syncPlan({
+      remoteVersion: remoteMeta && remoteMeta.version,
+      savedVersion: savedVer,
+      since,
+      localCount: localOwned.length,
+    });
+    if ((plan.mode === 'local' || plan.mode === 'adopt') && localOwned.length) {
+      if (plan.mode === 'adopt' && remoteMeta && remoteMeta.version) {
+        markSyncSeen(uid, remoteMeta.version, false, new Date().toISOString()).catch(() => {});
+      }
       return sortEvents(localOwned);
     }
     const cursorAt = new Date().toISOString();
-    if (remote && savedVer && since && localOwned.length && String(remote.version) !== String(savedVer)) {
+    if (plan.mode === 'delta' && remoteMeta && !syncBlocked(noteOpts)) {
       const changed = await withTimeout(
-        () => fetchUpdatedSince(eventsCollection(uid), since),
+        () => fetchUpdatedSince(eventsCollection(uid), since, noteOpts),
         12000,
       );
       if (!isScopeCurrent(uid, epoch)) return [];
-      if (changed.capped && !heavySyncPaused()) {
-        // Too many edits for a delta. Fall through to the weekly-style full read.
-      } else {
+      if (!changed.capped) {
         const changedDocs = changed.docs || [];
         const byId = {};
         localOwned.forEach((ev) => {
@@ -698,49 +704,99 @@ export async function syncEventsFromCloud(uid) {
         });
         const mergedDelta = sortEvents(Object.values(byId));
         await writeCache(mergedDelta, uid);
-        await markSyncSeen(uid, remote.version, false, cursorAt);
+        await markSyncSeen(uid, remoteMeta.version, false, cursorAt);
         flushUsage().catch(() => {});
         return mergedDelta;
       }
+      if (!force && localOwned.length) return sortEvents(localOwned);
     }
 
-    if (heavySyncPaused() && localOwned.length) {
+    if (syncBlocked(noteOpts) && localOwned.length) {
       return sortEvents(localOwned);
     }
 
-    const snap = await withTimeout(() => getDocs(eventsCollection(uid)), 12000);
-    if (!isScopeCurrent(uid, epoch)) return [];
-    noteRead(snap.size);
-
-    const cloudEvents = [];
-    const foreignIds = [];
-    snap.forEach((d) => {
-      const data = d.data() || {};
-      // Path is this uid's collection, but ownerUid may still mark a foreign row
-      // left from an earlier bleed — do not show or keep those.
-      if (data.ownerUid && data.ownerUid !== uid) {
-        foreignIds.push(d.id);
-        return;
-      }
-      if (data.deleted) return;
-      cloudEvents.push(normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id));
-    });
-
-    if (foreignIds.length > 0) {
-      await Promise.all(
-        foreignIds.map(async (id) => {
-          try {
-            await deleteDoc(eventDoc(uid, id));
-          } catch (e) {
-            console.warn('Failed to remove foreign ownerUid event from cloud', id, e);
-          }
-        }),
+    const windowStart = recentWindowStart();
+    let cloudEvents = [];
+    let partial = false;
+    try {
+      const recentQuery = query(
+        eventsCollection(uid),
+        where('date', '>=', windowStart),
+        orderBy('date'),
+        limit(400),
       );
+      const recentSnap = await withTimeout(() => getDocs(recentQuery), 12000);
+      noteRead(recentSnap.size, noteOpts);
+      partial = true;
+      recentSnap.forEach((d) => {
+        const data = d.data() || {};
+        if (data.ownerUid && data.ownerUid !== uid) return;
+        if (data.deleted) return;
+        cloudEvents.push(normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id));
+      });
+      const olderKey = `@timeline_events_older_${uid}`;
+      const existingOlder = await AsyncStorage.getItem(olderKey);
+      if (existingOlder !== 'done') await AsyncStorage.setItem(olderKey, windowStart);
+    } catch (windowError) {
+      console.warn('Recent event window failed, reading the saved list', windowError);
+      partial = false;
+      const snap = await withTimeout(() => getDocs(eventsCollection(uid)), 12000);
+      if (!isScopeCurrent(uid, epoch)) return [];
+      noteRead(snap.size, noteOpts);
+      const foreignIds = [];
+      snap.forEach((d) => {
+        const data = d.data() || {};
+        if (data.ownerUid && data.ownerUid !== uid) {
+          foreignIds.push(d.id);
+          return;
+        }
+        if (data.deleted) return;
+        cloudEvents.push(normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id));
+      });
+      if (foreignIds.length > 0) {
+        await Promise.all(
+          foreignIds.map(async (id) => {
+            try {
+              await deleteDoc(eventDoc(uid, id));
+            } catch (e) {
+              console.warn('Failed to remove foreign ownerUid event from cloud', id, e);
+            }
+          }),
+        );
+      }
     }
 
     if (!isScopeCurrent(uid, epoch)) return [];
 
     const local = localOwned;
+
+    if (partial) {
+      const byId = {};
+      local.forEach((ev) => {
+        if (ev?.id) byId[ev.id] = ev;
+      });
+      cloudEvents.forEach((ev) => {
+        if (!ev?.id) return;
+        const prev = byId[ev.id];
+        byId[ev.id] = {
+          ...ev,
+          imageUri: ev.imageUri || (prev && prev.imageUri) || undefined,
+          coverImageUri: ev.coverImageUri || (prev && prev.coverImageUri) || undefined,
+          videoUri: ev.videoUri || (prev && prev.videoUri) || undefined,
+          audioUri: ev.audioUri || (prev && prev.audioUri) || undefined,
+          audioName: ev.audioName || (prev && prev.audioName) || undefined,
+          imageRotation: keptAngle(ev.imageRotation, prev && prev.imageRotation),
+          coverImageRotation: keptAngle(ev.coverImageRotation, prev && prev.coverImageRotation),
+          photoSkip: (prev && prev.photoSkip) || undefined,
+        };
+      });
+      const mergedRecent = sortEvents(Object.values(byId));
+      writeCache(mergedRecent, uid).catch((e) => console.warn('Could not store events on this device', e));
+      const version = remoteMeta && remoteMeta.version ? remoteMeta.version : Date.now();
+      markSyncSeen(uid, version, false).catch(() => {});
+      flushUsage().catch(() => {});
+      return mergedRecent;
+    }
 
     if (cloudEvents.length === 0) {
       if (local.length > 0) {
@@ -831,6 +887,61 @@ export async function syncEventsFromCloud(uid) {
     const localAll = await readLocalEvents(uid);
     return localAll.filter((ev) => eventBelongsToUid(ev, uid));
   }
+}
+
+/** Older events, one page at a time, when the timeline is scrolled back. */
+export async function loadOlderEvents() {
+  const uid = getUid();
+  if (!uid || isGuestUid(uid)) return null;
+  const key = `@timeline_events_older_${uid}`;
+  const cursor = await AsyncStorage.getItem(key);
+  if (!cursor || cursor === 'done') return null;
+  if (syncBlocked({ background: true })) return null;
+  const noteOpts = { background: true };
+  let snap;
+  try {
+    snap = await getDocs(query(
+      eventsCollection(uid),
+      where('date', '<', cursor),
+      orderBy('date', 'desc'),
+      limit(120),
+    ));
+  } catch (e) {
+    console.warn('Older events were not loaded', e);
+    return null;
+  }
+  noteRead(snap.size, noteOpts);
+  const local = await readLocalEvents(uid);
+  const byId = {};
+  local.forEach((ev) => {
+    if (ev?.id) byId[ev.id] = ev;
+  });
+  snap.forEach((d) => {
+    const data = d.data() || {};
+    if (data.ownerUid && data.ownerUid !== uid) return;
+    if (data.deleted) return;
+    const ev = normalizeEvent({ ...data, ownerUid: data.ownerUid || uid }, d.id);
+    const prev = byId[ev.id];
+    byId[ev.id] = {
+      ...ev,
+      imageUri: ev.imageUri || prev?.imageUri || undefined,
+      coverImageUri: ev.coverImageUri || prev?.coverImageUri || undefined,
+      imageRotation: keptAngle(ev.imageRotation, prev && prev.imageRotation),
+      coverImageRotation: keptAngle(ev.coverImageRotation, prev && prev.coverImageRotation),
+    };
+  });
+  const dates = [];
+  snap.forEach((d) => {
+    const value = d.data() && d.data().date;
+    if (value) dates.push(String(value));
+  });
+  dates.sort();
+  const next = snap.size < 120 ? 'done' : (dates[0] || 'done');
+  await AsyncStorage.setItem(key, next);
+  const merged = sortEvents(Object.values(byId));
+  await writeCache(merged, uid);
+  if (sessionEventsUid === uid) sessionEvents = merged;
+  return merged;
 }
 
 export async function saveEvent(event) {

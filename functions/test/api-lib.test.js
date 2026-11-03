@@ -9,6 +9,8 @@ const { decideKeyCreate } = require('../lib/keys');
 const { applyDelta, tombstone } = require('../lib/delta');
 const { lookupKey, checkBatchSize, checkDailyWordBudget, classifyWords, WORD_BULK_CAP } = require('../lib/wordBatch');
 const { commitBulk, commitDelete, rebuildEntries, packIndex, listReadCost, matchByNumber } = require('../lib/wordIndex');
+const { computeAllowance } = require('../lib/allowanceBudget');
+const { maskEmail, changedFields, duplicateGroups, directoryWithinLimit } = require('../lib/discord');
 
 test('uk day follows Europe/London, including BST', () => {
   assert.equal(ukDay(new Date('2026-06-15T23:30:00Z')), '2026-06-16');
@@ -34,9 +36,9 @@ test('allowance points use the rules weights', () => {
 });
 
 test('per-user cap, ad unlocks, and premium', () => {
-  assert.equal(allowanceCap(DEFAULT_RULES, {}, { adsUnlocked: 0 }), 500);
+  assert.equal(allowanceCap(DEFAULT_RULES, {}, { adsUnlocked: 0 }), 2000);
   assert.equal(allowanceCap(DEFAULT_RULES, { dailyAllowance: 40 }, {}), 40);
-  assert.equal(allowanceCap(DEFAULT_RULES, {}, { adsUnlocked: 2 }), 500 + 400);
+  assert.equal(allowanceCap(DEFAULT_RULES, {}, { adsUnlocked: 2 }), 2000 + 400);
   assert.equal(allowanceCap(DEFAULT_RULES, { premium: true }, {}), Infinity);
   const blocked = assessCharge({ points: 500, cost: 1, cap: 500 });
   assert.equal(blocked.ok, false);
@@ -264,6 +266,28 @@ test('duplicates are skipped without word writes', async () => {
   assert.equal(out.byKey.get('alpha').status, 'existing');
   assert.equal(out.byKey.get('alpha').id, 'old-id');
 });
+
+test('allowance follows the active-user budget', () => {
+  const quiet = computeAllowance({ budget: 50000, activeUsers: 1, floor: 300, ceiling: 2000 });
+  assert.equal(quiet.cap, 2000);
+  const busy = computeAllowance({ budget: 50000, activeUsers: 200, floor: 300, ceiling: 2000 });
+  assert.equal(busy.cap, 300);
+  assert.equal(busy.overBudget, true);
+  const mid = computeAllowance({ budget: 50000, activeUsers: 40, floor: 300, ceiling: 2000 });
+  assert.equal(mid.cap, 1250);
+});
+
+test('discord alerts stay short and only watch chosen fields', () => {
+  assert.equal(maskEmail('sarah@gmail.com'), 's***@gmail.com');
+  assert.deepEqual(changedFields({ displayName: 'A', handle: 'a' }, { displayName: 'B', handle: 'a' }, ['displayName', 'handle']), ['displayName']);
+  const groups = duplicateGroups([
+    { uid: 'user-one', emailHash: 'same', emailMask: 'a***@gmail.com', nameKey: 'sam' },
+    { uid: 'user-two', emailHash: 'same', emailMask: 'a***@gmail.com', nameKey: 'sam' },
+  ]);
+  assert.equal(groups.length, 2);
+  assert.equal(directoryWithinLimit({ a: 1 }), true);
+});
+
 
 test('delete removes the key and rebuild matches the kept words', async () => {
   const tx = countingTx(seeded([['alpha', 'a1'], ['beta', 'b1']]));

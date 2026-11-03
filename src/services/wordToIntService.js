@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { collection, doc, getDocs, runTransaction } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { heavySyncPaused, noteRead, refreshAllowance } from './usageService';
-import { bumpSync, fetchUpdatedSince, fullSyncFresh, readSyncMeta } from './syncMeta';
+import { heavySyncPaused, noteRead, syncBlocked } from './usageService';
+import { bumpSync, fetchUpdatedSince, readSyncMeta } from './syncMeta';
+import { syncPlan } from './syncPlan';
 
 const LEGACY_WORD_KEY = '@word_to_int_list';
 const GUEST_WORD_KEY = '@word_to_int_list_guest';
@@ -211,12 +212,12 @@ async function rememberWordSync(uid, version, full, at) {
   await AsyncStorage.multiSet(pairs);
 }
 
-async function fetchWordNumbersFromFirebase() {
+async function fetchWordNumbersFromFirebase(opts) {
   if (!WORD_NUMBERS_FIRESTORE_SYNC_ENABLED) return [];
   const uid = currentUid();
   if (!uid) return [];
   const snap = await getDocs(collection(db, 'users', uid, 'wordNumbers'));
-  noteRead(snap.size);
+  noteRead(snap.size, opts);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((row) => !row.deleted);
 }
 
@@ -538,7 +539,7 @@ function rememberWordLoad(partial) {
 export async function getWordNumbers(force) {
   const uid = currentUid() || null;
   if (!force && sessionWords && sessionWords.length && sessionWordsUid === uid) return sessionWords;
-  const list = await loadWordNumbersFresh();
+  const list = await loadWordNumbersFresh(!!force);
   if ((currentUid() || null) === uid) {
     sessionWords = list;
     sessionWordsUid = uid;
@@ -546,14 +547,10 @@ export async function getWordNumbers(force) {
   return list;
 }
 
-async function loadWordNumbersFresh() {
+async function loadWordNumbersFresh(force) {
   const uid = currentUid();
   const epoch = authEpoch;
-  try {
-    await refreshAllowance();
-  } catch (_) {
-    /* the global cap still applies */
-  }
+  const noteOpts = { background: !force };
   try {
     if (uid) await migrateLegacyWordNumbersOnce(uid);
     if (uid) await adoptUnscopedWords(uid);
@@ -568,30 +565,33 @@ async function loadWordNumbersFresh() {
 
     let remoteMeta = null;
     try {
-      remoteMeta = await readSyncMeta(uid);
+      remoteMeta = await readSyncMeta(uid, noteOpts);
     } catch (_) {
       remoteMeta = null;
     }
     const wordKeys = wordSyncKeys(uid);
     const savedVer = await AsyncStorage.getItem(wordKeys.ver);
     const since = await AsyncStorage.getItem(wordKeys.at);
-    const fullFresh = fullSyncFresh(Number((await AsyncStorage.getItem(wordKeys.full)) || 0));
-    const versionSame = remoteMeta && savedVer && String(remoteMeta.version) === String(savedVer);
-    if (versionSame && local.length && (fullFresh || heavySyncPaused())) {
+    const plan = syncPlan({
+      remoteVersion: remoteMeta && remoteMeta.version,
+      savedVersion: savedVer,
+      since,
+      localCount: local.length,
+    });
+    if ((plan.mode === 'local' || plan.mode === 'adopt') && local.length) {
+      if (plan.mode === 'adopt' && remoteMeta && remoteMeta.version) {
+        rememberWordSync(uid, remoteMeta.version, false, new Date().toISOString()).catch(() => {});
+      }
       const cleaned = await applyDedupe(local, uid, epoch);
       const shown = sortWordNumbers(cleaned.filter((item) => !item.deleted));
-      rememberWordLoad({
-        onPhone: shown.length,
-        cloud: heavySyncPaused() ? 'skipped' : 'local',
-        reason: heavySyncPaused() ? 'allowance' : '',
-      });
+      rememberWordLoad({ onPhone: shown.length, cloud: 'local', reason: plan.reason });
       return shown;
     }
-    if (!heavySyncPaused() && remoteMeta && savedVer && since && local.length && String(remoteMeta.version) !== String(savedVer)) {
+    if (plan.mode === 'delta' && remoteMeta && !syncBlocked(noteOpts)) {
       try {
         const cursorAt = new Date().toISOString();
-        const changed = await fetchUpdatedSince(collection(db, 'users', uid, 'wordNumbers'), since);
-        if (!changed.capped || heavySyncPaused()) {
+        const changed = await fetchUpdatedSince(collection(db, 'users', uid, 'wordNumbers'), since, noteOpts);
+        if (!changed.capped) {
           const byId = new Map();
           local.forEach((item) => {
             if (item?.id) byId.set(String(item.id), item);
@@ -609,19 +609,29 @@ async function loadWordNumbersFresh() {
           const cleaned = await applyDedupe(merged, uid, epoch);
           return sortWordNumbers(cleaned.filter((item) => !item.deleted));
         }
+        if (!force && local.length) {
+          rememberWordLoad({ onPhone: local.length, cloud: 'skipped', reason: 'mismatch' });
+          return sortWordNumbers(local.filter((item) => !item.deleted));
+        }
       } catch (e) {
         console.warn('Word delta skipped', e);
       }
     }
-    if (heavySyncPaused()) {
+    if ((syncBlocked(noteOpts) || heavySyncPaused()) && local.length && !force) {
       const shown = sortWordNumbers(local.filter((item) => !item.deleted));
       rememberWordLoad({ onPhone: shown.length, cloud: 'skipped', reason: 'allowance' });
       return shown;
     }
 
+    if (local.length && !force) {
+      const shown = sortWordNumbers(local.filter((item) => !item.deleted));
+      rememberWordLoad({ onPhone: shown.length, cloud: 'local', reason: 'kept-cache' });
+      return shown;
+    }
+
     let remote = [];
     try {
-      remote = await fetchWordNumbersFromFirebase();
+      remote = await fetchWordNumbersFromFirebase(noteOpts);
       rememberWordLoad({ onPhone: local.length, cloud: 'read', cloudCount: remote.length, reason: '' });
     } catch (e) {
       rememberWordLoad({

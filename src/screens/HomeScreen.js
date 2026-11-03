@@ -12,7 +12,7 @@ import { getProfilePhotoUri, saveProfilePhotoUri, getProfilePhotoTurn } from '..
 import { getEvents, readVisibleEvents } from '../services/eventService';
 import { loadAdmin, isBlocked, canSeeHomeAddEvent, canSeeHomeAdmin } from '../services/adminService';
 import { syncAcceptedJoins } from '../services/peopleService';
-import { allowanceStatus, flushUsage } from '../services/usageService';
+import { allowanceMessage, allowanceStatus, flushUsage } from '../services/usageService';
 import { getWordNumbers } from '../services/wordToIntService';
 import {
   evaluateStamps,
@@ -172,15 +172,7 @@ export default function HomeScreen({ navigation, user, onLogout }) {
     allowanceStatus()
       .then((status) => {
         if (cancelled) return;
-        setAllowanceNote(
-          status.exempt
-            ? 'Allowance: exempt (testing)'
-            : status.testing
-              ? `Allowance: ${status.allowance} (testing). Used ${status.used} today.`
-              : status.over
-                ? `You've used today's free allowance (${status.used} of ${status.allowance}). Events already on this phone still open. A full reload waits until tomorrow.`
-                : ''
-        );
+        setAllowanceNote(allowanceMessage(status));
       })
       .catch(() => {});
     flushUsage().catch(() => {});

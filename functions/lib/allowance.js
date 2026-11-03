@@ -4,7 +4,7 @@
  */
 
 const DEFAULT_RULES = {
-  dailyAllowance: 500,
+  dailyAllowance: 2000,
   resetTz: 'Europe/London',
   adUnlockPoints: 200,
   wR: 1,

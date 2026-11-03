@@ -32,6 +32,7 @@ const { foldEvents, encodeCursor, decodeCursor } = require('./lib/recap');
 const { lookupKey, checkBatchSize, classifyWords } = require('./lib/wordBatch');
 const { readIndex, matchByNumber, listReadCost } = require('./lib/wordIndex');
 const { createWordIndexIo } = require('./wordIndexIo');
+const { createAlerts } = require('./alerts');
 
 initializeApp();
 setGlobalOptions({ region: 'europe-west2' });
@@ -1654,3 +1655,5 @@ exports.api = onRequest(
   },
   app,
 );
+
+Object.assign(exports, createAlerts(db));

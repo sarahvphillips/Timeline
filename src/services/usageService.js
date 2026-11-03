@@ -4,7 +4,7 @@ import { auth, db } from './firebase';
 import { allowanceCap } from './allowanceCap';
 
 const DEFAULT_RULES = {
-  dailyAllowance: 500,
+  dailyAllowance: 2000,
   resetTz: 'Europe/London',
   adUnlockPoints: 200,
   version: 1,
@@ -13,14 +13,20 @@ const DEFAULT_RULES = {
   wD: 1,
 };
 
+const BACKGROUND_DAY_CAP = 2500;
+const MINUTE_CAP = 150;
+const LEGACY_CAP = 500;
+
 let rulesCache = null;
 let entitlementsCache = null;
 let entitlementsUid = undefined;
 let usage = emptyUsage();
 let lastFlush = 0;
+let minute = { start: 0, points: 0 };
+let activityMarked = '';
 
 function emptyUsage() {
-  return { date: ukDay(), reads: 0, writes: 0, deletes: 0 };
+  return { date: ukDay(), reads: 0, writes: 0, deletes: 0, backgroundReads: 0, backgroundWrites: 0 };
 }
 
 export function ukDay(date = new Date()) {
@@ -41,19 +47,46 @@ function rollDay() {
   if (usage.date !== today) usage = emptyUsage();
 }
 
-export function noteRead(count = 1) {
-  rollDay();
-  usage.reads += count;
+function chargeMinute(points) {
+  const now = Date.now();
+  if (now - minute.start > 60000) minute = { start: now, points: 0 };
+  minute.points += points;
 }
 
-export function noteWrite(count = 1) {
+function pointWeight(kind) {
+  const rules = rulesCache || DEFAULT_RULES;
+  if (kind === 'write') return Number(rules.wW) || 3;
+  if (kind === 'delete') return Number(rules.wD) || 1;
+  return Number(rules.wR) || 1;
+}
+
+export function noteRead(count = 1, opts) {
   rollDay();
-  usage.writes += count;
+  const n = Math.max(0, Number(count) || 0);
+  chargeMinute(n * pointWeight('read'));
+  if (opts && opts.background) {
+    usage.backgroundReads += n;
+    return;
+  }
+  usage.reads += n;
+}
+
+export function noteWrite(count = 1, opts) {
+  rollDay();
+  const n = Math.max(0, Number(count) || 0);
+  chargeMinute(n * pointWeight('write'));
+  if (opts && opts.background) {
+    usage.backgroundWrites += n;
+    return;
+  }
+  usage.writes += n;
 }
 
 export function noteDelete(count = 1) {
   rollDay();
-  usage.deletes += count;
+  const n = Math.max(0, Number(count) || 0);
+  chargeMinute(n * pointWeight('delete'));
+  usage.deletes += n;
 }
 
 export function usagePoints(row = usage, rules = rulesCache || DEFAULT_RULES) {
@@ -81,6 +114,29 @@ export function heavySyncPaused() {
   return usagePoints() >= decision.cap;
 }
 
+export function runawayPaused() {
+  return Date.now() - minute.start <= 60000 && minute.points >= MINUTE_CAP;
+}
+
+export function syncBlocked({ background } = {}) {
+  if (runawayPaused()) return true;
+  if (background) {
+    const points = (usage.backgroundReads || 0) * pointWeight('read')
+      + (usage.backgroundWrites || 0) * pointWeight('write');
+    return points >= BACKGROUND_DAY_CAP;
+  }
+  return heavySyncPaused();
+}
+
+export function allowanceMessage(status) {
+  if (!status || status.exempt || status.allowance == null) return '';
+  const reset = 'Resets at midnight London time.';
+  if (status.over) {
+    return `You've used today's allowance (${status.used} of ${status.allowance}). Events and words already on this phone still open, and edits on this phone still save. A cloud reload waits until tomorrow. ${reset}`;
+  }
+  return `Allowance today: ${status.used} of ${status.allowance}. ${reset}`;
+}
+
 export async function loadUsageRules() {
   if (rulesCache) return rulesCache;
   const uid = auth.currentUser?.uid;
@@ -89,6 +145,9 @@ export async function loadUsageRules() {
     const snap = await getDoc(doc(db, 'config', 'usageRules'));
     noteRead(1);
     rulesCache = snap.exists() ? { ...DEFAULT_RULES, ...snap.data() } : DEFAULT_RULES;
+    if (Number(rulesCache.dailyAllowance) === LEGACY_CAP && !rulesCache.allowanceComputedAt) {
+      rulesCache = { ...rulesCache, dailyAllowance: DEFAULT_RULES.dailyAllowance };
+    }
   } catch {
     rulesCache = DEFAULT_RULES;
   }
@@ -182,6 +241,18 @@ export async function flushUsage() {
       },
       { merge: true },
     );
+    const mark = `${uid}:${usage.date}`;
+    if (activityMarked !== mark) {
+      try {
+        await setDoc(doc(db, 'activity', usage.date, 'users', uid), {
+          uid,
+          at: new Date().toISOString(),
+        }, { merge: true });
+        activityMarked = mark;
+      } catch (e) {
+        console.warn('Could not mark the day active', e?.message || e);
+      }
+    }
   } catch (e) {
     lastFlush = 0;
     console.warn('Could not save usage', e?.message || e);

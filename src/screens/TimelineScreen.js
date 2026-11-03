@@ -39,6 +39,7 @@ import {
   TIMELINE_FILTERS,
   timelineFiltersFor,
   eventMatchesTimelineFilter,
+  loadOlderEvents,
 } from '../services/eventService';
 import HomeFab from '../components/HomeFab';
 import { openEventEditor } from './EventViewScreen';
@@ -94,6 +95,7 @@ export default function TimelineScreen({ navigation, route }) {
   };
 
   const noticesOnce = useRef(false);
+  const olderBusy = useRef(false);
 
   const loadEvents = useCallback(async (force) => {
     setLoading(true);
@@ -523,6 +525,19 @@ export default function TimelineScreen({ navigation, route }) {
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadEvents(true); }} tintColor="#3b82f6" />
             }
+            scrollEventThrottle={400}
+            onScroll={(e) => {
+              if (e.nativeEvent.contentOffset.y > 80 || olderBusy.current) return;
+              olderBusy.current = true;
+              loadOlderEvents()
+                .then((list) => {
+                  if (Array.isArray(list) && list.length) setAllEvents(list);
+                })
+                .catch(() => {})
+                .finally(() => {
+                  olderBusy.current = false;
+                });
+            }}
           />
         </View>
       )}

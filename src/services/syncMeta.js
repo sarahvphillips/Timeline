@@ -37,11 +37,11 @@ export function clearSyncCache() {
 }
 
 /** One read of users/{uid}/meta/sync, reused for a few seconds so events and words share it. */
-export async function readSyncMeta(uid) {
+export async function readSyncMeta(uid, opts) {
   if (!uid) return null;
   if (cache.uid === uid && Date.now() - cache.at < 5000) return cache.data;
   const snap = await getDoc(syncDoc(uid));
-  noteRead(1);
+  noteRead(1, opts);
   const data = snap.exists() ? snap.data() : null;
   cache = { uid, at: Date.now(), data };
   return data;
@@ -79,7 +79,7 @@ export function fullSyncFresh(fullAt) {
  * Pages where('updatedAt','>', since) orderBy updatedAt.
  * Returns the docs and whether the cap was hit (caller should full-sync).
  */
-export async function fetchUpdatedSince(colRef, since) {
+export async function fetchUpdatedSince(colRef, since, opts) {
   const rows = [];
   let cursor = null;
   let pages = 0;
@@ -89,7 +89,7 @@ export async function fetchUpdatedSince(colRef, since) {
     const q = cursor ? query(colRef, ...parts, startAfter(cursor)) : query(colRef, ...parts);
     const snap = await getDocs(q);
     pages += 1;
-    noteRead(snap.size);
+    noteRead(snap.size, opts);
     snap.forEach((d) => rows.push(d));
     if (snap.size < PAGE) break;
     cursor = snap.docs[snap.docs.length - 1];
