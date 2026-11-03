@@ -15,6 +15,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { readHelloFreshLink } from '../services/helloFreshLink';
 import { getEvents, saveEvent } from '../services/eventService';
 import { copyTextToClipboard } from '../services/shareService';
+import DateField from '../components/DateField';
+import { saveShoppingHandoff } from '../services/shoppingHandoff';
+import {
+  clearShoppingList,
+  handoffPayload,
+  pastRecipeCards,
+  restoreArchive,
+} from '../services/shoppingPlan';
 import { useTheme } from '../themeContext';
 import {
   REMAKE_PERK_CREDITS,
@@ -34,6 +42,7 @@ import {
   splitIngredientList,
   uberFindStoreUrl,
   uberStoreUrl,
+  includeFoodOnList,
   visibleRecipes,
 } from '../services/remakeList';
 
@@ -57,6 +66,18 @@ export default function ShoppingListScreen({ navigation, route }) {
   const [copiedId, setCopiedId] = useState('');
   const [group, setGroup] = useState('meal');
   const [sharing, setSharing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [picked, setPicked] = useState({});
+  const [planDate, setPlanDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [recipePage, setRecipePage] = useState(1);
+  const [planning, setPlanning] = useState(false);
+  const [botMode, setBotMode] = useState('all');
+  const [substitutions, setSubstitutions] = useState('ask');
+  const [exceptions, setExceptions] = useState('');
+  const [capPounds, setCapPounds] = useState('');
+  const [allowedShops, setAllowedShops] = useState({});
+  const [optedIn, setOptedIn] = useState(false);
+  const [handing, setHanding] = useState(false);
   const focusMealId = route?.params?.mealId || '';
 
   useFocusEffect(
@@ -116,6 +137,8 @@ export default function ShoppingListScreen({ navigation, route }) {
   }
 
   const selectedOn = (id) => !state.selected || state.selected.includes(id);
+  const past = pastRecipeCards(events);
+  const pastPage = past.slice(0, recipePage * 6);
 
   function toggleMeal(id) {
     const current = recipes.filter((r) => selectedOn(r.id)).map((r) => r.id);
@@ -200,6 +223,90 @@ export default function ShoppingListScreen({ navigation, route }) {
     setDraftItems('');
     setDraftBox(false);
     setAdding(false);
+  }
+
+  async function addPastRecipes() {
+    const chosen = past.filter((recipe) => picked[recipe.key]);
+    if (!chosen.length) {
+      Alert.alert('Pick a recipe', 'Choose at least one past recipe.');
+      return;
+    }
+    setPlanning(true);
+    try {
+      const day = planDate || new Date().toISOString().slice(0, 10);
+      const parsed = new Date(`${day}T12:00:00`);
+      if (Number.isNaN(parsed.getTime())) {
+        Alert.alert('Pick a date', 'Choose the day you plan to cook.');
+        return;
+      }
+      for (const recipe of chosen) {
+        const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+        await saveEvent({
+          id,
+          title: recipe.name,
+          recipeName: recipe.name,
+          foodItems: recipe.items,
+          description: recipe.when ? `Planned again. Last cooked ${String(recipe.when).slice(0, 10)}.` : 'Planned again.',
+          date: parsed.toISOString(),
+          category: 'other',
+          source: 'food',
+          mealKit: recipe.isBox || undefined,
+          nextAction: 'none',
+        });
+        await includeFoodOnList(id);
+      }
+      const [saved, list] = await Promise.all([loadRemakeState(), getEvents().catch(() => events)]);
+      setState(saved);
+      setEvents(Array.isArray(list) ? list : events);
+      setPicked({});
+      setPickerOpen(false);
+      Alert.alert('Added', `${chosen.length} planned meal${chosen.length === 1 ? '' : 's'}. The old meals were not changed.`);
+    } catch (e) {
+      Alert.alert('Could not add', e?.message || 'Try again.');
+    } finally {
+      setPlanning(false);
+    }
+  }
+
+  function confirmClear() {
+    Alert.alert(
+      'Clear the shopping list?',
+      'The meals stay on your timeline. This list is kept so you can put it back.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear list',
+          style: 'destructive',
+          onPress: () => persist(clearShoppingList(state, recipes)),
+        },
+      ]
+    );
+  }
+
+  async function handToBot() {
+    setHanding(true);
+    try {
+      const payload = handoffPayload({
+        mode: botMode,
+        shop,
+        substitutions,
+        exceptions,
+        capPounds,
+        allowedShops: SHOPS.filter((item) => allowedShops[item.id]).map((item) => item.label),
+        optedIn,
+        lines,
+      });
+      await saveShoppingHandoff(payload);
+      await copyTextToClipboard(listText(recipes, lines, shop, state));
+      Alert.alert(
+        'List ready for your Grok Bot',
+        'The list is copied, and saved for GET /shopping. Timeline will not pay or check out.'
+      );
+    } catch (e) {
+      Alert.alert('Not handed over', e?.message || 'Try again.');
+    } finally {
+      setHanding(false);
+    }
   }
 
   async function saveIngredients(recipe) {
@@ -484,6 +591,108 @@ export default function ShoppingListScreen({ navigation, route }) {
       <Text style={styles.intro}>
         Remake a past meal without the box. Every line stays on its own meal, so a swap in the aisle still belongs to that plate.
       </Text>
+
+      <View style={styles.card}>
+        <TouchableOpacity style={styles.primary} onPress={() => setPickerOpen((open) => !open)}>
+          <Text style={styles.primaryText}>{pickerOpen ? 'Close past recipes' : 'Add recipe from previous events'}</Text>
+        </TouchableOpacity>
+        {pickerOpen ? (
+          <>
+            <Text style={styles.intro}>Newest first. Repeated names are shown once, on the last cooked date. The old event is not changed.</Text>
+            <Text style={styles.label}>Plan to cook on</Text>
+            <DateField value={planDate} onChange={setPlanDate} />
+            {past.length === 0 ? (
+              <Text style={styles.intro}>No food events on this phone yet.</Text>
+            ) : pastPage.map((recipe) => {
+              const on = !!picked[recipe.key];
+              return (
+                <TouchableOpacity
+                  key={recipe.key}
+                  style={[styles.chip, on && styles.chipOn, { marginTop: 8 }]}
+                  onPress={() => setPicked((cur) => ({ ...cur, [recipe.key]: !cur[recipe.key] }))}
+                >
+                  <Text style={[styles.chipText, on && styles.chipOnText]}>
+                    {on ? '✓ ' : ''}{recipe.name} · last {String(recipe.when || '').slice(0, 10) || 'date not set'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            {past.length > pastPage.length ? (
+              <TouchableOpacity style={styles.smallBtn} onPress={() => setRecipePage((n) => n + 1)}>
+                <Text style={styles.smallBtnText}>Show more</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.primary} onPress={addPastRecipes} disabled={planning}>
+              <Text style={styles.primaryText}>{planning ? 'Adding…' : 'Add selected as new meals'}</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+        <TouchableOpacity style={styles.smallBtn} onPress={confirmClear}>
+          <Text style={styles.smallBtnText}>Clear all recipes</Text>
+        </TouchableOpacity>
+        {(state.archives || []).map((archive) => (
+          <TouchableOpacity key={archive.id} style={styles.smallBtn} onPress={() => persist(restoreArchive(state, archive.id))}>
+            <Text style={styles.smallBtnText}>Put back {archive.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.section}>Ask my Grok Bot</Text>
+        <Text style={styles.intro}>Hands over this list. Timeline does not pay, and it does not check out.</Text>
+        {[
+          ['one', 'One by one'],
+          ['all', 'All, then feedback'],
+          ['order', 'Just order it'],
+        ].map(([id, label]) => (
+          <TouchableOpacity key={id} style={[styles.chip, botMode === id && styles.chipOn, { marginTop: 6 }]} onPress={() => setBotMode(id)}>
+            <Text style={[styles.chipText, botMode === id && styles.chipOnText]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+        <Text style={styles.label}>If an item is missing</Text>
+        <View style={styles.row}>
+          {[
+            ['ask', 'Ask me'],
+            ['allow', 'Allow a swap'],
+            ['skip', 'Skip it'],
+          ].map(([id, label]) => (
+            <TouchableOpacity key={id} style={[styles.chip, substitutions === id && styles.chipOn]} onPress={() => setSubstitutions(id)}>
+              <Text style={[styles.chipText, substitutions === id && styles.chipOnText]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TextInput
+          style={styles.input}
+          value={exceptions}
+          onChangeText={setExceptions}
+          placeholder="Exceptions, such as lactose-free milk"
+          placeholderTextColor={colors.faint}
+        />
+        {botMode === 'order' ? (
+          <>
+            <Text style={styles.intro}>This can spend money. Set a cap, the shops that are allowed, and tick the box. The bot must stop if the bank asks for a code.</Text>
+            <Text style={styles.label}>Spending cap (£)</Text>
+            <TextInput style={styles.input} value={capPounds} onChangeText={setCapPounds} placeholder="25" placeholderTextColor={colors.faint} keyboardType="decimal-pad" />
+            <View style={styles.row}>
+              {SHOPS.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.chip, allowedShops[item.id] && styles.chipOn]}
+                  onPress={() => setAllowedShops((cur) => ({ ...cur, [item.id]: !cur[item.id] }))}
+                >
+                  <Text style={[styles.chipText, allowedShops[item.id] && styles.chipOnText]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={[styles.chip, optedIn && styles.chipOn]} onPress={() => setOptedIn((on) => !on)}>
+              <Text style={[styles.chipText, optedIn && styles.chipOnText]}>{optedIn ? '✓ I allow this order' : 'I allow this order'}</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+        <TouchableOpacity style={styles.primary} onPress={handToBot} disabled={handing}>
+          <Text style={styles.primaryText}>{handing ? 'Saving…' : 'Hand this list to my Grok Bot'}</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.label}>HelloFresh recipe link</Text>

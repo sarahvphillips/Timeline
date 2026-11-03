@@ -512,6 +512,28 @@ app.get('/me/profile', wrap(async (req, res) => {
   res.json(publicProfile(snap.exists ? snap.data() : {}));
 }));
 
+// GET /shopping -> the list the signed-in user's Grok Bot may read. One read. Does not pay.
+app.get('/shopping', wrap(async (req, res) => {
+  const snap = await db.collection('users').doc(req.uid).collection('meta').doc('shoppingHandoff').get();
+  if (!snap.exists) return res.json({ ready: false, paysInApp: false, items: [], reads: 1 });
+  const data = snap.data() || {};
+  res.json({
+    ready: true,
+    paysInApp: false,
+    mode: data.mode || '',
+    shop: data.shop || '',
+    substitutions: data.substitutions || 'ask',
+    exceptions: data.exceptions || '',
+    capPence: data.capPence == null ? null : data.capPence,
+    allowedShops: data.allowedShops || [],
+    optedIn: !!data.optedIn,
+    items: data.items || [],
+    note: data.note || '',
+    createdAt: data.createdAt || null,
+    reads: 1,
+  });
+}));
+
 // POST /photos -> { eventId, storagePath, downloadUrl }
 app.post('/photos', wrap(async (req, res) => {
   const image = await readImage(req);

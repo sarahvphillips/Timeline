@@ -58,6 +58,9 @@ Explicit `source` / `category` override `kind`.
 ### `GET /me/profile` (read only)
 `200` → `{ "displayName", "dateOfBirth", "dateOfBirthIso", "username" }` from `users/{uid}/settings/profile`. `dateOfBirth` is as stored; `dateOfBirthIso` is `yyyy-mm-dd` or `null`; `username` is the handle with no `@`. Missing fields are `""`. Email, devices, visibility, and the photo are never returned. There is no write route.
 
+### `GET /shopping`
+The shopping list the app last handed to this user's Grok Bot. One read. `200` → `{ ready, paysInApp: false, mode, shop, substitutions, exceptions, capPence, allowedShops, optedIn, items, note, createdAt, reads: 1 }`. `ready: false` if nothing has been handed over. Timeline does not take payment. `mode` is `one` (one item at a time), `all` (the whole list, then a summary), or `order` (only after a spending cap, allowed shops, and an explicit tick). Stop if the shop asks for a bank code. Do not place a real order in a test.
+
 ### `POST /photos`
 Upload one image (max 5 MB, `image/*`). Stored at `users/{uid}/events/{eventId}/imageUri.jpg`, the same path the app uses.
 Send one of:
