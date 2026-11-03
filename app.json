@@ -11,10 +11,6 @@
       "android",
       "web"
     ],
-    "splash": {
-      "backgroundColor": "#000000",
-      "image": "./assets/icon.png"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sarahphillips.timelineapp",
@@ -104,7 +100,16 @@
           "sounds": []
         }
       ],
-      "expo-iap"
+      "expo-iap",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "image": "./assets/icon.png"
+        }
+      ],
+      "expo-font",
+      "expo-asset"
     ],
     "icon": "./assets/icon.png",
     "owner": "sarahpoet6014",
