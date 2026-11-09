@@ -54,6 +54,34 @@ function allowanceCap(rules, entitlements, usage) {
   return base + unlockBonus(usage, cfg);
 }
 
+function pointsForOps(reads, writes, deletes, rules) {
+  const cfg = { ...DEFAULT_RULES, ...(rules || {}) };
+  return Math.max(0,
+    num(reads, 0) * num(cfg.wR, DEFAULT_RULES.wR)
+    + num(writes, 0) * num(cfg.wW, DEFAULT_RULES.wW)
+    + num(deletes, 0) * num(cfg.wD, DEFAULT_RULES.wD));
+}
+
+/**
+ * Price a bulk word write before it runs.
+ * cap Infinity means the account is exempt: the batch is allowed, and the caller should say so.
+ */
+function planBulkCharge({ used, cap, reads, writes, rules }) {
+  const cost = pointsForOps(reads, writes, 0, rules);
+  if (cap === Infinity) {
+    return { ok: true, exempt: true, used: num(used, 0), allowance: null, estimatedCost: cost, cost };
+  }
+  const verdict = assessCharge({ points: used, cost, cap });
+  return {
+    ok: verdict.ok,
+    exempt: false,
+    used: verdict.ok ? verdict.used : num(used, 0),
+    allowance: cap,
+    estimatedCost: cost,
+    cost,
+  };
+}
+
 function assessCharge({ points, cost, cap }) {
   const used = num(points, 0);
   const next = used + num(cost, 0);
@@ -74,8 +102,10 @@ module.exports = {
   DEFAULT_RULES,
   DEFAULT_ACTIONS,
   pointsFor,
+  pointsForOps,
   allowanceCap,
   assessCharge,
+  planBulkCharge,
   actionForMethod,
   unlockBonus,
 };

@@ -1,13 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ukDay, nextMidnight } = require('../lib/ukTime');
-const { pointsFor, allowanceCap, assessCharge, actionForMethod, DEFAULT_RULES } = require('../lib/allowance');
+const { pointsFor, pointsForOps, allowanceCap, assessCharge, planBulkCharge, actionForMethod, DEFAULT_RULES } = require('../lib/allowance');
 const { createRateLimiter } = require('../lib/rateLimit');
 const { foldEvents, pageEvents, encodeCursor, decodeCursor } = require('../lib/recap');
 const { dobToIso, publicProfile } = require('../lib/profile');
 const { decideKeyCreate } = require('../lib/keys');
 const { applyDelta, tombstone } = require('../lib/delta');
-const { lookupKey, checkBatchSize, checkDailyWordBudget, classifyWords, WORD_BULK_CAP } = require('../lib/wordBatch');
+const { lookupKey, checkBatchSize, checkDailyWordBudget, checkWriteBurst, classifyWords, WORD_BULK_CAP, WORD_BURST_WRITES } = require('../lib/wordBatch');
 const { commitBulk, commitDelete, rebuildEntries, packIndex, listReadCost, matchByNumber } = require('../lib/wordIndex');
 const { computeAllowance } = require('../lib/allowanceBudget');
 const { maskEmail, changedFields, duplicateGroups, directoryWithinLimit } = require('../lib/discord');
@@ -171,6 +171,37 @@ test('a 2080 word sheet is refused before any read', () => {
   assert.equal(checkBatchSize(WORD_BULK_CAP).estimatedReads, 1);
   assert.equal(checkBatchSize(WORD_BULK_CAP + 1).ok, false);
   assert.equal(lookupKey('Hello   World'), 'hello world');
+});
+
+test('a bulk word write is priced before it runs and a second batch stops', async () => {
+  const rules = DEFAULT_RULES;
+  const huge = planBulkCharge({ used: 0, cap: 500, reads: 1, writes: 500, rules });
+  assert.equal(huge.ok, false);
+  assert.equal(huge.estimatedCost, pointsForOps(1, 500, 0, rules));
+  assert.equal(huge.estimatedCost, 1 + 500 * 3);
+  const cap = 2000;
+  const first = planBulkCharge({ used: 0, cap, reads: 1, writes: 417, rules });
+  assert.equal(first.ok, true);
+  assert.equal(first.used, 1 + 417 * 3);
+  const second = planBulkCharge({ used: first.used, cap, reads: 1, writes: 417, rules });
+  assert.equal(second.ok, false);
+  assert.equal(second.estimatedCost, 1 + 417 * 3);
+  const exempt = planBulkCharge({ used: 0, cap: Infinity, reads: 1, writes: 500, rules });
+  assert.equal(exempt.ok, true);
+  assert.equal(exempt.exempt, true);
+
+  let clock = 1_000_000;
+  const limiter = createRateLimiter({ limit: WORD_BURST_WRITES, now: () => clock });
+  const burstA = await limiter.hit('bot', 417);
+  assert.equal(burstA.ok, true);
+  const burstB = await limiter.hit('bot', 417);
+  assert.equal(burstB.ok, false);
+  assert.ok(burstB.retryAfter >= 1);
+  const pure = checkWriteBurst({ used: 417, writes: 417, limit: WORD_BURST_WRITES });
+  assert.equal(pure.ok, false);
+  clock += 61_000;
+  const burstC = await limiter.hit('bot', 417);
+  assert.equal(burstC.ok, true);
 });
 
 test('word budget stops an oversized day and bulk results stay per word', () => {

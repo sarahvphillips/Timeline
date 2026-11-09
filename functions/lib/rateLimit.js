@@ -7,7 +7,8 @@
 function createRateLimiter({ limit = 60, windowMs = 60000, now = Date.now, store = null, flushEvery = 15, headroom = 5 } = {}) {
   const memory = new Map();
 
-  async function hit(key) {
+  async function hit(key, weight = 1) {
+    const add = Math.max(1, Math.floor(Number(weight) || 1));
     const t = now();
     const windowStart = t - (t % windowMs);
     let slot = memory.get(key);
@@ -22,14 +23,14 @@ function createRateLimiter({ limit = 60, windowMs = 60000, now = Date.now, store
       slot = { windowStart, count: base, dirty: 0 };
       memory.set(key, slot);
     }
-    if (slot.count + 1 > limit) {
+    if (slot.count + add > limit) {
       const retryAfter = Math.max(1, Math.ceil((slot.windowStart + windowMs - t) / 1000));
       return { ok: false, retryAfter, limit, count: slot.count };
     }
-    slot.count += 1;
-    slot.dirty += 1;
+    slot.count += add;
+    slot.dirty += add;
     const nearCap = slot.count >= limit - headroom;
-    const firstOfWindow = slot.count === 1;
+    const firstOfWindow = slot.count === add;
     if (store && (firstOfWindow || slot.dirty >= flushEvery || nearCap)) {
       try {
         await store.write(key, { windowStart: slot.windowStart, count: slot.count });
@@ -39,7 +40,20 @@ function createRateLimiter({ limit = 60, windowMs = 60000, now = Date.now, store
     return { ok: true, retryAfter: 0, limit, count: slot.count };
   }
 
-  return { hit, _memory: memory };
+  async function release(key, weight) {
+    const drop = Math.max(0, Math.floor(Number(weight) || 0));
+    if (!drop) return;
+    const slot = memory.get(key);
+    if (!slot) return;
+    slot.count = Math.max(0, slot.count - drop);
+    if (store) {
+      try {
+        await store.write(key, { windowStart: slot.windowStart, count: slot.count });
+      } catch (_) { /* the next hit still reads memory */ }
+    }
+  }
+
+  return { hit, release, _memory: memory };
 }
 
 module.exports = { createRateLimiter };

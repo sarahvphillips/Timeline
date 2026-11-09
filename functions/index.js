@@ -30,6 +30,7 @@ const { decideKeyCreate } = require('./lib/keys');
 const { tombstone } = require('./lib/delta');
 const { foldEvents, encodeCursor, decodeCursor } = require('./lib/recap');
 const { lookupKey, checkBatchSize, classifyWords } = require('./lib/wordBatch');
+const { pointsForOps } = require('./lib/allowance');
 const { readIndex, matchByNumber, listReadCost } = require('./lib/wordIndex');
 const { createWordIndexIo } = require('./wordIndexIo');
 const { createAlerts } = require('./alerts');
@@ -135,6 +136,36 @@ class HttpError extends Error {
 }
 
 const guard = createGuard(db, HttpError, { limit: RATE_LIMIT_PER_MINUTE });
+
+function wordRoutePricesItself(req) {
+  if (req.method !== 'POST') return false;
+  const path = String(req.path || '').split('?')[0];
+  return path === '/words' || path === '/words/bulk' || path === '/words/index/rebuild';
+}
+
+/** Hold the real point cost and the per-minute write stop before a word write. */
+async function holdWordCost(req, reads, writes) {
+  const burst = await guard.enforceWriteBurst(req.keyHash, writes);
+  try {
+    const hold = await guard.reservePoints(req.uid, reads, writes);
+    return { burst, hold };
+  } catch (e) {
+    await guard.releaseWriteBurst(req.keyHash, burst.held);
+    throw e;
+  }
+}
+
+async function finishWordCost(req, booked, actualReads, actualWrites) {
+  if (!booked) return;
+  try {
+    const actual = booked.hold.exempt ? 0 : pointsForOps(actualReads, actualWrites, 0);
+    await guard.settlePoints(req.uid, booked.hold.estimatedCost, actual);
+    const unused = Math.max(0, (booked.burst.held || 0) - Math.max(0, Number(actualWrites) || 0));
+    await guard.releaseWriteBurst(req.keyHash, unused);
+  } catch (e) {
+    console.warn('word cost settle failed', e && e.message);
+  }
+}
 
 const sha256 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 
@@ -491,7 +522,7 @@ app.use((req, res, next) => {
       req.uid = uid;
       req.keyHash = hash;
       await guard.enforceRate(hash);
-      await guard.enforceAllowance(uid, req.method);
+      if (!wordRoutePricesItself(req)) await guard.enforceAllowance(uid, req.method);
       next();
     })
     .catch((e) => {
@@ -1428,25 +1459,71 @@ app.post('/words', wrap(async (req, res) => {
     if (preferred === 'all') throw new HttpError(400, 'preferred cannot be all');
   }
   await guard.reserveWordOps(req.uid, 1, 2);
-  const now = new Date().toISOString();
+  const booked = await holdWordCost(req, 1, 2);
   const row = { text: r.phrase, key: lookupKey(r.phrase), notes: body.notes, preferred };
-  const outcome = await wordIo.saveBulk(req.uid, [row], (item, seq) => makeWord(req.uid, item, seq), now);
-  failWordResult(outcome);
+  let outcome;
+  try {
+    outcome = await wordIo.saveBulk(req.uid, [row], (item, seq) => makeWord(req.uid, item, seq), new Date().toISOString());
+    failWordResult(outcome);
+    await finishWordCost(req, booked, outcome.reads, outcome.writes);
+  } catch (e) {
+    await finishWordCost(req, booked, 0, 0);
+    throw e;
+  }
   const hit = outcome.byKey.get(row.key);
   if (hit.status === 'existing') {
-    return res.json({ existing: true, id: hit.id, values: wordValues(r), reads: outcome.reads, writes: outcome.writes });
+    return res.json({
+      existing: true,
+      id: hit.id,
+      values: wordValues(r),
+      reads: outcome.reads,
+      writes: outcome.writes,
+      estimatedCost: booked.hold.estimatedCost,
+      exempt: booked.hold.exempt || undefined,
+    });
   }
   await bumpSync(req.uid, 'word:create', req);
-  res.status(201).json({ existing: false, word: hit.word, values: wordValues(r), reads: outcome.reads, writes: outcome.writes });
+  res.status(201).json({
+    existing: false,
+    word: hit.word,
+    values: wordValues(r),
+    reads: outcome.reads,
+    writes: outcome.writes,
+    estimatedCost: booked.hold.estimatedCost,
+    exempt: booked.hold.exempt || undefined,
+  });
 }));
 
 // POST /words/index/rebuild -> one read per saved word, one write of the index
 app.post('/words/index/rebuild', wrap(async (req, res) => {
-  const out = await wordIo.rebuild(req.uid);
-  failWordResult(out);
+  let count = 0;
+  try {
+    const agg = await wordIo.wordsCol(req.uid).count().get();
+    count = Number(agg.data().count) || 0;
+  } catch (e) {
+    const err = new HttpError(503, 'Could not price the index rebuild. Nothing was written.');
+    err.code = 'words_unavailable';
+    throw err;
+  }
+  const booked = await holdWordCost(req, count + 1, 1);
+  let out;
+  try {
+    out = await wordIo.rebuild(req.uid);
+    failWordResult(out);
+    await finishWordCost(req, booked, out.reads, out.writes);
+  } catch (e) {
+    await finishWordCost(req, booked, 0, 0);
+    throw e;
+  }
   await guard.noteWordOps(req.uid, out.reads, out.writes);
   await bumpSync(req.uid, 'word:index', req);
-  res.json(out);
+  res.json({
+    ...out,
+    estimatedCost: booked.hold.estimatedCost,
+    exempt: booked.hold.exempt || undefined,
+    used: booked.hold.used,
+    allowance: booked.hold.allowance,
+  });
 }));
 
 // POST /words/bulk { words, notes?, preferred? } -> 1 index read, then new words + the index
@@ -1478,16 +1555,25 @@ app.post('/words/bulk', wrap(async (req, res) => {
   });
   const pending = classified.pending.filter((row) => row.status === 'pending');
   let outcome = { reads: 0, writes: 0, byKey: new Map() };
+  let booked = null;
   if (pending.length) {
-    await guard.reserveWordOps(req.uid, 1, pending.length + 1);
-    outcome = await wordIo.saveBulk(
-      req.uid,
-      pending,
-      (item, seq) => makeWord(req.uid, item, seq),
-      new Date().toISOString(),
-    );
-    failWordResult(outcome);
-    if (outcome.writes) await bumpSync(req.uid, 'word:bulk', req);
+    const reads = 1;
+    const worstWrites = pending.length + 1;
+    booked = await holdWordCost(req, reads, worstWrites);
+    try {
+      await guard.reserveWordOps(req.uid, reads, worstWrites);
+      outcome = await wordIo.saveBulk(
+        req.uid,
+        pending,
+        (item, seq) => makeWord(req.uid, item, seq),
+        new Date().toISOString(),
+      );
+      failWordResult(outcome);
+      await finishWordCost(req, booked, outcome.reads, outcome.writes);
+    } catch (e) {
+      await finishWordCost(req, booked, 0, 0);
+      throw e;
+    }
   }
   const results = classified.results.map((row) => {
     if (row.duplicateInRequest) {
@@ -1503,6 +1589,7 @@ app.post('/words/bulk', wrap(async (req, res) => {
   const added = results.filter((row) => row.status === 'added').length;
   const existing = results.filter((row) => row.status === 'existing').length;
   const errors = results.filter((row) => row.status === 'error').length;
+  if (outcome.writes) await bumpSync(req.uid, 'word:bulk', req);
   res.status(added ? 201 : 200).json({
     count: results.length,
     added,
@@ -1512,6 +1599,10 @@ app.post('/words/bulk', wrap(async (req, res) => {
     writes: outcome.writes,
     estimatedReads: pending.length ? 1 : 0,
     estimatedWrites: outcome.writes,
+    estimatedCost: booked ? booked.hold.estimatedCost : 0,
+    used: booked ? booked.hold.used : undefined,
+    allowance: booked ? booked.hold.allowance : undefined,
+    exempt: booked && booked.hold.exempt ? true : undefined,
     results,
   });
 }));

@@ -1,7 +1,7 @@
 const { createRateLimiter } = require('./lib/rateLimit');
-const { pointsFor, allowanceCap, assessCharge, actionForMethod, DEFAULT_RULES } = require('./lib/allowance');
+const { pointsFor, pointsForOps, allowanceCap, assessCharge, actionForMethod, DEFAULT_RULES } = require('./lib/allowance');
 const { ukDay, nextMidnight } = require('./lib/ukTime');
-const { checkDailyWordBudget, WORD_DAILY_READS, WORD_DAILY_WRITES } = require('./lib/wordBatch');
+const { checkDailyWordBudget, WORD_DAILY_READS, WORD_DAILY_WRITES, WORD_BURST_WRITES } = require('./lib/wordBatch');
 
 /**
  * Rate limit (60/min, Retry-After) and daily allowance (402).
@@ -11,6 +11,21 @@ const { checkDailyWordBudget, WORD_DAILY_READS, WORD_DAILY_WRITES } = require('.
 function createGuard(db, HttpError, opts = {}) {
   const limiter = createRateLimiter({
     limit: opts.limit || 60,
+    store: {
+      async read(key) {
+        const snap = await db.collection('botRate').doc(key).get();
+        return snap.exists ? snap.data() : null;
+      },
+      async write(key, data) {
+        await db.collection('botRate').doc(key).set(
+          { windowStart: data.windowStart, count: data.count },
+          { merge: true },
+        );
+      },
+    },
+  });
+  const writeBurst = createRateLimiter({
+    limit: opts.writeBurst || WORD_BURST_WRITES,
     store: {
       async read(key) {
         const snap = await db.collection('botRate').doc(key).get();
@@ -62,6 +77,7 @@ function createGuard(db, HttpError, opts = {}) {
       allowance: verdict.allowance,
       resetsAt: reset.resetsAt,
     };
+    if (verdict.cost != null) err.details.estimatedCost = verdict.cost;
     throw err;
   }
 
@@ -226,7 +242,83 @@ function createGuard(db, HttpError, opts = {}) {
     }
   }
 
-  return { enforceRate, enforceAllowance, reserveWordOps, noteWordOps };
+  async function enforceWriteBurst(hash, writes) {
+    const n = Math.max(0, Math.floor(Number(writes) || 0));
+    if (!n || !hash) return { held: 0 };
+    const hit = await writeBurst.hit(`w:${hash}`, n);
+    if (!hit.ok) {
+      const err = new HttpError(429, `Too many word writes in one minute (${hit.limit}). Wait, then send a smaller batch. Nothing was written.`);
+      err.retryAfter = hit.retryAfter;
+      err.code = 'rate_limit';
+      throw err;
+    }
+    return { held: n };
+  }
+
+  async function releaseWriteBurst(hash, writes) {
+    const n = Math.max(0, Math.floor(Number(writes) || 0));
+    if (!n || !hash) return;
+    await writeBurst.release(`w:${hash}`, n);
+  }
+
+  /** Hold the real point cost before a word write. Exempt accounts are allowed and marked. */
+  async function reservePoints(uid, reads, writes) {
+    const cfg = await rules();
+    const slot = await loadSlot(uid, cfg);
+    const cost = pointsForOps(reads, writes, 0, cfg);
+    if (slot.cap === Infinity) {
+      return { exempt: true, estimatedCost: cost, used: slot.points, allowance: null };
+    }
+    const ref = db.collection('users').doc(uid).collection('meta').doc('botUsage');
+    let verdict = null;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists ? snap.data() : {};
+      const cur = data.date === slot.date ? Number(data.points) || 0 : 0;
+      const held = Math.max(cur, slot.points);
+      const next = held + cost;
+      if (next > slot.cap) {
+        verdict = { ok: false, used: held, allowance: slot.cap, cost };
+        return;
+      }
+      tx.set(ref, {
+        date: slot.date,
+        points: next,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      verdict = { ok: true, used: next, allowance: slot.cap, cost };
+    });
+    if (!verdict || !verdict.ok) failAllowance(verdict || { used: slot.points, allowance: slot.cap, cost }, cfg);
+    slot.points = verdict.used;
+    slot.dirty = 0;
+    slot.loadedAt = Date.now();
+    return { exempt: false, estimatedCost: cost, used: verdict.used, allowance: slot.cap };
+  }
+
+  /** Give back the part of a hold that the write did not use. */
+  async function settlePoints(uid, reservedCost, actualCost) {
+    const refund = Math.max(0, (Number(reservedCost) || 0) - (Number(actualCost) || 0));
+    if (!refund) return;
+    const cfg = await rules();
+    const slot = await loadSlot(uid, cfg);
+    if (slot.cap === Infinity) return;
+    const ref = db.collection('users').doc(uid).collection('meta').doc('botUsage');
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists ? snap.data() : {};
+      const cur = data.date === slot.date ? Number(data.points) || 0 : 0;
+      const next = Math.max(0, cur - refund);
+      tx.set(ref, {
+        date: slot.date,
+        points: next,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      slot.points = next;
+    });
+    slot.loadedAt = Date.now();
+  }
+
+  return { enforceRate, enforceAllowance, enforceWriteBurst, releaseWriteBurst, reservePoints, settlePoints, reserveWordOps, noteWordOps };
 }
 
 module.exports = { createGuard };

@@ -8,6 +8,8 @@
 const WORD_BULK_CAP = 499;
 const WORD_DAILY_READS = 20000;
 const WORD_DAILY_WRITES = 20000;
+/** Hard stop for a runaway key. One full batch fits. A second large batch in the same minute does not. */
+const WORD_BURST_WRITES = 600;
 
 /** Lower case, trimmed, single spaces. Same key the word index stores. */
 function lookupKey(phrase) {
@@ -64,6 +66,16 @@ function checkDailyWordBudget({ usedReads, usedWrites, reads, writes, caps }) {
   return { ok: true, usedReads: nextReads, usedWrites: nextWrites, readCap, writeCap };
 }
 
+function checkWriteBurst({ used, writes, limit }) {
+  const cap = Math.max(1, Math.floor(Number(limit) || WORD_BURST_WRITES));
+  const spent = Math.max(0, Math.floor(Number(used) || 0));
+  const add = Math.max(0, Math.floor(Number(writes) || 0));
+  if (spent + add > cap) {
+    return { ok: false, used: spent, writes: add, limit: cap };
+  }
+  return { ok: true, used: spent + add, writes: add, limit: cap };
+}
+
 function classifyWords(items, shared) {
   const seen = new Set();
   const notesForAll = String((shared && shared.notes) || '').trim().slice(0, 5000);
@@ -94,10 +106,12 @@ module.exports = {
   WORD_BULK_CAP,
   WORD_DAILY_READS,
   WORD_DAILY_WRITES,
+  WORD_BURST_WRITES,
   lookupKey,
   hasWordLetters,
   estimateWordOps,
   checkBatchSize,
   checkDailyWordBudget,
+  checkWriteBurst,
   classifyWords,
 };
